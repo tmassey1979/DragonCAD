@@ -525,27 +525,40 @@
                                         Background="#2A3340"
                                         Foreground="{StaticResource DragonText}"
                                         Content="Cancel placement" />
-                                <Grid ColumnDefinitions="Auto,Auto,Auto,Auto"
+                                <Grid x:Name="ComponentInspectorMotionPad"
+                                      ColumnDefinitions="Auto,Auto,Auto,Auto"
                                       ColumnSpacing="6">
                                     <Button Command="{Binding MoveSelectedLeftCommand}"
+                                            ToolTip.Tip="Move selected part left"
                                             Width="34"
                                             Height="30"
-                                            Content="←" />
+                                            Padding="7">
+                                        <PathIcon Data="M 4,12 L 12,4 L 12,9 L 20,9 L 20,15 L 12,15 L 12,20 Z" />
+                                    </Button>
                                     <Button Grid.Column="1"
                                             Command="{Binding MoveSelectedRightCommand}"
+                                            ToolTip.Tip="Move selected part right"
                                             Width="34"
                                             Height="30"
-                                            Content="→" />
+                                            Padding="7">
+                                        <PathIcon Data="M 20,12 L 12,4 L 12,9 L 4,9 L 4,15 L 12,15 L 12,20 Z" />
+                                    </Button>
                                     <Button Grid.Column="2"
                                             Command="{Binding MoveSelectedUpCommand}"
+                                            ToolTip.Tip="Move selected part up"
                                             Width="34"
                                             Height="30"
-                                            Content="↑" />
+                                            Padding="7">
+                                        <PathIcon Data="M 12,4 L 20,12 L 15,12 L 15,20 L 9,20 L 9,12 L 4,12 Z" />
+                                    </Button>
                                     <Button Grid.Column="3"
                                             Command="{Binding MoveSelectedDownCommand}"
+                                            ToolTip.Tip="Move selected part down"
                                             Width="34"
                                             Height="30"
-                                            Content="↓" />
+                                            Padding="7">
+                                        <PathIcon Data="M 12,20 L 20,12 L 15,12 L 15,4 L 9,4 L 9,12 L 4,12 Z" />
+                                    </Button>
                                 </Grid>
                                 <Border Height="1"
                                         Background="{StaticResource DragonBorder}" />

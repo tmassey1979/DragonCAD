@@ -281,6 +281,22 @@ public sealed class AppProjectRuntimeTests
     }
 
     [Fact]
+    public void MainWindowUsesIconMotionPadInComponentInspector()
+    {
+        string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
+
+        Assert.Contains("x:Name=\"ComponentInspectorMotionPad\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ToolTip.Tip=\"Move selected part left\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ToolTip.Tip=\"Move selected part right\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ToolTip.Tip=\"Move selected part up\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ToolTip.Tip=\"Move selected part down\"", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"←\"", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"→\"", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"↑\"", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"↓\"", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowIncludesSchematicIconToolRail()
     {
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
