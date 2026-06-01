@@ -271,6 +271,16 @@ public sealed class AppProjectRuntimeTests
     }
 
     [Fact]
+    public void MainWindowUsesConciseWorkbenchActionHint()
+    {
+        string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
+
+        Assert.Contains("x:Name=\"WorkbenchActionHint\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Text=\"Editor tools\"", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"{Binding PlacementStatus}\"\r\n                                   VerticalAlignment=\"Center\"\r\n                                   TextTrimming=\"CharacterEllipsis\"", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowIncludesSchematicIconToolRail()
     {
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");

@@ -335,10 +335,10 @@
 
                         <TextBlock x:Name="WorkbenchActionHint"
                                    Grid.Column="1"
-                                   Text="{Binding PlacementStatus}"
+                                   Text="Editor tools"
                                    VerticalAlignment="Center"
                                    TextTrimming="CharacterEllipsis"
-                                   Foreground="{StaticResource DragonGreen}" />
+                                   Foreground="{StaticResource DragonMutedText}" />
 
                         <StackPanel Grid.Column="2"
                                     Orientation="Horizontal"
