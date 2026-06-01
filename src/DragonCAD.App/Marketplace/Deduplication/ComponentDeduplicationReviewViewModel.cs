@@ -48,6 +48,15 @@ public sealed class ComponentDeduplicationReviewViewModel : INotifyPropertyChang
 
     public string RejectedCountLabel => FormatCount(RejectedCount, "rejected");
 
+    public string ToolbarReviewCounts => $"P {PendingCount} | A {ApprovedCount} | R {RejectedCount}";
+
+    public string NextReviewActionText =>
+        CandidateCount == 0
+            ? "No review candidates"
+            : PendingCount == 0
+                ? "Review queue complete"
+                : "Review next pending candidate";
+
     public string ReviewSummary =>
         CandidateCount == 0
             ? "No duplicate candidates to review"
@@ -106,6 +115,8 @@ public sealed class ComponentDeduplicationReviewViewModel : INotifyPropertyChang
         OnPropertyChanged(nameof(PendingCountLabel));
         OnPropertyChanged(nameof(ApprovedCountLabel));
         OnPropertyChanged(nameof(RejectedCountLabel));
+        OnPropertyChanged(nameof(ToolbarReviewCounts));
+        OnPropertyChanged(nameof(NextReviewActionText));
         OnPropertyChanged(nameof(ReviewSummary));
     }
 

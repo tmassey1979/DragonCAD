@@ -1024,7 +1024,8 @@ public sealed class MainWindowViewModelTests
 
         var order = Assert.Single(viewModel.MarketplacePlacedOrderHistory);
         Assert.Equal("ORDER-0001", order.OrderId);
-        Assert.Equal("Local order record created", order.Status);
+        Assert.Equal("Order recorded", order.Status);
+        Assert.Equal("View order", order.PrimaryActionLabel);
         Assert.Contains("No live vendor order was placed.", order.ProviderOrders[0].ProviderSubmissionStatus, StringComparison.Ordinal);
         Assert.Equal("Local order records: 1", viewModel.MarketplacePlacedOrderHistorySummary);
     }

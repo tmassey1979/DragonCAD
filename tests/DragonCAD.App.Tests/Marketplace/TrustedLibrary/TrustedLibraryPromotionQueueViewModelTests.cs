@@ -181,6 +181,7 @@ public sealed class TrustedLibraryPromotionQueueViewModelTests
         Assert.Equal("1 pending", viewModel.PendingStatusLabel);
         Assert.Equal("1 blocked", viewModel.BlockedStatusLabel);
         Assert.Equal("1 ready / 1 pending / 1 blocked", viewModel.QueueStatusSummary);
+        Assert.Equal("Stage 1 ready", viewModel.NextActionStatusLabel);
     }
 
     [Fact]
@@ -208,6 +209,7 @@ public sealed class TrustedLibraryPromotionQueueViewModelTests
         Assert.Equal(0, viewModel.PendingCount);
         Assert.Equal(0, viewModel.BlockedCount);
         Assert.Equal("1 ready / 0 pending / 0 blocked", viewModel.QueueStatusSummary);
+        Assert.Equal("Stage 1 ready", viewModel.NextActionStatusLabel);
         Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.ReadyCount), changedProperties);
         Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.PendingCount), changedProperties);
         Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.BlockedCount), changedProperties);
@@ -215,6 +217,30 @@ public sealed class TrustedLibraryPromotionQueueViewModelTests
         Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.PendingStatusLabel), changedProperties);
         Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.BlockedStatusLabel), changedProperties);
         Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.QueueStatusSummary), changedProperties);
+        Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.NextActionStatusLabel), changedProperties);
+    }
+
+    [Theory]
+    [InlineData(0, 0, 0, "No promotions queued")]
+    [InlineData(0, 1, 0, "Review 1 pending")]
+    [InlineData(0, 2, 1, "Review 2 pending")]
+    [InlineData(0, 0, 1, "1 blocked")]
+    [InlineData(1, 2, 1, "Stage 1 ready")]
+    [InlineData(3, 0, 0, "Stage 3 ready")]
+    public void FromPlanExposesCompactNextActionStatusLabelForQueueCard(
+        int readyCount,
+        int pendingCount,
+        int blockedCount,
+        string expectedLabel)
+    {
+        TrustedLibraryPromotionQueueViewModel viewModel = TrustedLibraryPromotionQueueViewModel.FromPlan(
+            new TrustedLibraryVendorMatchPromotionPlan(
+                BuildPromotionRecords(
+                    readyCount,
+                    pendingCount,
+                    blockedCount)));
+
+        Assert.Equal(expectedLabel, viewModel.NextActionStatusLabel);
     }
 
     [Fact]
@@ -273,6 +299,42 @@ public sealed class TrustedLibraryPromotionQueueViewModelTests
             new ComponentId(targetComponentId),
             artifacts,
             warnings);
+
+    private static IReadOnlyList<TrustedLibraryVendorMatchPromotionRecord> BuildPromotionRecords(
+        int readyCount,
+        int pendingCount,
+        int blockedCount) =>
+        Enumerable
+            .Range(0, readyCount)
+            .Select(index => PromotionRecord(
+                TrustedLibraryMatchReviewState.Approved,
+                provider: "Digi-Key",
+                vendorSku: $"READY-{index}",
+                manufacturerPartNumber: $"READY-MPN-{index}",
+                targetComponentId: $"core:test:ready-{index}",
+                artifacts: [],
+                warnings: []))
+            .Concat(Enumerable
+                .Range(0, pendingCount)
+                .Select(index => PromotionRecord(
+                    TrustedLibraryMatchReviewState.PendingReview,
+                    provider: "Jameco",
+                    vendorSku: $"PENDING-{index}",
+                    manufacturerPartNumber: $"PENDING-MPN-{index}",
+                    targetComponentId: $"core:test:pending-{index}",
+                    artifacts: [],
+                    warnings: [])))
+            .Concat(Enumerable
+                .Range(0, blockedCount)
+                .Select(index => PromotionRecord(
+                    TrustedLibraryMatchReviewState.Rejected,
+                    provider: "Mouser",
+                    vendorSku: $"BLOCKED-{index}",
+                    manufacturerPartNumber: $"BLOCKED-MPN-{index}",
+                    targetComponentId: $"core:test:blocked-{index}",
+                    artifacts: [],
+                    warnings: [])))
+            .ToArray();
 
     private static TrustedLibraryReviewedCandidate Candidate(
         TrustedLibraryMatchReviewState reviewState,

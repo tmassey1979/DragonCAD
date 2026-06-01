@@ -17,9 +17,32 @@ public sealed class MarketplaceCartViewModel : INotifyPropertyChanged
 
     public ObservableCollection<MarketplaceCartDiagnostic> Diagnostics { get; } = [];
 
+    public bool HasLines => Lines.Count > 0;
+
+    public int LineCount => Lines.Count;
+
+    public int UnitCount => Lines.Sum(line => line.Quantity);
+
     public decimal TotalUsd => Lines.Sum(line => line.SubtotalUsd);
 
     public string TotalSummary => TotalUsd.ToString("$0.00##", CultureInfo.InvariantCulture);
+
+    public string CartSummary
+    {
+        get
+        {
+            if (!HasLines)
+            {
+                return TotalSummary;
+            }
+
+            string lineLabel = LineCount == 1 ? "line" : "lines";
+            string unitLabel = UnitCount == 1 ? "unit" : "units";
+            return $"{LineCount.ToString("N0", CultureInfo.CurrentCulture)} {lineLabel}, {UnitCount.ToString("N0", CultureInfo.CurrentCulture)} {unitLabel}, {TotalSummary}";
+        }
+    }
+
+    public string EmptyStateMessage => "Add marketplace components to build a BOM cart.";
 
     public void AddItem(MarketplaceComponentRow row, int quantity = 1)
     {
@@ -106,6 +129,10 @@ public sealed class MarketplaceCartViewModel : INotifyPropertyChanged
 
         OnPropertyChanged(nameof(TotalUsd));
         OnPropertyChanged(nameof(TotalSummary));
+        OnPropertyChanged(nameof(HasLines));
+        OnPropertyChanged(nameof(LineCount));
+        OnPropertyChanged(nameof(UnitCount));
+        OnPropertyChanged(nameof(CartSummary));
     }
 
     private static bool CanAdd(MarketplaceComponentRow row, int quantity, out string reason)

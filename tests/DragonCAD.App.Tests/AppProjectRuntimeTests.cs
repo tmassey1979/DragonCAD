@@ -155,6 +155,11 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("Button.workbench-tab.active", mainWindow, StringComparison.Ordinal);
         Assert.Contains("MarketplaceBomCostRollup.TotalSummary", mainWindow, StringComparison.Ordinal);
         Assert.Contains("MarketplaceIntegrationStatus.NextActionText", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"MarketplaceBomCartStrip\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("MarketplaceCart.CartSummary", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("MarketplaceCart.EmptyStateMessage", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Create Order Draft", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Prepare CSV", mainWindow, StringComparison.Ordinal);
     }
 
     [Fact]

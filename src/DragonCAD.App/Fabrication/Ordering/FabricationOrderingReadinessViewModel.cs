@@ -14,6 +14,7 @@ public sealed class FabricationOrderingReadinessViewModel
         WarningCount = rows.Sum(row => row.Warnings.Count);
         MissingFileCount = rows.Sum(row => row.MissingFiles.Count);
         SummaryText = CreateSummaryText();
+        NextActionStatusLabel = CreateNextActionStatusLabel();
         EmptyStateText = HasRows
             ? string.Empty
             : "Select a marketplace or manufacturing provider to review package readiness.";
@@ -34,6 +35,8 @@ public sealed class FabricationOrderingReadinessViewModel
     public int MissingFileCount { get; }
 
     public string SummaryText { get; }
+
+    public string NextActionStatusLabel { get; }
 
     public string EmptyStateText { get; }
 
@@ -222,6 +225,26 @@ public sealed class FabricationOrderingReadinessViewModel
             $"{BlockedProviderCount} blocked, " +
             $"{WarningCount} {Pluralize("warning", WarningCount)}, " +
             $"{MissingFileCount} missing {Pluralize("file", MissingFileCount)}.";
+    }
+
+    private string CreateNextActionStatusLabel()
+    {
+        if (!HasRows)
+        {
+            return "Select provider";
+        }
+
+        if (MissingFileCount > 0)
+        {
+            return $"Fix {MissingFileCount} missing {Pluralize("file", MissingFileCount)}";
+        }
+
+        if (WarningCount > 0)
+        {
+            return $"Review {WarningCount} {Pluralize("warning", WarningCount)}";
+        }
+
+        return "Ready to package";
     }
 
     private static string Pluralize(string singular, int count) =>

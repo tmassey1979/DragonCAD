@@ -40,6 +40,40 @@ public sealed class MarketplaceBrowserViewModel : INotifyPropertyChanged
 
     public IReadOnlyList<string> CategoryFilterOptions => categoryFilterOptions;
 
+    public int VisibleComponentCount => Components.Count;
+
+    public int TotalComponentCount => allRows.Count;
+
+    public string SearchSummary
+    {
+        get
+        {
+            if (VisibleComponentCount == 0)
+            {
+                return TotalComponentCount == 0
+                    ? "No marketplace components available"
+                    : "No components match the current filters";
+            }
+
+            return $"Showing {VisibleComponentCount.ToString("N0", CultureInfo.CurrentCulture)} of {TotalComponentCount.ToString("N0", CultureInfo.CurrentCulture)} components";
+        }
+    }
+
+    public string EmptyStateMessage
+    {
+        get
+        {
+            if (VisibleComponentCount > 0)
+            {
+                return "";
+            }
+
+            return TotalComponentCount == 0
+                ? "No marketplace components are available yet."
+                : "No marketplace components match your search and filters.";
+        }
+    }
+
     public string SearchText
     {
         get => searchText;
@@ -142,10 +176,19 @@ public sealed class MarketplaceBrowserViewModel : INotifyPropertyChanged
         }
 
         SelectedComponent = Components.FirstOrDefault();
+        OnSearchStateChanged();
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
+    private void OnSearchStateChanged()
+    {
+        OnPropertyChanged(nameof(VisibleComponentCount));
+        OnPropertyChanged(nameof(TotalComponentCount));
+        OnPropertyChanged(nameof(SearchSummary));
+        OnPropertyChanged(nameof(EmptyStateMessage));
+    }
 
     private static IReadOnlyList<string> BuildCategoryFilterOptions(IEnumerable<MarketplaceComponentRow> rows) =>
         new[] { "All" }

@@ -22,6 +22,7 @@ public sealed class FabricationOrderingReadinessViewModelTests
         Assert.Equal("Blocked", row.PackageReadiness);
         Assert.Equal(["BOM", "Gerbers"], row.MissingFiles);
         Assert.Equal("Checkout/submission is disabled: package is blocked by 2 missing required files.", row.CheckoutSubmissionDisabledExplanation);
+        Assert.Equal("Fix 2 missing files", viewModel.NextActionStatusLabel);
     }
 
     [Fact]
@@ -40,6 +41,7 @@ public sealed class FabricationOrderingReadinessViewModelTests
         Assert.Equal("3 boards", row.QuantitySupport);
         Assert.Equal("Ready", row.PackageReadiness);
         Assert.Empty(row.MissingFiles);
+        Assert.Equal("Ready to package", viewModel.NextActionStatusLabel);
     }
 
     [Fact]
@@ -73,6 +75,7 @@ public sealed class FabricationOrderingReadinessViewModelTests
         Assert.Equal(0, viewModel.WarningCount);
         Assert.Equal(0, viewModel.MissingFileCount);
         Assert.Equal("No fabrication provider selected.", viewModel.SummaryText);
+        Assert.Equal("Select provider", viewModel.NextActionStatusLabel);
         Assert.Equal(
             "Select a marketplace or manufacturing provider to review package readiness.",
             viewModel.EmptyStateText);
@@ -163,7 +166,29 @@ public sealed class FabricationOrderingReadinessViewModelTests
         Assert.Equal(1, viewModel.WarningCount);
         Assert.Equal(2, viewModel.MissingFileCount);
         Assert.Equal("2 providers: 1 ready, 1 blocked, 1 warning, 2 missing files.", viewModel.SummaryText);
+        Assert.Equal("Fix 2 missing files", viewModel.NextActionStatusLabel);
         Assert.Equal(string.Empty, viewModel.EmptyStateText);
+    }
+
+    [Fact]
+    public void FromSourcesExposesWarningNextActionStatusLabelWhenPackageHasWarningsOnly()
+    {
+        FabricationOrderingReadinessViewModel viewModel = FabricationOrderingReadinessViewModel.FromSources(
+        [
+            new FabricationOrderingReadinessSource(
+                ProviderName: "Local Fab",
+                ProviderKind: "Production",
+                Mode: "Production board",
+                SupportedLayers: [],
+                MinimumQuantity: 1,
+                MaximumQuantity: int.MaxValue,
+                ValidationDiagnostics:
+                [
+                    FabricationOrderingDiagnostic.Warning("manual-review-required", "Manual fabrication review is required before provider submission.")
+                ])
+        ]);
+
+        Assert.Equal("Review 1 warning", viewModel.NextActionStatusLabel);
     }
 
     [Fact]

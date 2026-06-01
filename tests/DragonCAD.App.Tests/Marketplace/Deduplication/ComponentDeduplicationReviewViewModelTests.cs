@@ -45,6 +45,43 @@ public sealed class ComponentDeduplicationReviewViewModelTests
     }
 
     [Fact]
+    public void ToolbarStatusTextCompactsReviewCountsAndNextAction()
+    {
+        ComponentDeduplicationReviewViewModel viewModel = ComponentDeduplicationReviewViewModel.FromCandidates(
+            [
+                Candidate("NE555P", "Texas Instruments", ["Digi-Key:296-NE555P", "Mouser:595-NE555P"]),
+                Candidate("LM7805CT", "Texas Instruments", ["Digi-Key:296-LM7805CT", "Mouser:595-LM7805CT"]),
+                Candidate("MCP6002-I/P", "Microchip", ["Digi-Key:MCP6002-I/P", "Mouser:579-MCP6002-I/P"])
+            ]);
+
+        Assert.Equal("P 3 | A 0 | R 0", viewModel.ToolbarReviewCounts);
+        Assert.Equal("Review next pending candidate", viewModel.NextReviewActionText);
+
+        viewModel.Rows[0].ApproveCommand.Execute(null);
+        viewModel.Rows[1].RejectCommand.Execute(null);
+
+        Assert.Equal("P 1 | A 1 | R 1", viewModel.ToolbarReviewCounts);
+        Assert.Equal("Review next pending candidate", viewModel.NextReviewActionText);
+    }
+
+    [Fact]
+    public void ToolbarNextActionTextReflectsEmptyAndCompletedQueues()
+    {
+        ComponentDeduplicationReviewViewModel emptyViewModel = ComponentDeduplicationReviewViewModel.FromCandidates([]);
+
+        Assert.Equal("P 0 | A 0 | R 0", emptyViewModel.ToolbarReviewCounts);
+        Assert.Equal("No review candidates", emptyViewModel.NextReviewActionText);
+
+        ComponentDeduplicationReviewViewModel completedViewModel = ComponentDeduplicationReviewViewModel.FromCandidates(
+            [Candidate("NE555P", "Texas Instruments", ["Digi-Key:296-NE555P", "Mouser:595-NE555P"])]);
+
+        completedViewModel.Rows[0].ApproveCommand.Execute(null);
+
+        Assert.Equal("P 0 | A 1 | R 0", completedViewModel.ToolbarReviewCounts);
+        Assert.Equal("Review queue complete", completedViewModel.NextReviewActionText);
+    }
+
+    [Fact]
     public void FromMarketplaceRowsGroupsRowsByCanonicalAliasesAndPreservesProviderSourceKeys()
     {
         MarketplaceComponentRow[] rows =

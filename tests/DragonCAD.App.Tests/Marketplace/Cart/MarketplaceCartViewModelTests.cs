@@ -6,6 +6,18 @@ namespace DragonCAD.App.Tests.Marketplace.Cart;
 public sealed class MarketplaceCartViewModelTests
 {
     [Fact]
+    public void EmptyCartExposesCompactStripEmptyState()
+    {
+        MarketplaceCartViewModel viewModel = new();
+
+        Assert.False(viewModel.HasLines);
+        Assert.Equal(0, viewModel.LineCount);
+        Assert.Equal(0, viewModel.UnitCount);
+        Assert.Equal("$0.00", viewModel.CartSummary);
+        Assert.Equal("Add marketplace components to build a BOM cart.", viewModel.EmptyStateMessage);
+    }
+
+    [Fact]
     public void AddItemAddsAvailableMarketplaceRowToBomCart()
     {
         MarketplaceCartViewModel viewModel = new();
@@ -19,6 +31,46 @@ public sealed class MarketplaceCartViewModelTests
         Assert.Equal(8.67m, line.SubtotalUsd);
         Assert.Equal(8.67m, viewModel.TotalUsd);
         Assert.Empty(viewModel.Diagnostics);
+    }
+
+    [Fact]
+    public void CompactStripSummaryAndNotificationsRefreshAfterAddUpdateAndRemove()
+    {
+        MarketplaceCartViewModel viewModel = new();
+        List<string> changedProperties = [];
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName ?? "");
+
+        viewModel.AddItem(Row("Digi-Key", "ATmega328P", "ATMEGA328P-PU", stockQuantity: 25, price: 2.89m), quantity: 3);
+
+        Assert.True(viewModel.HasLines);
+        Assert.Equal(1, viewModel.LineCount);
+        Assert.Equal(3, viewModel.UnitCount);
+        Assert.Equal("1 line, 3 units, $8.67", viewModel.CartSummary);
+        Assert.Contains(nameof(MarketplaceCartViewModel.HasLines), changedProperties);
+        Assert.Contains(nameof(MarketplaceCartViewModel.LineCount), changedProperties);
+        Assert.Contains(nameof(MarketplaceCartViewModel.UnitCount), changedProperties);
+        Assert.Contains(nameof(MarketplaceCartViewModel.CartSummary), changedProperties);
+
+        changedProperties.Clear();
+        viewModel.UpdateQuantity(viewModel.Lines[0].LineId, quantity: 4);
+
+        Assert.Equal(1, viewModel.LineCount);
+        Assert.Equal(4, viewModel.UnitCount);
+        Assert.Equal("1 line, 4 units, $11.56", viewModel.CartSummary);
+        Assert.Contains(nameof(MarketplaceCartViewModel.UnitCount), changedProperties);
+        Assert.Contains(nameof(MarketplaceCartViewModel.CartSummary), changedProperties);
+
+        changedProperties.Clear();
+        viewModel.RemoveLine(viewModel.Lines[0].LineId);
+
+        Assert.False(viewModel.HasLines);
+        Assert.Equal(0, viewModel.LineCount);
+        Assert.Equal(0, viewModel.UnitCount);
+        Assert.Equal("$0.00", viewModel.CartSummary);
+        Assert.Contains(nameof(MarketplaceCartViewModel.HasLines), changedProperties);
+        Assert.Contains(nameof(MarketplaceCartViewModel.LineCount), changedProperties);
+        Assert.Contains(nameof(MarketplaceCartViewModel.UnitCount), changedProperties);
+        Assert.Contains(nameof(MarketplaceCartViewModel.CartSummary), changedProperties);
     }
 
     [Fact]

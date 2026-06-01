@@ -45,6 +45,29 @@ public sealed class TrustedLibraryPromotionQueueViewModel : INotifyPropertyChang
 
     public string QueueStatusSummary => $"{ReadyStatusLabel} / {PendingStatusLabel} / {BlockedStatusLabel}";
 
+    public string NextActionStatusLabel
+    {
+        get
+        {
+            if (ReadyCount > 0)
+            {
+                return $"Stage {ReadyStatusLabel}";
+            }
+
+            if (PendingCount > 0)
+            {
+                return $"Review {PendingStatusLabel}";
+            }
+
+            if (BlockedCount > 0)
+            {
+                return BlockedStatusLabel;
+            }
+
+            return "No promotions queued";
+        }
+    }
+
     public string QueueSummary
     {
         get
@@ -90,6 +113,7 @@ public sealed class TrustedLibraryPromotionQueueViewModel : INotifyPropertyChang
         OnPropertyChanged(nameof(PendingStatusLabel));
         OnPropertyChanged(nameof(BlockedStatusLabel));
         OnPropertyChanged(nameof(QueueStatusSummary));
+        OnPropertyChanged(nameof(NextActionStatusLabel));
         OnPropertyChanged(nameof(QueueSummary));
     }
 

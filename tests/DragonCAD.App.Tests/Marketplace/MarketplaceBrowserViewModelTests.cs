@@ -66,6 +66,43 @@ public sealed class MarketplaceBrowserViewModelTests
     }
 
     [Fact]
+    public void DisplaySearchStateTracksVisibleAndTotalComponentCounts()
+    {
+        MarketplaceBrowserViewModel viewModel = MarketplaceBrowserViewModel.FromRows(
+        [
+            Row("Digi-Key", "IC", "NE555 Timer", "NE555P", canonicalComponentId: "dragon:ne555"),
+            Row("Mouser", "IC", "TLC555 Timer", "TLC555CP", canonicalComponentId: "dragon:tlc555"),
+            Row("Digi-Key", "Module", "ESP32 DevKit", "ESP32-DEVKITC", canonicalComponentId: "dragon:esp32-devkit")
+        ]);
+
+        Assert.Equal(3, viewModel.VisibleComponentCount);
+        Assert.Equal(3, viewModel.TotalComponentCount);
+        Assert.Equal("Showing 3 of 3 components", viewModel.SearchSummary);
+        Assert.Equal("", viewModel.EmptyStateMessage);
+
+        viewModel.SelectedProviderFilter = "Digi-Key";
+
+        Assert.Equal(2, viewModel.VisibleComponentCount);
+        Assert.Equal(3, viewModel.TotalComponentCount);
+        Assert.Equal("Showing 2 of 3 components", viewModel.SearchSummary);
+        Assert.Equal("", viewModel.EmptyStateMessage);
+
+        viewModel.SelectedCategoryFilter = "IC";
+
+        Assert.Equal(1, viewModel.VisibleComponentCount);
+        Assert.Equal(3, viewModel.TotalComponentCount);
+        Assert.Equal("Showing 1 of 3 components", viewModel.SearchSummary);
+        Assert.Equal("", viewModel.EmptyStateMessage);
+
+        viewModel.SearchText = "missing";
+
+        Assert.Equal(0, viewModel.VisibleComponentCount);
+        Assert.Equal(3, viewModel.TotalComponentCount);
+        Assert.Equal("No components match the current filters", viewModel.SearchSummary);
+        Assert.Equal("No marketplace components match your search and filters.", viewModel.EmptyStateMessage);
+    }
+
+    [Fact]
     public void RowsExposeCanonicalAndDuplicateBadges()
     {
         MarketplaceBrowserViewModel viewModel = MarketplaceBrowserViewModel.FromRows(

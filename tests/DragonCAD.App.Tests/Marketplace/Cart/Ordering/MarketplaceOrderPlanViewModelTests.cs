@@ -22,6 +22,8 @@ public sealed class MarketplaceOrderPlanViewModelTests
         Assert.Equal(17, plan.UnitCount);
         Assert.Equal(24.43m, plan.TotalUsd);
         Assert.Equal("$24.43", plan.TotalSummary);
+        Assert.Equal("Plan ready", plan.Status);
+        Assert.Equal("Review draft", plan.PrimaryActionLabel);
 
         MarketplaceOrderProviderViewModel digiKey = plan.Providers[1];
         Assert.Equal(2, digiKey.ItemCount);
@@ -56,6 +58,18 @@ public sealed class MarketplaceOrderPlanViewModelTests
     }
 
     [Fact]
+    public void FromCartLabelsEmptyOrderPlanWithCompactNextAction()
+    {
+        MarketplaceCartViewModel cart = new();
+
+        MarketplaceOrderPlanViewModel plan = MarketplaceOrderPlanViewModel.FromCart(cart);
+
+        Assert.Empty(plan.Providers);
+        Assert.Equal("Cart empty", plan.Status);
+        Assert.Equal("Add items", plan.PrimaryActionLabel);
+    }
+
+    [Fact]
     public void FromCartCarriesUnavailableDiagnosticsWithoutCreatingProviderOrders()
     {
         MarketplaceCartViewModel cart = new();
@@ -84,12 +98,24 @@ public sealed class MarketplaceOrderPlanViewModelTests
             MarketplaceOrderPlanViewModel.FromCart(cart));
 
         Assert.Equal("DRAFT-0001", draft.DraftId);
-        Assert.Equal("Ready for in-app checkout review", draft.Status);
+        Assert.Equal("Draft ready", draft.Status);
+        Assert.Equal("Place order", draft.PrimaryActionLabel);
         Assert.Equal("$4.27", draft.TotalSummary);
         Assert.Equal(2, draft.ProviderOrders.Count);
         Assert.Equal(["Digi-Key", "Mouser"], draft.ProviderOrders.Select(provider => provider.Provider));
         Assert.All(draft.ProviderOrders, provider => Assert.Equal("Review order in DragonCAD", provider.ActionLabel));
         Assert.Contains(draft.ProviderOrders, provider => provider.Provider == "Digi-Key" && provider.LineCount == 1 && provider.UnitCount == 4);
+    }
+
+    [Fact]
+    public void InAppOrderDraftLabelsEmptyDraftWithCompactNextAction()
+    {
+        MarketplaceInAppOrderDraftViewModel draft = MarketplaceInAppOrderDraftViewModel.Create(
+            "DRAFT-EMPTY",
+            MarketplaceOrderPlanViewModel.FromCart(new MarketplaceCartViewModel()));
+
+        Assert.Equal("Cart empty", draft.Status);
+        Assert.Equal("Add items", draft.PrimaryActionLabel);
     }
 
     [Fact]
@@ -154,7 +180,8 @@ public sealed class MarketplaceOrderPlanViewModelTests
 
         Assert.Equal("ORDER-0001", order.OrderId);
         Assert.Equal("DRAFT-0002", order.DraftId);
-        Assert.Equal("Local order record created", order.Status);
+        Assert.Equal("Order recorded", order.Status);
+        Assert.Equal("View order", order.PrimaryActionLabel);
         Assert.Equal("$1.02", order.TotalSummary);
         Assert.Equal(["Mouser"], order.ProviderOrders.Select(provider => provider.Provider));
         Assert.Equal("No live vendor order was placed.", order.ProviderOrders[0].ProviderSubmissionStatus);

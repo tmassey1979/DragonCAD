@@ -24,6 +24,14 @@ public sealed class MarketplaceOrderPlanViewModel
 
     public string TotalSummary => FormatCurrency(TotalUsd);
 
+    public string Status => Providers.Count == 0
+        ? "Cart empty"
+        : "Plan ready";
+
+    public string PrimaryActionLabel => Providers.Count == 0
+        ? "Add items"
+        : "Review draft";
+
     public static MarketplaceOrderPlanViewModel FromCart(MarketplaceCartViewModel cart)
     {
         ArgumentNullException.ThrowIfNull(cart);
@@ -114,8 +122,12 @@ public sealed class MarketplaceInAppOrderDraftViewModel
     public string DraftId { get; }
 
     public string Status => ProviderOrders.Count == 0
-        ? "Add BOM items before checkout"
-        : "Ready for in-app checkout review";
+        ? "Cart empty"
+        : "Draft ready";
+
+    public string PrimaryActionLabel => ProviderOrders.Count == 0
+        ? "Add items"
+        : "Place order";
 
     public IReadOnlyList<MarketplaceProviderOrderDraftViewModel> ProviderOrders { get; }
 
@@ -255,7 +267,9 @@ public sealed class MarketplacePlacedOrderViewModel
 
     public string DraftId { get; }
 
-    public string Status => "Local order record created";
+    public string Status => "Order recorded";
+
+    public string PrimaryActionLabel => "View order";
 
     public IReadOnlyList<MarketplacePlacedProviderOrderViewModel> ProviderOrders { get; }
 
