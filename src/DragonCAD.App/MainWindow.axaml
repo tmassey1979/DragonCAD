@@ -285,104 +285,79 @@
                         BorderBrush="{StaticResource DragonBorder}"
                         BorderThickness="0,0,0,1"
                         Padding="8,4">
-                    <ScrollViewer HorizontalScrollBarVisibility="Auto"
-                                  VerticalScrollBarVisibility="Disabled">
+                    <Grid ColumnDefinitions="Auto,*,Auto"
+                          ColumnSpacing="14">
                         <StackPanel Orientation="Horizontal"
-                                    Spacing="14">
-                            <StackPanel Orientation="Horizontal"
-                                        Spacing="6">
-                                <TextBlock Text="Library"
-                                           VerticalAlignment="Center"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource DragonMutedText}" />
-                                <Button Content="Search"
-                                        Command="{Binding SearchLibraryCommand}"
-                                        Padding="10,4"
-                                        Background="#142033"
-                                        BorderBrush="{StaticResource DragonBorder}"
-                                        Foreground="{StaticResource DragonText}" />
-                                <Button Content="Place"
-                                        Command="{Binding PlaceSelectedComponentCommand}"
-                                        Padding="10,4"
-                                        Background="{StaticResource DragonGreen}"
-                                        Foreground="#061109" />
-                            </StackPanel>
-                            <Border Width="1"
-                                    Background="{StaticResource DragonBorder}" />
-                            <StackPanel Orientation="Horizontal"
-                                        Spacing="6">
-                                <TextBlock Text="Design"
-                                           VerticalAlignment="Center"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource DragonMutedText}" />
-                                <Button Content="Select"
-                                        Command="{Binding ActivateSelectToolCommand}"
-                                        Padding="10,4"
-                                        Background="#142033"
-                                        BorderBrush="{StaticResource DragonBorder}"
-                                        Foreground="{StaticResource DragonText}" />
-                                <Button Content="Wire"
-                                        Command="{Binding ActivateWireToolCommand}"
-                                        Padding="10,4"
-                                        Background="#142033"
-                                        BorderBrush="{StaticResource DragonBorder}"
-                                        Foreground="{StaticResource DragonText}" />
-                                <Button Content="Route"
-                                        Command="{Binding ActivateBoardRouteToolCommand}"
-                                        Padding="10,4"
-                                        Background="#142033"
-                                        BorderBrush="{StaticResource DragonBorder}"
-                                        Foreground="{StaticResource DragonText}" />
-                            </StackPanel>
-                            <Border Width="1"
-                                    Background="{StaticResource DragonBorder}" />
-                            <StackPanel Orientation="Horizontal"
-                                        Spacing="6">
-                                <TextBlock Text="Market"
-                                           VerticalAlignment="Center"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource DragonMutedText}" />
-                                <Button Content="Sync"
-                                        Command="{Binding RunVendorCatalogSyncCommand}"
-                                        Padding="10,4"
-                                        Background="#142033"
-                                        BorderBrush="{StaticResource DragonBorder}"
-                                        Foreground="{StaticResource DragonText}" />
-                                <Button Content="BOM CSV"
-                                        Command="{Binding PrepareMarketplaceBomCsvCommand}"
-                                        Padding="10,4"
-                                        Background="#142033"
-                                        BorderBrush="{StaticResource DragonBorder}"
-                                        Foreground="{StaticResource DragonText}" />
-                                <Button Content="Order Draft"
-                                        Command="{Binding CreateMarketplaceOrderDraftCommand}"
-                                        Padding="10,4"
-                                        Background="{StaticResource DragonAccent}"
-                                        Foreground="White" />
-                            </StackPanel>
-                            <Border Width="1"
-                                    Background="{StaticResource DragonBorder}" />
-                            <StackPanel Orientation="Horizontal"
-                                        Spacing="6">
-                                <TextBlock Text="Manufacturing"
-                                           VerticalAlignment="Center"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource DragonMutedText}" />
-                                <Button Content="Fabrication"
-                                        Command="{Binding ShowFabricationTabCommand}"
-                                        Padding="10,4"
-                                        Background="#142033"
-                                        BorderBrush="{StaticResource DragonBorder}"
-                                        Foreground="{StaticResource DragonText}" />
-                                <Button Content="Validate"
-                                        Command="{Binding ValidateDatasheetPromotionPackageCommand}"
-                                        Padding="10,4"
-                                        Background="#142033"
-                                        BorderBrush="{StaticResource DragonBorder}"
-                                        Foreground="{StaticResource DragonText}" />
-                            </StackPanel>
+                                    Spacing="8"
+                                    VerticalAlignment="Center">
+                            <TextBlock Text="Quick Actions"
+                                       VerticalAlignment="Center"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource DragonMutedText}" />
+                            <Menu x:Name="WorkbenchActionMenu"
+                                  Background="Transparent"
+                                  Foreground="{StaticResource DragonText}">
+                                <MenuItem Header="_Library">
+                                    <MenuItem Header="Search Components"
+                                              Command="{Binding SearchLibraryCommand}" />
+                                    <MenuItem Header="Place Selected Component"
+                                              Command="{Binding PlaceSelectedComponentCommand}" />
+                                </MenuItem>
+                                <MenuItem Header="_Design">
+                                    <MenuItem Header="Select Tool"
+                                              Command="{Binding ActivateSelectToolCommand}" />
+                                    <MenuItem Header="Wire Tool"
+                                              Command="{Binding ActivateWireToolCommand}" />
+                                    <MenuItem Header="Board Route Tool"
+                                              Command="{Binding ActivateBoardRouteToolCommand}" />
+                                    <Separator />
+                                    <MenuItem Header="Rotate Selection"
+                                              Command="{Binding RotateSelectedPartCommand}" />
+                                    <MenuItem Header="Mirror Selection"
+                                              Command="{Binding MirrorSelectedPartCommand}" />
+                                    <MenuItem Header="Delete Selection"
+                                              Command="{Binding DeleteActiveSelectionCommand}" />
+                                </MenuItem>
+                                <MenuItem Header="_Marketplace">
+                                    <MenuItem Header="Sync Vendor Catalog"
+                                              Command="{Binding RunVendorCatalogSyncCommand}" />
+                                    <MenuItem Header="Prepare BOM CSV"
+                                              Command="{Binding PrepareMarketplaceBomCsvCommand}" />
+                                    <MenuItem Header="Create Order Draft"
+                                              Command="{Binding CreateMarketplaceOrderDraftCommand}" />
+                                </MenuItem>
+                                <MenuItem Header="_Manufacturing">
+                                    <MenuItem Header="Open Fabrication"
+                                              Command="{Binding ShowFabricationTabCommand}" />
+                                    <MenuItem Header="Validate Datasheet Package"
+                                              Command="{Binding ValidateDatasheetPromotionPackageCommand}" />
+                                </MenuItem>
+                            </Menu>
                         </StackPanel>
-                    </ScrollViewer>
+
+                        <TextBlock x:Name="WorkbenchActionHint"
+                                   Grid.Column="1"
+                                   Text="{Binding PlacementStatus}"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   Foreground="{StaticResource DragonGreen}" />
+
+                        <StackPanel Grid.Column="2"
+                                    Orientation="Horizontal"
+                                    Spacing="8">
+                            <Button Content="Place"
+                                    Command="{Binding PlaceSelectedComponentCommand}"
+                                    Padding="12,4"
+                                    Background="{StaticResource DragonGreen}"
+                                    Foreground="#061109" />
+                            <Button Content="Order Draft"
+                                    Command="{Binding CreateMarketplaceOrderDraftCommand}"
+                                    Padding="12,4"
+                                    Background="{StaticResource DragonAccent}"
+                                    Foreground="White" />
+                        </StackPanel>
+                    </Grid>
                 </Border>
 
                 <Grid Grid.Row="2"

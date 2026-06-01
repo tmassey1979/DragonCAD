@@ -228,6 +228,23 @@ public sealed class AppProjectRuntimeTests
     }
 
     [Fact]
+    public void MainWindowOrganizesWorkbenchActionsIntoGroupedMenu()
+    {
+        string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
+
+        Assert.Contains("x:Name=\"WorkbenchActionMenu\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"WorkbenchActionHint\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<MenuItem Header=\"_Library\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<MenuItem Header=\"_Design\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<MenuItem Header=\"_Marketplace\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<MenuItem Header=\"_Manufacturing\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Quick Actions", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("PlaceSelectedComponentCommand", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ActivateWireToolCommand", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("CreateMarketplaceOrderDraftCommand", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowIncludesSchematicIconToolRail()
     {
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
