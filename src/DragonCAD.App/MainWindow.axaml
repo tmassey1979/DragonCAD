@@ -198,7 +198,7 @@
         </Border>
 
         <Grid Grid.Row="1"
-              ColumnDefinitions="260,*,340">
+              ColumnDefinitions="300,*,340">
             <Border BorderBrush="{StaticResource DragonBorder}"
                     BorderThickness="0,0,1,0"
                     Background="{StaticResource DragonPanelBackground}">
@@ -210,27 +210,32 @@
                                    FontWeight="SemiBold"
                                    Foreground="{StaticResource DragonText}" />
                     </Border>
-                    <StackPanel Margin="12"
-                                Spacing="8">
-                        <TextBlock Text="DragonCAD Workspace"
-                                   Foreground="{StaticResource DragonText}" />
-                        <TextBlock Text="Components"
-                                   Foreground="{StaticResource DragonGreen}" />
-                        <TextBlock Text="Component Library &amp; Marketplace"
-                                   Foreground="{StaticResource DragonMutedText}" />
-                        <TextBlock Text="Schematics"
-                                   Foreground="{StaticResource DragonMutedText}" />
-                        <TextBlock Text="PCB Layouts"
-                                   Foreground="{StaticResource DragonMutedText}" />
-                        <TextBlock Text="Datasheets"
-                                   Foreground="{StaticResource DragonMutedText}" />
-                        <TextBlock Text="Fabrication"
-                                   Foreground="{StaticResource DragonMutedText}" />
-                        <TextBlock Text="Firmware"
-                                   Foreground="{StaticResource DragonMutedText}" />
-                        <TextBlock Text="Capsules"
-                                   Foreground="{StaticResource DragonMutedText}" />
-                    </StackPanel>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <TreeView x:Name="ProjectExplorerTree"
+                                  Margin="8"
+                                  Foreground="{StaticResource DragonText}">
+                            <TreeViewItem Header="DragonCAD Workspace"
+                                          IsExpanded="True">
+                                <TreeViewItem Header="Design"
+                                              IsExpanded="True">
+                                    <TreeViewItem Header="Schematics" />
+                                    <TreeViewItem Header="PCB Layouts" />
+                                </TreeViewItem>
+                                <TreeViewItem Header="Components"
+                                              IsExpanded="True">
+                                    <TreeViewItem Header="Library + Marketplace" />
+                                    <TreeViewItem Header="Datasheets" />
+                                </TreeViewItem>
+                                <TreeViewItem Header="Manufacturing"
+                                              IsExpanded="True">
+                                    <TreeViewItem Header="Fabrication" />
+                                    <TreeViewItem Header="BOM and Orders" />
+                                </TreeViewItem>
+                                <TreeViewItem Header="Firmware" />
+                                <TreeViewItem Header="Capsules" />
+                            </TreeViewItem>
+                        </TreeView>
+                    </ScrollViewer>
                 </DockPanel>
             </Border>
 

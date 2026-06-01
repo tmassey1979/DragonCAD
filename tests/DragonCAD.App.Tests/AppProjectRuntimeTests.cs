@@ -245,6 +245,22 @@ public sealed class AppProjectRuntimeTests
     }
 
     [Fact]
+    public void MainWindowUsesProjectExplorerTree()
+    {
+        string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
+
+        Assert.Contains("x:Name=\"ProjectExplorerTree\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ColumnDefinitions=\"300,*,340\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<TreeViewItem Header=\"DragonCAD Workspace\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<TreeViewItem Header=\"Design\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<TreeViewItem Header=\"Components\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<TreeViewItem Header=\"Library + Marketplace\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<TreeViewItem Header=\"Manufacturing\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<TreeViewItem Header=\"Firmware\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<TreeViewItem Header=\"Capsules\"", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowIncludesSchematicIconToolRail()
     {
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
