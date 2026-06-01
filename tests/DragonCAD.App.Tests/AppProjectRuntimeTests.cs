@@ -175,6 +175,42 @@ public sealed class AppProjectRuntimeTests
     }
 
     [Fact]
+    public void MainWindowUsesRealMenusForWorkbenchCommands()
+    {
+        string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
+
+        Assert.Contains("<Menu x:Name=\"MainWorkbenchMenu\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<MenuItem Header=\"_File\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<MenuItem Header=\"_Edit\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<MenuItem Header=\"_View\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<MenuItem Header=\"_Place\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<MenuItem Header=\"_Route\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<MenuItem Header=\"_Marketplace\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<MenuItem Header=\"Fa_brication\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<MenuItem Header=\"_Help\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ShowComponentManagerTabCommand", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ShowMarketplaceTabCommand", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("PlaceSelectedComponentCommand", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("PrepareMarketplaceBomCsvCommand", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("RunVendorCatalogSyncCommand", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("RunInUseVendorCatalogSyncCommand", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Load7805SampleCommand", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"WorkbenchCommandBar\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"WorkspaceTabStrip\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Library", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Design", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Manufacturing", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("MarketplaceIntegrationStatus.ActionStripSummary.NextActionText", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("VendorCatalogSync.RunReadinessSummary", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("VendorCatalogSync.NextActionSummary", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("MarketplaceBomCostRollup.ProcurementReadinessSummary", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("MarketplaceBomCostRollup.ProcurementActionSummary", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("InUseVendorCatalogSyncActionSummary.FreshnessLabel", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("InUseVendorCatalogSyncActionSummary.PrimaryActionLabel", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("FabricationChecklistPreview.ActionSummary.SummaryText", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowIncludesSchematicIconToolRail()
     {
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");

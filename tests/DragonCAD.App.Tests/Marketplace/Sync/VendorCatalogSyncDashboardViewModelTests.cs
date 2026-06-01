@@ -111,6 +111,38 @@ public sealed class VendorCatalogSyncDashboardViewModelTests
         Assert.False(row.CanSync);
     }
 
+    [Fact]
+    public void DashboardSummarizesRunReadinessAndCredentialNextActions()
+    {
+        VendorCatalogSyncDashboardViewModel viewModel = VendorCatalogSyncDashboardViewModel.FromStatuses(
+            Now,
+            [
+                Status("Digi-Key", CatalogCredentialState.Configured),
+                Status("Mouser", CatalogCredentialState.Missing),
+                Status("Adafruit", CatalogCredentialState.NotRequired, isEnabled: false),
+                Status("SparkFun", CatalogCredentialState.NotRequired),
+                Status("Jameco", CatalogCredentialState.NotSupported)
+            ]);
+
+        Assert.Equal("2 ready, 2 need setup, 1 disabled", viewModel.RunReadinessSummary);
+        Assert.Equal("Add API credentials for Mouser", viewModel.NextActionSummary);
+    }
+
+    [Fact]
+    public void DashboardPromptsSyncWhenEveryEnabledProviderIsReady()
+    {
+        VendorCatalogSyncDashboardViewModel viewModel = VendorCatalogSyncDashboardViewModel.FromStatuses(
+            Now,
+            [
+                Status("Digi-Key", CatalogCredentialState.Configured),
+                Status("Adafruit", CatalogCredentialState.NotRequired),
+                Status("SparkFun", CatalogCredentialState.NotRequired, isEnabled: false)
+            ]);
+
+        Assert.Equal("2 ready, 0 need setup, 1 disabled", viewModel.RunReadinessSummary);
+        Assert.Equal("Run sync for 2 ready providers", viewModel.NextActionSummary);
+    }
+
     private static VendorCatalogSyncStatus Status(
         string providerName,
         CatalogCredentialState credentialState,

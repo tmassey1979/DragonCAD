@@ -56,11 +56,15 @@ public static class FabricationChecklistExportPreview
             .. rows.Select(row => Csv(row.FileName, row.Status, row.RelativePath))
         ];
 
+        FabricationManufacturingPackageActionSummary actionSummary =
+            FabricationManufacturingPackageActionSummary.FromPlan(plan, rows);
+
         return new FabricationChecklistPreview(
             option.ProviderName,
             option.OrderKindLabel,
             status,
             actionLabel,
+            actionSummary,
             rows,
             plan.Diagnostics,
             csvLines);
@@ -85,6 +89,7 @@ public sealed record FabricationChecklistPreview(
     string Mode,
     string Status,
     string ActionLabel,
+    FabricationManufacturingPackageActionSummary ActionSummary,
     IReadOnlyList<FabricationChecklistRow> Rows,
     IReadOnlyList<string> Diagnostics,
     IReadOnlyList<string> CsvLines);

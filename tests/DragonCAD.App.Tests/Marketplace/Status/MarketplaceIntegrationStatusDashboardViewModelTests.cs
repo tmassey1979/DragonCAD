@@ -69,6 +69,25 @@ public sealed class MarketplaceIntegrationStatusDashboardViewModelTests
     }
 
     [Fact]
+    public void FromSectionsExposesActionStripSummaryForHighestPriorityIssue()
+    {
+        MarketplaceIntegrationStatusDashboardViewModel dashboard = MarketplaceIntegrationStatusDashboardViewModel.FromSections(
+            [
+                Section(MarketplaceIntegrationSection.ApiSync, ready: 4, warnings: 1),
+                Section(MarketplaceIntegrationSection.InUseSync, ready: 6),
+                Section(MarketplaceIntegrationSection.BomRollup, ready: 9, warnings: 2),
+                Section(MarketplaceIntegrationSection.DedupReview, ready: 3, blocked: 2),
+                Section(MarketplaceIntegrationSection.TrustedLibraryPromotion, ready: 5),
+                Section(MarketplaceIntegrationSection.FabricationOrdering, ready: 1, blocked: 1),
+                Section(MarketplaceIntegrationSection.LiveSmoke, ready: 2)
+            ]);
+
+        Assert.Equal("Blocked", dashboard.ActionStripSummary.SeverityLabel);
+        Assert.Equal("Dedup review: 2 blocked", dashboard.ActionStripSummary.IssueText);
+        Assert.Equal("Review duplicate component candidates", dashboard.ActionStripSummary.NextActionText);
+    }
+
+    [Fact]
     public void FromSectionsReportsReadyDashboardWhenEverySectionIsClean()
     {
         MarketplaceIntegrationStatusDashboardViewModel dashboard = MarketplaceIntegrationStatusDashboardViewModel.FromSections(

@@ -18,6 +18,8 @@ public sealed class MarketplaceBomCostRollupViewModelTests
         Assert.True(viewModel.IsEmpty);
         Assert.Equal("Add parts to the marketplace cart to build a BOM rollup.", viewModel.EmptyStateMessage);
         Assert.Equal("No BOM lines ready", viewModel.ReadyStateSummary);
+        Assert.Equal("No BOM lines ready for procurement.", viewModel.ProcurementReadinessSummary);
+        Assert.Equal("Add parts to the marketplace cart", viewModel.ProcurementActionSummary);
     }
 
     [Fact]
@@ -39,6 +41,8 @@ public sealed class MarketplaceBomCostRollupViewModelTests
         Assert.False(viewModel.IsEmpty);
         Assert.Equal("", viewModel.EmptyStateMessage);
         Assert.Equal("Ready to source 1 component from 1 provider", viewModel.ReadyStateSummary);
+        Assert.Equal("Ready for procurement review: 1 component priced across 1 provider.", viewModel.ProcurementReadinessSummary);
+        Assert.Equal("Review 1 provider order", viewModel.ProcurementActionSummary);
     }
 
     [Fact]
@@ -83,7 +87,10 @@ public sealed class MarketplaceBomCostRollupViewModelTests
 
         Assert.True(viewModel.IsComplete);
         Assert.Empty(viewModel.Diagnostics);
-        Assert.Equal(["Mouser: 1 line, $1.85"], viewModel.ProviderSummaries.Select(summary => summary.Summary));
+        MarketplaceBomProviderSummaryRow providerSummary = Assert.Single(viewModel.ProviderSummaries);
+        Assert.Equal("Mouser: 1 line, $1.85", providerSummary.Summary);
+        Assert.Equal("Ready", providerSummary.ProcurementStatus);
+        Assert.Equal("Review Mouser procurement: 1 line, $1.85 ready for checkout setup.", providerSummary.ProcurementActionSummary);
         Assert.Equal("Total: $1.85 across 1 component", viewModel.TotalSummary);
     }
 
@@ -116,6 +123,8 @@ public sealed class MarketplaceBomCostRollupViewModelTests
         Assert.Equal(2, diagnostic.Quantity);
         Assert.False(viewModel.IsComplete);
         Assert.Equal("Total: $0.00 across 1 component, 1 diagnostic", viewModel.TotalSummary);
+        Assert.Equal("Blocked: 1 component needs sourcing attention before procurement.", viewModel.ProcurementReadinessSummary);
+        Assert.Equal("Resolve 1 BOM diagnostic", viewModel.ProcurementActionSummary);
     }
 
     [Fact]
@@ -165,6 +174,13 @@ public sealed class MarketplaceBomCostRollupViewModelTests
         Assert.Equal("1,000 in stock", alternative.Availability);
 
         Assert.Equal(["Digi-Key: 1 line, $0.36", "Mouser: 1 line, $0.40"], viewModel.ProviderSummaries.Select(summary => summary.Summary));
+        Assert.Equal(["Ready", "Ready"], viewModel.ProviderSummaries.Select(summary => summary.ProcurementStatus));
+        Assert.Equal(
+            [
+                "Review Digi-Key procurement: 1 line, $0.36 ready for checkout setup.",
+                "Review Mouser procurement: 1 line, $0.40 ready for checkout setup."
+            ],
+            viewModel.ProviderSummaries.Select(summary => summary.ProcurementActionSummary));
     }
 
     [Fact]
@@ -209,6 +225,8 @@ public sealed class MarketplaceBomCostRollupViewModelTests
         Assert.Equal("USB-C-16P", diagnostic.ComponentName);
         Assert.Equal(4, diagnostic.Quantity);
         Assert.Equal("No normalized catalog listing matched USB-C-16P.", diagnostic.Message);
+        Assert.Equal("Blocked: 1 component needs sourcing attention before procurement.", viewModel.ProcurementReadinessSummary);
+        Assert.Equal("Resolve 1 BOM diagnostic", viewModel.ProcurementActionSummary);
     }
 
     private static BomProviderOffer Offer(

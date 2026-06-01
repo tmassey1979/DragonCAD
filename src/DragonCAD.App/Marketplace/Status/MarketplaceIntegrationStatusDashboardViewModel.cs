@@ -16,9 +16,12 @@ public sealed class MarketplaceIntegrationStatusDashboardViewModel
     private MarketplaceIntegrationStatusDashboardViewModel(IReadOnlyList<MarketplaceIntegrationStatusRow> rows)
     {
         Rows = rows;
+        ActionStripSummary = CreateActionStripSummary(rows);
     }
 
     public IReadOnlyList<MarketplaceIntegrationStatusRow> Rows { get; }
+
+    public MarketplaceIntegrationActionStripSummary ActionStripSummary { get; }
 
     public int SectionCount => Rows.Count;
 
@@ -122,8 +125,40 @@ public sealed class MarketplaceIntegrationStatusDashboardViewModel
         return index < 0 ? int.MaxValue : index;
     }
 
+    private static MarketplaceIntegrationActionStripSummary CreateActionStripSummary(
+        IReadOnlyList<MarketplaceIntegrationStatusRow> rows)
+    {
+        MarketplaceIntegrationStatusRow? issue = rows.FirstOrDefault(row => row.BlockedCount > 0);
+        if (issue is not null)
+        {
+            return new MarketplaceIntegrationActionStripSummary(
+                issue.SeverityLabel,
+                $"{issue.SectionLabel}: {issue.BlockedCount:N0} blocked",
+                issue.NextActionText);
+        }
+
+        issue = rows.FirstOrDefault(row => row.WarningCount > 0);
+        if (issue is not null)
+        {
+            return new MarketplaceIntegrationActionStripSummary(
+                issue.SeverityLabel,
+                $"{issue.SectionLabel}: {issue.WarningCount:N0} {Pluralize(issue.WarningCount, "warning")}",
+                issue.NextActionText);
+        }
+
+        return new MarketplaceIntegrationActionStripSummary(
+            "Ready",
+            "Marketplace integration: all sections ready",
+            "Marketplace integration is ready");
+    }
+
     internal static string Pluralize(int count, string singular) => count == 1 ? singular : $"{singular}s";
 }
+
+public sealed record MarketplaceIntegrationActionStripSummary(
+    string SeverityLabel,
+    string IssueText,
+    string NextActionText);
 
 public sealed record MarketplaceIntegrationSectionStatus(
     MarketplaceIntegrationSection Section,

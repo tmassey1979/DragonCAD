@@ -18,6 +18,8 @@ public sealed class MarketplaceBomCostRollupViewModel
         ProviderSummaries = providerSummaries;
         TotalSummary = totalSummary;
         IsComplete = isComplete;
+        ProcurementReadinessSummary = CreateProcurementReadinessSummary();
+        ProcurementActionSummary = CreateProcurementActionSummary();
     }
 
     public IReadOnlyList<MarketplaceBomCostRollupRow> Rows { get; }
@@ -31,6 +33,10 @@ public sealed class MarketplaceBomCostRollupViewModel
     public bool IsComplete { get; }
 
     public bool IsEmpty => Rows.Count == 0;
+
+    public string ProcurementReadinessSummary { get; }
+
+    public string ProcurementActionSummary { get; }
 
     public string EmptyStateMessage =>
         IsEmpty ? "Add parts to the marketplace cart to build a BOM rollup." : string.Empty;
@@ -95,6 +101,48 @@ public sealed class MarketplaceBomCostRollupViewModel
 
     private static string FormatDiagnosticsLabel(int count) =>
         FormatCount(count, "diagnostic");
+
+    private string CreateProcurementReadinessSummary()
+    {
+        if (IsEmpty)
+        {
+            return "No BOM lines ready for procurement.";
+        }
+
+        if (!IsComplete)
+        {
+            int affectedComponentCount = Rows.Count(row => row.Diagnostics.Count > 0);
+            return $"Blocked: {FormatCount(affectedComponentCount, "component")} needs sourcing attention before procurement.";
+        }
+
+        return $"Ready for procurement review: {FormatCount(Rows.Count, "component")} priced across {FormatCount(ProviderSummaries.Count, "provider")}.";
+    }
+
+    private string CreateProcurementActionSummary()
+    {
+        if (IsEmpty)
+        {
+            return "Add parts to the marketplace cart";
+        }
+
+        if (!IsComplete)
+        {
+            return $"Resolve {FormatBomDiagnosticsLabel(Diagnostics.Count)}";
+        }
+
+        return $"Review {FormatProviderOrderCount(ProviderSummaries.Count)}";
+    }
+
+    private static string FormatProviderOrderCount(int providerCount) =>
+        providerCount switch
+        {
+            0 => "no provider orders",
+            1 => "1 provider order",
+            _ => $"{providerCount:N0} provider orders",
+        };
+
+    private static string FormatBomDiagnosticsLabel(int count) =>
+        $"{count:N0} BOM {Pluralize(count, "diagnostic")}";
 }
 
 public sealed record MarketplaceBomCostRollupRow(
@@ -193,7 +241,9 @@ public sealed record MarketplaceBomProviderSummaryRow(
     string Provider,
     int SelectedLineCount,
     string TotalEstimatedCost,
-    string Summary)
+    string Summary,
+    string ProcurementStatus,
+    string ProcurementActionSummary)
 {
     public static MarketplaceBomProviderSummaryRow FromSummary(BomProviderSummary summary)
     {
@@ -206,7 +256,9 @@ public sealed record MarketplaceBomProviderSummaryRow(
             summary.ProviderName,
             summary.SelectedLineCount,
             cost,
-            $"{summary.ProviderName}: {summary.SelectedLineCount:N0} {lineLabel}, {cost}");
+            $"{summary.ProviderName}: {summary.SelectedLineCount:N0} {lineLabel}, {cost}",
+            "Ready",
+            $"Review {summary.ProviderName} procurement: {summary.SelectedLineCount:N0} {lineLabel}, {cost} ready for checkout setup.");
     }
 }
 

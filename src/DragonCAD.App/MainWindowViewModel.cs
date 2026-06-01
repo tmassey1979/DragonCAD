@@ -424,6 +424,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     public string InUseVendorCatalogFreshnessPolicySummary =>
         $"Freshness: Digi-Key {FormatFreshnessHours(inUseVendorCatalogFreshnessPolicy.FreshnessWindowFor("Digi-Key"))}, Mouser {FormatFreshnessHours(inUseVendorCatalogFreshnessPolicy.FreshnessWindowFor("Mouser"))}";
 
+    public InUseVendorCatalogSyncActionSummary InUseVendorCatalogSyncActionSummary =>
+        InUseVendorCatalogSyncPlanner.Summarize(InUseVendorCatalogSyncQueue);
+
     public string DigiKeyInUseVendorFreshnessHours
     {
         get => FormatFreshnessHoursValue(inUseVendorCatalogFreshnessPolicy.FreshnessWindowFor("Digi-Key"));
@@ -1709,6 +1712,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             inUseVendorCatalogSyncStateStore.Save(inUseVendorCatalogSyncStates);
             OnPropertyChanged(nameof(InUseVendorCatalogSyncQueue));
             OnPropertyChanged(nameof(InUseVendorCatalogSyncSummary));
+            OnPropertyChanged(nameof(InUseVendorCatalogSyncActionSummary));
             OnPropertyChanged(nameof(MarketplaceIntegrationStatus));
         }
         finally
@@ -1759,6 +1763,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         OnPropertyChanged(nameof(InUseVendorCatalogFreshnessPolicySummary));
         OnPropertyChanged(nameof(InUseVendorCatalogSyncQueue));
         OnPropertyChanged(nameof(InUseVendorCatalogSyncSummary));
+        OnPropertyChanged(nameof(InUseVendorCatalogSyncActionSummary));
         OnPropertyChanged(nameof(MarketplaceIntegrationStatus));
     }
 
@@ -1771,6 +1776,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         OnPropertyChanged(nameof(InUseVendorCatalogFreshnessPolicySummary));
         OnPropertyChanged(nameof(InUseVendorCatalogSyncQueue));
         OnPropertyChanged(nameof(InUseVendorCatalogSyncSummary));
+        OnPropertyChanged(nameof(InUseVendorCatalogSyncActionSummary));
         OnPropertyChanged(nameof(MarketplaceIntegrationStatus));
         VendorCatalogSyncStatusText = "In-use vendor freshness policy reset to defaults.";
         InUseVendorFreshnessValidationStatus = "Freshness policy is valid.";
@@ -1782,6 +1788,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         inUseVendorCatalogSyncStateStore.Save(inUseVendorCatalogSyncStates);
         OnPropertyChanged(nameof(InUseVendorCatalogSyncQueue));
         OnPropertyChanged(nameof(InUseVendorCatalogSyncSummary));
+        OnPropertyChanged(nameof(InUseVendorCatalogSyncActionSummary));
         OnPropertyChanged(nameof(MarketplaceIntegrationStatus));
         VendorCatalogSyncStatusText = "In-use vendor sync state cleared.";
     }
@@ -3076,6 +3083,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         BoardEditor.SynchronizeFromSchematic(SchematicEditor.Components, SchematicEditor.Wires);
         OnPropertyChanged(nameof(InUseVendorCatalogSyncQueue));
         OnPropertyChanged(nameof(InUseVendorCatalogSyncSummary));
+        OnPropertyChanged(nameof(InUseVendorCatalogSyncActionSummary));
     }
 
     private void UpdateSelectedSchematicComponentProperties(
@@ -3206,6 +3214,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         OnPropertyChanged(nameof(UnifiedComponentSourceSummary));
         OnPropertyChanged(nameof(InUseVendorCatalogSyncQueue));
         OnPropertyChanged(nameof(InUseVendorCatalogSyncSummary));
+        OnPropertyChanged(nameof(InUseVendorCatalogSyncActionSummary));
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>

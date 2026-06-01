@@ -11,12 +11,21 @@ public sealed class VendorCatalogSyncDashboardViewModel
         "Jameco"
     ];
 
-    private VendorCatalogSyncDashboardViewModel(IReadOnlyList<VendorCatalogSyncProviderRow> providers)
+    private VendorCatalogSyncDashboardViewModel(
+        IReadOnlyList<VendorCatalogSyncProviderRow> providers,
+        string runReadinessSummary,
+        string nextActionSummary)
     {
         Providers = providers;
+        RunReadinessSummary = runReadinessSummary;
+        NextActionSummary = nextActionSummary;
     }
 
     public IReadOnlyList<VendorCatalogSyncProviderRow> Providers { get; }
+
+    public string RunReadinessSummary { get; }
+
+    public string NextActionSummary { get; }
 
     public static VendorCatalogSyncDashboardViewModel FromStatuses(
         DateTimeOffset now,
@@ -30,7 +39,10 @@ public sealed class VendorCatalogSyncDashboardViewModel
             .Select(status => VendorCatalogSyncProviderRow.FromStatus(now, status))
             .ToArray();
 
-        return new VendorCatalogSyncDashboardViewModel(providers);
+        return new VendorCatalogSyncDashboardViewModel(
+            providers,
+            FormatRunReadinessSummary(providers),
+            FormatNextActionSummary(providers));
     }
 
     private static int ProviderSortIndex(string providerName)
@@ -38,6 +50,59 @@ public sealed class VendorCatalogSyncDashboardViewModel
         int index = Array.FindIndex(ProviderOrder, provider => string.Equals(provider, providerName, StringComparison.OrdinalIgnoreCase));
         return index < 0 ? int.MaxValue : index;
     }
+
+    private static string FormatRunReadinessSummary(IReadOnlyCollection<VendorCatalogSyncProviderRow> providers)
+    {
+        int readyCount = providers.Count(provider => provider.CanSync);
+        int disabledCount = providers.Count(provider => !provider.IsEnabled);
+        int setupCount = providers.Count(provider => provider.IsEnabled && !provider.CanSync);
+
+        return $"{readyCount} ready, {setupCount} need setup, {disabledCount} disabled";
+    }
+
+    private static string FormatNextActionSummary(IReadOnlyCollection<VendorCatalogSyncProviderRow> providers)
+    {
+        VendorCatalogSyncProviderRow[] credentialBlockedProviders = providers
+            .Where(provider => provider.IsEnabled
+                && !provider.CanSync
+                && string.Equals(provider.NextActionLabel, "Add API credentials", StringComparison.Ordinal))
+            .ToArray();
+
+        if (credentialBlockedProviders.Length > 0)
+        {
+            return $"Add API credentials for {JoinProviderNames(credentialBlockedProviders)}";
+        }
+
+        int readyCount = providers.Count(provider => provider.CanSync);
+        if (readyCount > 0)
+        {
+            return $"Run sync for {readyCount} ready {Pluralize(readyCount, "provider")}";
+        }
+
+        if (providers.Any(provider => !provider.IsEnabled))
+        {
+            return "Enable a provider to run catalog sync";
+        }
+
+        return "Set up a vendor provider before syncing";
+    }
+
+    private static string JoinProviderNames(IReadOnlyList<VendorCatalogSyncProviderRow> providers)
+    {
+        if (providers.Count == 1)
+        {
+            return providers[0].ProviderName;
+        }
+
+        if (providers.Count == 2)
+        {
+            return $"{providers[0].ProviderName} and {providers[1].ProviderName}";
+        }
+
+        return $"{string.Join(", ", providers.Take(providers.Count - 1).Select(provider => provider.ProviderName))}, and {providers[^1].ProviderName}";
+    }
+
+    private static string Pluralize(int count, string singular) => count == 1 ? singular : $"{singular}s";
 }
 
 public sealed record VendorCatalogSyncStatus(

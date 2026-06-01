@@ -118,6 +118,26 @@ public sealed class InUseVendorCatalogSyncPlannerTests
         Assert.Equal("Fresh", mouser.ActionLabel);
     }
 
+    [Fact]
+    public void SummarizeDescribesFreshDueAndBlockedRequestsForUi()
+    {
+        InUseVendorCatalogSyncRequest[] requests =
+        [
+            Request("Digi-Key", actionLabel: "Fresh", canRun: true, isDue: false),
+            Request("Digi-Key", actionLabel: "Sync now", canRun: true, isDue: true),
+            Request("Mouser", actionLabel: "Add API credentials", canRun: false, isDue: false)
+        ];
+
+        InUseVendorCatalogSyncActionSummary summary = InUseVendorCatalogSyncPlanner.Summarize(requests);
+
+        Assert.Equal(3, summary.TotalCount);
+        Assert.Equal(1, summary.FreshCount);
+        Assert.Equal(1, summary.DueCount);
+        Assert.Equal(1, summary.BlockedCount);
+        Assert.Equal("1 fresh, 1 due, 1 blocked", summary.FreshnessLabel);
+        Assert.Equal("Sync 1 in-use catalog request", summary.PrimaryActionLabel);
+    }
+
     private static SchematicComponentInstance Part(string referenceDesignator, string componentId) =>
         new(
             referenceDesignator.ToLowerInvariant(),
@@ -168,4 +188,23 @@ public sealed class InUseVendorCatalogSyncPlannerTests
             Warning: "",
             ResultSummary: "0 imported, 0 linked, 0 warnings",
             canSync);
+
+    private static InUseVendorCatalogSyncRequest Request(
+        string providerName,
+        string actionLabel,
+        bool canRun,
+        bool isDue) =>
+        new(
+            ComponentId: $"dragon:{providerName.ToLowerInvariant()}",
+            DisplayName: "LM7805 5V Regulator",
+            Manufacturer: "Texas Instruments",
+            ManufacturerPartNumber: "LM7805CT",
+            ReferenceDesignators: "U1",
+            providerName,
+            Query: "LM7805CT",
+            Reason: "In use: U1",
+            actionLabel,
+            canRun,
+            isDue,
+            SyncStateLabel: "Never synced");
 }

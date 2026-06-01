@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using DragonCAD.App.Fabrication.Export;
 using DragonCAD.App.Fabrication.Handoff;
 
 namespace DragonCAD.App.Fabrication.Readiness;
@@ -45,6 +46,7 @@ public sealed class FabricationPackageReadinessViewModel : INotifyPropertyChange
             OnPropertyChanged(nameof(IsReady));
             OnPropertyChanged(nameof(StatusText));
             OnPropertyChanged(nameof(Diagnostics));
+            OnPropertyChanged(nameof(ActionSummary));
         }
     }
 
@@ -65,6 +67,14 @@ public sealed class FabricationPackageReadinessViewModel : INotifyPropertyChange
     }
 
     public IReadOnlyList<string> Diagnostics => ActionPlan.Diagnostics;
+
+    public FabricationManufacturingPackageActionSummary ActionSummary =>
+        FabricationManufacturingPackageActionSummary.FromPlan(
+            ActionPlan,
+            Files.Select(file => new FabricationChecklistRow(
+                file.DisplayName,
+                file.StatusLabel,
+                file.RelativePath)));
 
     public static FabricationPackageReadinessViewModel FromPackageOption(FabricationHandoffPackageOption option)
     {

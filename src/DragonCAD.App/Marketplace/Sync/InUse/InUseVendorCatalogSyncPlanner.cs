@@ -83,6 +83,24 @@ public static class InUseVendorCatalogSyncPlanner
         return requests;
     }
 
+    public static InUseVendorCatalogSyncActionSummary Summarize(IEnumerable<InUseVendorCatalogSyncRequest> requests)
+    {
+        ArgumentNullException.ThrowIfNull(requests);
+
+        InUseVendorCatalogSyncRequest[] requestArray = requests.ToArray();
+        int freshCount = requestArray.Count(request => IsFresh(request));
+        int dueCount = requestArray.Count(request => request.IsDue);
+        int blockedCount = requestArray.Count(request => !request.CanRun && !request.IsDue);
+
+        return new InUseVendorCatalogSyncActionSummary(
+            requestArray.Length,
+            freshCount,
+            dueCount,
+            blockedCount,
+            FormatFreshnessLabel(freshCount, dueCount, blockedCount),
+            FormatPrimaryActionLabel(requestArray.Length, dueCount, blockedCount));
+    }
+
     private static InUseComponent? CreateInUseComponent(
         IGrouping<string, SchematicComponentInstance> placedParts,
         IReadOnlyDictionary<string, ComponentManagerRow> componentsById)
@@ -142,6 +160,57 @@ public static class InUseVendorCatalogSyncPlanner
         }
 
         return $"Synced {ageText}: {syncState.LastImportedCount} {Pluralize(syncState.LastImportedCount, "candidate")}, {syncState.LastWarningCount} {Pluralize(syncState.LastWarningCount, "warning")}";
+    }
+
+    private static bool IsFresh(InUseVendorCatalogSyncRequest request) =>
+        request.CanRun &&
+        !request.IsDue &&
+        string.Equals(request.ActionLabel, "Fresh", StringComparison.OrdinalIgnoreCase);
+
+    private static string FormatFreshnessLabel(int freshCount, int dueCount, int blockedCount)
+    {
+        if (freshCount == 0 && dueCount == 0 && blockedCount == 0)
+        {
+            return "No in-use catalog requests";
+        }
+
+        List<string> segments = [];
+        if (freshCount > 0)
+        {
+            segments.Add($"{freshCount} fresh");
+        }
+
+        if (dueCount > 0)
+        {
+            segments.Add($"{dueCount} due");
+        }
+
+        if (blockedCount > 0)
+        {
+            segments.Add($"{blockedCount} blocked");
+        }
+
+        return string.Join(", ", segments);
+    }
+
+    private static string FormatPrimaryActionLabel(int totalCount, int dueCount, int blockedCount)
+    {
+        if (dueCount > 0)
+        {
+            return $"Sync {dueCount} in-use catalog {Pluralize(dueCount, "request")}";
+        }
+
+        if (blockedCount > 0)
+        {
+            return $"Resolve {blockedCount} blocked in-use catalog {Pluralize(blockedCount, "request")}";
+        }
+
+        if (totalCount > 0)
+        {
+            return "In-use catalogs fresh";
+        }
+
+        return "No in-use catalog requests";
     }
 
     private static string Pluralize(int count, string singular) => count == 1 ? singular : $"{singular}s";
@@ -206,3 +275,11 @@ public sealed record InUseVendorCatalogSyncRequest(
     bool CanRun,
     bool IsDue,
     string SyncStateLabel);
+
+public sealed record InUseVendorCatalogSyncActionSummary(
+    int TotalCount,
+    int FreshCount,
+    int DueCount,
+    int BlockedCount,
+    string FreshnessLabel,
+    string PrimaryActionLabel);

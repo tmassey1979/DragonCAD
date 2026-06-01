@@ -42,16 +42,37 @@ public sealed class FabricationPackageReadinessViewModelTests
 
         Assert.False(viewModel.IsReady);
         Assert.Equal("2 required files missing", viewModel.StatusText);
+        Assert.False(viewModel.ActionSummary.CanRunAction);
+        Assert.Equal("Blocked by 2 missing files. Resolve missing files.", viewModel.ActionSummary.SummaryText);
 
         viewModel.MarkFileReady("Gerbers", "manufacturing/gerbers.zip");
 
         Assert.False(viewModel.IsReady);
         Assert.Equal("1 required file missing", viewModel.StatusText);
+        Assert.Equal("Blocked by 1 missing file. Resolve missing files.", viewModel.ActionSummary.SummaryText);
 
         viewModel.MarkFileReady("BOM", "manufacturing/bom.csv");
 
         Assert.True(viewModel.IsReady);
         Assert.Equal("Ready for handoff", viewModel.StatusText);
+        Assert.True(viewModel.ActionSummary.CanRunAction);
+        Assert.Equal("Open PCBCart quote page", viewModel.ActionSummary.ActionLabel);
+        Assert.Equal("https://www.pcbcart.com/quote", viewModel.ActionSummary.ActionTarget);
+        Assert.Equal(4, viewModel.ActionSummary.ReadyFileCount);
+        Assert.Equal(0, viewModel.ActionSummary.MissingFileCount);
+        Assert.Equal("Ready to hand off 4 files. Open PCBCart quote page.", viewModel.ActionSummary.SummaryText);
+    }
+
+    [Fact]
+    public void ActionSummaryRaisesChangeNotificationWhenReadinessChanges()
+    {
+        FabricationPackageReadinessViewModel viewModel = CreatePcbCartReview();
+        List<string?> changedProperties = [];
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+
+        viewModel.MarkFileReady("Gerbers", "manufacturing/gerbers.zip");
+
+        Assert.Contains(nameof(FabricationPackageReadinessViewModel.ActionSummary), changedProperties);
     }
 
     [Fact]
