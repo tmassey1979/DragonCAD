@@ -56,6 +56,11 @@
             <Setter Property="Foreground" Value="White" />
             <Setter Property="BorderBrush" Value="{StaticResource DragonAccent}" />
         </Style>
+        <Style Selector="TabControl#ContextInspectorTabs TabItem">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Padding" Value="9,5" />
+            <Setter Property="MinWidth" Value="0" />
+        </Style>
     </Window.Styles>
     <Grid RowDefinitions="48,*,28">
         <Border Background="#0F141B"
@@ -3188,164 +3193,198 @@
                                    FontWeight="SemiBold"
                                    Foreground="{StaticResource DragonText}" />
                     </Border>
-                    <StackPanel Margin="12"
-                                Spacing="12">
-                        <TextBlock Text="Ready for explainable engineering workflows once schematic and board graph projections are added."
-                                   TextWrapping="Wrap"
-                                   Foreground="{StaticResource DragonMutedText}" />
-                        <Border Background="#0D1218"
-                                BorderBrush="{StaticResource DragonBorder}"
-                                BorderThickness="1"
-                                Padding="10"
-                                CornerRadius="4">
-                            <TextBlock Text="Ask DragonCAD to inspect components, generate capsules, or review constraints."
-                                       TextWrapping="Wrap"
-                                       Foreground="{StaticResource DragonText}" />
-                        </Border>
-                        <Border Background="#0D1218"
-                                BorderBrush="{StaticResource DragonBorder}"
-                                BorderThickness="1"
-                                Padding="10"
-                                CornerRadius="4">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Selected Part"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource DragonText}" />
-                                <TextBlock Text="Reference"
-                                           Foreground="{StaticResource DragonMutedText}" />
-                                <TextBox Text="{Binding SelectedSchematicReferenceDesignator, Mode=TwoWay}"
-                                         PlaceholderText="R1, U1, C1" />
-                                <TextBlock Text="Name"
-                                           Foreground="{StaticResource DragonMutedText}" />
-                                <TextBox Text="{Binding SelectedSchematicComponentName, Mode=TwoWay}"
-                                         PlaceholderText="Component name" />
-                                <TextBlock Text="Value"
-                                           Foreground="{StaticResource DragonMutedText}" />
-                                <TextBox Text="{Binding SelectedSchematicComponentValue, Mode=TwoWay}"
-                                         PlaceholderText="10k, 0.1uF, LM7805" />
-                                <Grid ColumnDefinitions="*,Auto,Auto"
-                                      ColumnSpacing="8">
-                                    <StackPanel>
-                                        <TextBlock Text="Rotation"
-                                                   Foreground="{StaticResource DragonMutedText}" />
-                                        <TextBlock Text="{Binding SelectedSchematicRotationDegrees, StringFormat='{}{0} deg'}"
+                    <TabControl x:Name="ContextInspectorTabs"
+                                Margin="8"
+                                Background="{StaticResource DragonPanelBackground}">
+                        <TabItem Header="AI">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="4,10"
+                                            Spacing="12">
+                                    <TextBlock Text="Ready for explainable engineering workflows once schematic and board graph projections are added."
+                                               TextWrapping="Wrap"
+                                               Foreground="{StaticResource DragonMutedText}" />
+                                    <Border Background="#0D1218"
+                                            BorderBrush="{StaticResource DragonBorder}"
+                                            BorderThickness="1"
+                                            Padding="10"
+                                            CornerRadius="4">
+                                        <TextBlock Text="Ask DragonCAD to inspect components, generate capsules, or review constraints."
+                                                   TextWrapping="Wrap"
                                                    Foreground="{StaticResource DragonText}" />
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+                        <TabItem Header="Schematic">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel x:Name="SchematicInspectorPanel"
+                                            Margin="4,10"
+                                            Spacing="12">
+                                    <Border Background="#0D1218"
+                                            BorderBrush="{StaticResource DragonBorder}"
+                                            BorderThickness="1"
+                                            Padding="10"
+                                            CornerRadius="4">
+                                        <StackPanel Spacing="8">
+                                            <TextBlock Text="Selected Part"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource DragonText}" />
+                                            <TextBlock Text="Reference"
+                                                       Foreground="{StaticResource DragonMutedText}" />
+                                            <TextBox Text="{Binding SelectedSchematicReferenceDesignator, Mode=TwoWay}"
+                                                     PlaceholderText="R1, U1, C1" />
+                                            <TextBlock Text="Name"
+                                                       Foreground="{StaticResource DragonMutedText}" />
+                                            <TextBox Text="{Binding SelectedSchematicComponentName, Mode=TwoWay}"
+                                                     PlaceholderText="Component name" />
+                                            <TextBlock Text="Value"
+                                                       Foreground="{StaticResource DragonMutedText}" />
+                                            <TextBox Text="{Binding SelectedSchematicComponentValue, Mode=TwoWay}"
+                                                     PlaceholderText="10k, 0.1uF, LM7805" />
+                                            <Grid ColumnDefinitions="*,Auto,Auto"
+                                                  ColumnSpacing="8">
+                                                <StackPanel>
+                                                    <TextBlock Text="Rotation"
+                                                               Foreground="{StaticResource DragonMutedText}" />
+                                                    <TextBlock Text="{Binding SelectedSchematicRotationDegrees, StringFormat='{}{0} deg'}"
+                                                               Foreground="{StaticResource DragonText}" />
+                                                </StackPanel>
+                                                <Button Grid.Column="1"
+                                                        Command="{Binding RotateSelectedPartCommand}"
+                                                        Content="Rot 90"
+                                                        Padding="10,3" />
+                                                <Button Grid.Column="2"
+                                                        Command="{Binding MirrorSelectedPartCommand}"
+                                                        Content="Mirror"
+                                                        Padding="10,3" />
+                                            </Grid>
+                                            <Grid ColumnDefinitions="*,*"
+                                                  ColumnSpacing="8">
+                                                <Button Command="{Binding DuplicateSelectedPartCommand}"
+                                                        Content="Duplicate"
+                                                        Padding="10,4" />
+                                                <Button Grid.Column="1"
+                                                        Command="{Binding DeleteSelectedPartCommand}"
+                                                        Content="Delete"
+                                                        Padding="10,4" />
+                                            </Grid>
+                                            <TextBlock Text="{Binding SchematicEditor.SelectedComponent.ComponentId}"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{StaticResource DragonMutedText}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Background="#0D1218"
+                                            BorderBrush="{StaticResource DragonBorder}"
+                                            BorderThickness="1"
+                                            Padding="10"
+                                            CornerRadius="4">
+                                        <StackPanel Spacing="8">
+                                            <TextBlock Text="Selected Wire"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource DragonText}" />
+                                            <TextBlock Text="Net Name"
+                                                       Foreground="{StaticResource DragonMutedText}" />
+                                            <TextBox Text="{Binding SelectedSchematicWireNetName, Mode=TwoWay}"
+                                                     PlaceholderText="+5V, GND, SCL" />
+                                            <Button Command="{Binding InsertWireVertexCommand}"
+                                                    Content="Insert Vertex"
+                                                    Padding="10,4" />
+                                            <Button Command="{Binding DeleteSelectedWireSegmentCommand}"
+                                                    Content="Delete Segment"
+                                                    Padding="10,4" />
+                                            <Button Command="{Binding DeleteSelectedWireCommand}"
+                                                    Content="Delete Wire"
+                                                    Padding="10,4" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+                        <TabItem Header="PCB">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel x:Name="PcbInspectorPanel"
+                                            Margin="4,10"
+                                            Spacing="12">
+                                    <Border Background="#0D1218"
+                                            BorderBrush="{StaticResource DragonBorder}"
+                                            BorderThickness="1"
+                                            Padding="10"
+                                            CornerRadius="4">
+                                        <StackPanel Spacing="8">
+                                            <TextBlock Text="PCB Selection"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource DragonText}" />
+                                            <TextBlock Text="{Binding BoardSelectionSummary}"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{StaticResource DragonGreen}" />
+                                            <TextBlock Text="Trace Width (mm)"
+                                                       Foreground="{StaticResource DragonMutedText}" />
+                                            <TextBox Text="{Binding SelectedBoardTraceWidthMillimeters, Mode=TwoWay}"
+                                                     PlaceholderText="0.250" />
+                                            <Button Command="{Binding MoveSelectedBoardTraceToLayerCommand}"
+                                                    Content="Move Trace To Active Layer"
+                                                    Padding="10,4" />
+                                            <Button Command="{Binding InsertBoardViaIntoSelectedTraceSegmentCommand}"
+                                                    Content="Insert Via In Trace"
+                                                    Padding="10,4" />
+                                            <Grid ColumnDefinitions="*,*"
+                                                  ColumnSpacing="8">
+                                                <Button Command="{Binding RotateSelectedBoardComponentCommand}"
+                                                        Content="Rotate"
+                                                        Padding="10,4" />
+                                                <Button Grid.Column="1"
+                                                        Command="{Binding MirrorSelectedBoardComponentCommand}"
+                                                        Content="Mirror"
+                                                        Padding="10,4" />
+                                            </Grid>
+                                            <Button Command="{Binding DeleteBoardSelectionCommand}"
+                                                    Content="Delete PCB Selection"
+                                                    Padding="10,4" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </TabItem>
+                        <TabItem Header="Grid">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <Border x:Name="GridInspectorPanel"
+                                        Margin="4,10"
+                                        Background="#0D1218"
+                                        BorderBrush="{StaticResource DragonBorder}"
+                                        BorderThickness="1"
+                                        Padding="10"
+                                        CornerRadius="4">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Grid"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource DragonText}" />
+                                        <TextBlock Text="{Binding GridStatusText}"
+                                                   Foreground="{StaticResource DragonGreen}" />
+                                        <Grid ColumnDefinitions="*,*"
+                                              ColumnSpacing="8">
+                                            <Button Command="{Binding ToggleGridVisibilityCommand}"
+                                                    Content="Show/Hide"
+                                                    Padding="10,4" />
+                                            <Button Grid.Column="1"
+                                                    Command="{Binding ToggleGridStyleCommand}"
+                                                    Content="Dots/Lines"
+                                                    Padding="10,4" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*,*"
+                                              ColumnSpacing="8">
+                                            <Button Command="{Binding DecreaseGridSpacingCommand}"
+                                                    Content="Grid -"
+                                                    Padding="10,4" />
+                                            <Button Grid.Column="1"
+                                                    Command="{Binding IncreaseGridSpacingCommand}"
+                                                    Content="Grid +"
+                                                    Padding="10,4" />
+                                        </Grid>
                                     </StackPanel>
-                                    <Button Grid.Column="1"
-                                            Command="{Binding RotateSelectedPartCommand}"
-                                            Content="Rot 90"
-                                            Padding="10,3" />
-                                    <Button Grid.Column="2"
-                                            Command="{Binding MirrorSelectedPartCommand}"
-                                            Content="Mirror"
-                                            Padding="10,3" />
-                                </Grid>
-                                <Button Command="{Binding DuplicateSelectedPartCommand}"
-                                        Content="Duplicate Part"
-                                        Padding="10,4" />
-                                <Button Command="{Binding DeleteSelectedPartCommand}"
-                                        Content="Delete Part"
-                                        Padding="10,4" />
-                                <TextBlock Text="{Binding SchematicEditor.SelectedComponent.ComponentId}"
-                                           TextWrapping="Wrap"
-                                           Foreground="{StaticResource DragonMutedText}" />
-                            </StackPanel>
-                        </Border>
-                        <Border Background="#0D1218"
-                                BorderBrush="{StaticResource DragonBorder}"
-                                BorderThickness="1"
-                                Padding="10"
-                                CornerRadius="4">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Selected Wire"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource DragonText}" />
-                                <TextBlock Text="Net Name"
-                                           Foreground="{StaticResource DragonMutedText}" />
-                                <TextBox Text="{Binding SelectedSchematicWireNetName, Mode=TwoWay}"
-                                         PlaceholderText="+5V, GND, SCL" />
-                                <Button Command="{Binding InsertWireVertexCommand}"
-                                        Content="Insert Wire Vertex"
-                                        Padding="10,4" />
-                                <Button Command="{Binding DeleteSelectedWireSegmentCommand}"
-                                        Content="Delete Wire Segment"
-                                        Padding="10,4" />
-                                <Button Command="{Binding DeleteSelectedWireCommand}"
-                                        Content="Delete Wire"
-                                        Padding="10,4" />
-                            </StackPanel>
-                        </Border>
-                        <Border Background="#0D1218"
-                                BorderBrush="{StaticResource DragonBorder}"
-                                BorderThickness="1"
-                                Padding="10"
-                                CornerRadius="4">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Grid"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource DragonText}" />
-                                <TextBlock Text="{Binding GridStatusText}"
-                                           Foreground="{StaticResource DragonGreen}" />
-                                <Grid ColumnDefinitions="*,*"
-                                      ColumnSpacing="8">
-                                    <Button Command="{Binding ToggleGridVisibilityCommand}"
-                                            Content="Show/Hide"
-                                            Padding="10,4" />
-                                    <Button Grid.Column="1"
-                                            Command="{Binding ToggleGridStyleCommand}"
-                                            Content="Dots/Lines"
-                                            Padding="10,4" />
-                                </Grid>
-                                <Grid ColumnDefinitions="*,*"
-                                      ColumnSpacing="8">
-                                    <Button Command="{Binding DecreaseGridSpacingCommand}"
-                                            Content="Grid -"
-                                            Padding="10,4" />
-                                    <Button Grid.Column="1"
-                                            Command="{Binding IncreaseGridSpacingCommand}"
-                                            Content="Grid +"
-                                            Padding="10,4" />
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-                        <Border Background="#0D1218"
-                                BorderBrush="{StaticResource DragonBorder}"
-                                BorderThickness="1"
-                                Padding="10"
-                                CornerRadius="4">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="PCB Selection"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource DragonText}" />
-                                <TextBlock Text="{Binding BoardSelectionSummary}"
-                                           TextWrapping="Wrap"
-                                           Foreground="{StaticResource DragonGreen}" />
-                                <TextBlock Text="Trace Width (mm)"
-                                           Foreground="{StaticResource DragonMutedText}" />
-                                <TextBox Text="{Binding SelectedBoardTraceWidthMillimeters, Mode=TwoWay}"
-                                         PlaceholderText="0.250" />
-                                <Button Command="{Binding MoveSelectedBoardTraceToLayerCommand}"
-                                        Content="Move Trace To Active Layer"
-                                        Padding="10,4" />
-                                <Button Command="{Binding InsertBoardViaIntoSelectedTraceSegmentCommand}"
-                                        Content="Insert Via In Trace"
-                                        Padding="10,4" />
-                                <Grid ColumnDefinitions="*,*"
-                                      ColumnSpacing="8">
-                                    <Button Command="{Binding RotateSelectedBoardComponentCommand}"
-                                            Content="Rotate PCB Part"
-                                            Padding="10,4" />
-                                    <Button Grid.Column="1"
-                                            Command="{Binding MirrorSelectedBoardComponentCommand}"
-                                            Content="Mirror PCB Part"
-                                            Padding="10,4" />
-                                </Grid>
-                                <Button Command="{Binding DeleteBoardSelectionCommand}"
-                                        Content="Delete PCB Selection"
-                                        Padding="10,4" />
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
+                                </Border>
+                            </ScrollViewer>
+                        </TabItem>
+                    </TabControl>
                 </DockPanel>
             </Border>
         </Grid>
