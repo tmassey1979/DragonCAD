@@ -1,0 +1,17 @@
+bin/
+obj/
+.vs/
+.idea/
+.vscode/
+
+.tmp/
+artifacts/
+screenshots/
+order-artifacts/
+order-artifacts-full/
+order-test-bin/
+order-test-obj/
+
+*.log
+*.user
+*.suo

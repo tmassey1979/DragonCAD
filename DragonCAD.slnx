@@ -1,0 +1,24 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DragonCAD.App/DragonCAD.App.csproj" />
+    <Project Path="src/DragonCAD.ComponentIntelligence/DragonCAD.ComponentIntelligence.csproj" />
+    <Project Path="src/DragonCAD.Core/DragonCAD.Core.csproj" />
+    <Project Path="src/DragonCAD.Fabrication/DragonCAD.Fabrication.csproj" />
+    <Project Path="src/DragonCAD.Import.Eagle/DragonCAD.Import.Eagle.csproj" />
+    <Project Path="src/DragonCAD.Plugins/DragonCAD.Plugins.csproj" />
+    <Project Path="src/DragonCAD.Rendering/DragonCAD.Rendering.csproj" />
+    <Project Path="src/DragonCAD.Scripting/DragonCAD.Scripting.csproj" />
+    <Project Path="src/DragonCAD.Sourcing/DragonCAD.Sourcing.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DragonCAD.App.Tests/DragonCAD.App.Tests.csproj" />
+    <Project Path="tests/DragonCAD.ComponentIntelligence.Tests/DragonCAD.ComponentIntelligence.Tests.csproj" />
+    <Project Path="tests/DragonCAD.Core.Tests/DragonCAD.Core.Tests.csproj" />
+    <Project Path="tests/DragonCAD.Fabrication.Tests/DragonCAD.Fabrication.Tests.csproj" />
+    <Project Path="tests/DragonCAD.Import.Eagle.Tests/DragonCAD.Import.Eagle.Tests.csproj" />
+    <Project Path="tests/DragonCAD.Plugins.Tests/DragonCAD.Plugins.Tests.csproj" />
+    <Project Path="tests/DragonCAD.Rendering.Tests/DragonCAD.Rendering.Tests.csproj" />
+    <Project Path="tests/DragonCAD.Scripting.Tests/DragonCAD.Scripting.Tests.csproj" />
+    <Project Path="tests/DragonCAD.Sourcing.Tests/DragonCAD.Sourcing.Tests.csproj" />
+  </Folder>
+</Solution>

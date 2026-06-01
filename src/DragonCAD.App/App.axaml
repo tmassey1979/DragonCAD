@@ -1,0 +1,18 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="DragonCAD.App.App"
+             RequestedThemeVariant="Dark">
+    <Application.Styles>
+        <FluentTheme />
+    </Application.Styles>
+    <Application.Resources>
+        <SolidColorBrush x:Key="DragonShellBackground" Color="#0B0F14" />
+        <SolidColorBrush x:Key="DragonPanelBackground" Color="#121820" />
+        <SolidColorBrush x:Key="DragonPanelHeader" Color="#18212B" />
+        <SolidColorBrush x:Key="DragonBorder" Color="#2A3542" />
+        <SolidColorBrush x:Key="DragonText" Color="#E9EEF5" />
+        <SolidColorBrush x:Key="DragonMutedText" Color="#A7B2C0" />
+        <SolidColorBrush x:Key="DragonAccent" Color="#E9413A" />
+        <SolidColorBrush x:Key="DragonGreen" Color="#36C275" />
+    </Application.Resources>
+</Application>

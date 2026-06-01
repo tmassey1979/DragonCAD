@@ -1,0 +1,1520 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using DragonCAD.App.ComponentManager;
+using DragonCAD.App.Placement;
+using DragonCAD.Core.Geometry;
+
+namespace DragonCAD.App.SchematicEditor;
+
+public sealed class SchematicEditorViewModel : INotifyPropertyChanged
+{
+    private CadGrid placementGrid = new(new CadVector(CadUnit.InternalUnitsPerMillimeter, CadUnit.InternalUnitsPerMillimeter));
+    private int nextComponentNumber = 1;
+    private string statusText = "Schematic ready.";
+    private bool isGridVisible = true;
+    private string gridStyle = "Dots";
+    private long gridSpacingInternal = CadUnit.InternalUnitsPerMillimeter;
+    private SchematicComponentInstance? selectedComponent;
+    private SchematicWire? selectedWire;
+    private int? selectedWireSegmentIndex;
+    private SchematicPinEndpoint? pendingWireStart;
+    private SchematicPinEndpoint? hoveredPin;
+    private SchematicPinEndpoint? selectedPinEndpoint;
+    private SchematicNetLabel? selectedNetLabel;
+    private CadPoint? pendingWirePreviewPoint;
+    private readonly List<CadPoint> pendingWireRoutePoints = [];
+    private double zoomLevel = 1.0;
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    public ObservableCollection<SchematicComponentInstance> Components { get; } = [];
+
+    public ObservableCollection<SchematicWire> Wires { get; } = [];
+
+    public ObservableCollection<SchematicNetLabel> NetLabels { get; } = [];
+
+    public ObservableCollection<SchematicNet> Nets { get; } = [];
+
+    public IEnumerable<SchematicNetLabelRenderItem> RenderableNetLabels =>
+        NetLabels.Select(label => new SchematicNetLabelRenderItem(
+            label.LabelId,
+            label.NetName,
+            label.Position,
+            label.LabelId == SelectedNetLabel?.LabelId));
+
+    public CadRectangle SheetBounds { get; } =
+        new(-140_000_000, -100_000_000, 140_000_000, 100_000_000);
+
+    public bool IsGridVisible
+    {
+        get => isGridVisible;
+        private set
+        {
+            if (isGridVisible == value)
+            {
+                return;
+            }
+
+            isGridVisible = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string GridStyle
+    {
+        get => gridStyle;
+        private set
+        {
+            if (gridStyle == value)
+            {
+                return;
+            }
+
+            gridStyle = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public long GridSpacingInternal
+    {
+        get => gridSpacingInternal;
+        private set
+        {
+            if (gridSpacingInternal == value)
+            {
+                return;
+            }
+
+            gridSpacingInternal = value;
+            placementGrid = new CadGrid(new CadVector(value, value));
+            OnPropertyChanged();
+        }
+    }
+
+    public SchematicPinEndpoint? PendingWireStart
+    {
+        get => pendingWireStart;
+        private set
+        {
+            if (pendingWireStart == value)
+            {
+                return;
+            }
+
+            pendingWireStart = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public IReadOnlyList<CadPoint> PendingWireRoutePoints => pendingWireRoutePoints;
+
+    public CadPoint? PendingWirePreviewPoint
+    {
+        get => pendingWirePreviewPoint;
+        private set
+        {
+            if (pendingWirePreviewPoint == value)
+            {
+                return;
+            }
+
+            pendingWirePreviewPoint = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(PendingWirePreviewRoutePoints));
+        }
+    }
+
+    public IReadOnlyList<CadPoint> PendingWirePreviewRoutePoints
+    {
+        get
+        {
+            if (PendingWirePreviewPoint is null || pendingWireRoutePoints.Count == 0)
+            {
+                return pendingWireRoutePoints;
+            }
+
+            List<CadPoint> route = [..pendingWireRoutePoints];
+            AddOrthogonalLeg(route, PendingWirePreviewPoint.Value);
+            return route;
+        }
+    }
+
+    public double ZoomLevel
+    {
+        get => zoomLevel;
+        private set
+        {
+            if (Math.Abs(zoomLevel - value) < 0.0001)
+            {
+                return;
+            }
+
+            zoomLevel = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public SchematicComponentInstance? SelectedComponent
+    {
+        get => selectedComponent;
+        set
+        {
+            if (selectedComponent == value)
+            {
+                return;
+            }
+
+            selectedComponent = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public SchematicWire? SelectedWire
+    {
+        get => selectedWire;
+        private set
+        {
+            if (selectedWire == value)
+            {
+                return;
+            }
+
+            selectedWire = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public int? SelectedWireSegmentIndex
+    {
+        get => selectedWireSegmentIndex;
+        private set
+        {
+            if (selectedWireSegmentIndex == value)
+            {
+                return;
+            }
+
+            selectedWireSegmentIndex = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public SchematicPinEndpoint? HoveredPin
+    {
+        get => hoveredPin;
+        private set
+        {
+            if (hoveredPin == value)
+            {
+                return;
+            }
+
+            hoveredPin = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public SchematicPinEndpoint? SelectedPinEndpoint
+    {
+        get => selectedPinEndpoint;
+        private set
+        {
+            if (selectedPinEndpoint == value)
+            {
+                return;
+            }
+
+            selectedPinEndpoint = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public SchematicNetLabel? SelectedNetLabel
+    {
+        get => selectedNetLabel;
+        private set
+        {
+            if (selectedNetLabel == value)
+            {
+                return;
+            }
+
+            selectedNetLabel = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string StatusText
+    {
+        get => statusText;
+        private set
+        {
+            if (statusText == value)
+            {
+                return;
+            }
+
+            statusText = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public SchematicComponentInstance PlaceComponent(ComponentPlacementIntent intent, CadPoint requestedPosition)
+    {
+        ArgumentNullException.ThrowIfNull(intent);
+
+        string referenceDesignator = $"U{nextComponentNumber++}";
+        SchematicComponentInstance instance = new(
+            Guid.NewGuid().ToString("N"),
+            referenceDesignator,
+            intent.ComponentId,
+            intent.DisplayName,
+            placementGrid.Snap(requestedPosition),
+            NormalizeSymbolPreview(intent.SymbolPreview),
+            intent.FootprintPreview ?? ComponentFootprintPreview.Empty,
+            "",
+            0);
+        Components.Add(instance);
+        SelectedComponent = instance;
+        SelectedWire = null;
+        SelectedNetLabel = null;
+        StatusText = $"Placed {referenceDesignator}: {intent.DisplayName}";
+        return instance;
+    }
+
+    public void Clear()
+    {
+        Components.Clear();
+        Wires.Clear();
+        NetLabels.Clear();
+        Nets.Clear();
+        ClearPendingRoutePoints();
+        PendingWireStart = null;
+        PendingWirePreviewPoint = null;
+        HoveredPin = null;
+        SelectedPinEndpoint = null;
+        SelectedNetLabel = null;
+        SelectedComponent = null;
+        SelectedWire = null;
+        SelectedWireSegmentIndex = null;
+        nextComponentNumber = 1;
+        StatusText = "Schematic cleared.";
+    }
+
+    public SchematicComponentInstance? SelectComponentAt(CadPoint point)
+    {
+        for (int index = Components.Count - 1; index >= 0; index--)
+        {
+            SchematicComponentInstance candidate = Components[index];
+            if (Contains(candidate, point))
+            {
+                SelectedComponent = candidate;
+                SelectedWire = null;
+                SelectedWireSegmentIndex = null;
+                SelectedPinEndpoint = null;
+                SelectedNetLabel = null;
+                StatusText = $"Selected {candidate.ReferenceDesignator}: {candidate.DisplayName}";
+                return candidate;
+            }
+        }
+
+        SelectedComponent = null;
+        SelectedPinEndpoint = null;
+        SelectedNetLabel = null;
+        SelectWireAt(point);
+        return null;
+    }
+
+    public SchematicPinEndpoint? SelectPinEndpointAt(CadPoint point)
+    {
+        SelectedPinEndpoint = FindPinAt(point);
+        if (SelectedPinEndpoint is null)
+        {
+            return null;
+        }
+
+        SelectedComponent = null;
+        SelectedWire = null;
+        SelectedWireSegmentIndex = null;
+        SelectedNetLabel = null;
+        StatusText = $"Selected pin {SelectedPinEndpoint.ReferenceDesignator}.{SelectedPinEndpoint.PinName}";
+        return SelectedPinEndpoint;
+    }
+
+    public SchematicNetLabel PlaceNetLabel(string netName, CadPoint requestedPosition)
+    {
+        string normalizedNetName = netName.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedNetName))
+        {
+            throw new InvalidOperationException("Net label name is required.");
+        }
+
+        SchematicNetLabel label = new(
+            Guid.NewGuid().ToString("N"),
+            normalizedNetName,
+            placementGrid.Snap(requestedPosition));
+        NetLabels.Add(label);
+        SelectedNetLabel = label;
+        SelectedComponent = null;
+        SelectedWire = null;
+        SelectedWireSegmentIndex = null;
+        SelectedPinEndpoint = null;
+        StatusText = $"Placed net label {label.NetName} at {FormatMillimeters(label.Position.X)} mm, {FormatMillimeters(label.Position.Y)} mm.";
+        return label;
+    }
+
+    public SchematicNetLabel? SelectNetLabelAt(CadPoint point)
+    {
+        const long tolerance = 500_000;
+        SchematicNetLabel? nearest = null;
+        long nearestDistanceSquared = long.MaxValue;
+        for (int index = NetLabels.Count - 1; index >= 0; index--)
+        {
+            SchematicNetLabel label = NetLabels[index];
+            if (Math.Abs(label.Position.X - point.X) > tolerance ||
+                Math.Abs(label.Position.Y - point.Y) > tolerance)
+            {
+                continue;
+            }
+
+            long dx = label.Position.X - point.X;
+            long dy = label.Position.Y - point.Y;
+            long distanceSquared = (dx * dx) + (dy * dy);
+            if (distanceSquared >= nearestDistanceSquared)
+            {
+                continue;
+            }
+
+            nearestDistanceSquared = distanceSquared;
+            nearest = label;
+        }
+
+        SelectedNetLabel = nearest;
+        if (nearest is null)
+        {
+            StatusText = "No schematic object selected.";
+            return null;
+        }
+
+        SelectedComponent = null;
+        SelectedWire = null;
+        SelectedWireSegmentIndex = null;
+        SelectedPinEndpoint = null;
+        StatusText = $"Selected net label {nearest.NetName}.";
+        return nearest;
+    }
+
+    public SchematicNetLabel MoveSelectedNetLabelTo(CadPoint requestedPosition)
+    {
+        if (SelectedNetLabel is null)
+        {
+            throw new InvalidOperationException("No schematic net label is selected.");
+        }
+
+        int index = NetLabels.IndexOf(SelectedNetLabel);
+        if (index < 0)
+        {
+            throw new InvalidOperationException("The selected schematic net label is no longer in the document.");
+        }
+
+        SchematicNetLabel moved = SelectedNetLabel with
+        {
+            Position = placementGrid.Snap(requestedPosition)
+        };
+        NetLabels[index] = moved;
+        SelectedNetLabel = moved;
+        StatusText = $"Moved net label {moved.NetName} to {FormatMillimeters(moved.Position.X)} mm, {FormatMillimeters(moved.Position.Y)} mm.";
+        return moved;
+    }
+
+    public SchematicComponentInstance MoveSelectedComponentTo(CadPoint requestedPosition)
+    {
+        if (SelectedComponent is null)
+        {
+            throw new InvalidOperationException("No schematic component is selected.");
+        }
+
+        int index = Components.IndexOf(SelectedComponent);
+        if (index < 0)
+        {
+            throw new InvalidOperationException("The selected schematic component is no longer in the document.");
+        }
+
+        SchematicComponentInstance moved = SelectedComponent with
+        {
+            Position = placementGrid.Snap(requestedPosition)
+        };
+        Components[index] = moved;
+        SelectedComponent = moved;
+        RefreshWireEndpointsForMovedComponent(moved);
+        StatusText = $"Moved {moved.ReferenceDesignator} to {FormatMillimeters(moved.Position.X)} mm, {FormatMillimeters(moved.Position.Y)} mm";
+        return moved;
+    }
+
+    public SchematicComponentInstance RotateSelectedComponentClockwise()
+    {
+        if (SelectedComponent is null)
+        {
+            throw new InvalidOperationException("No schematic component is selected.");
+        }
+
+        int index = Components.IndexOf(SelectedComponent);
+        if (index < 0)
+        {
+            throw new InvalidOperationException("The selected schematic component is no longer in the document.");
+        }
+
+        int nextRotation = NormalizeRotation(SelectedComponent.RotationDegrees + 90);
+        SchematicComponentInstance rotated = SelectedComponent with { RotationDegrees = nextRotation };
+        Components[index] = rotated;
+        SelectedComponent = rotated;
+        RefreshWireEndpointsForMovedComponent(rotated);
+        StatusText = $"Rotated {rotated.ReferenceDesignator} to {rotated.RotationDegrees} degrees.";
+        return rotated;
+    }
+
+    public SchematicComponentInstance MirrorSelectedComponent()
+    {
+        if (SelectedComponent is null)
+        {
+            throw new InvalidOperationException("No schematic component is selected.");
+        }
+
+        int index = Components.IndexOf(SelectedComponent);
+        if (index < 0)
+        {
+            throw new InvalidOperationException("The selected schematic component is no longer in the document.");
+        }
+
+        SchematicComponentInstance mirrored = SelectedComponent with { IsMirrored = !SelectedComponent.IsMirrored };
+        Components[index] = mirrored;
+        SelectedComponent = mirrored;
+        RefreshWireEndpointsForMovedComponent(mirrored);
+        StatusText = mirrored.IsMirrored
+            ? $"Mirrored {mirrored.ReferenceDesignator}."
+            : $"Unmirrored {mirrored.ReferenceDesignator}.";
+        return mirrored;
+    }
+
+    public SchematicComponentInstance DuplicateSelectedComponent()
+    {
+        if (SelectedComponent is null)
+        {
+            throw new InvalidOperationException("No schematic component is selected.");
+        }
+
+        SchematicComponentInstance source = SelectedComponent;
+        string referenceDesignator = $"U{nextComponentNumber++}";
+        SchematicComponentInstance duplicate = source with
+        {
+            InstanceId = Guid.NewGuid().ToString("N"),
+            ReferenceDesignator = referenceDesignator,
+            Position = placementGrid.Snap(new CadPoint(
+                source.Position.X + (5 * CadUnit.InternalUnitsPerMillimeter),
+                source.Position.Y + (5 * CadUnit.InternalUnitsPerMillimeter)))
+        };
+
+        Components.Add(duplicate);
+        SelectedComponent = duplicate;
+        SelectedWire = null;
+        SelectedWireSegmentIndex = null;
+        StatusText = $"Duplicated {source.ReferenceDesignator} as {duplicate.ReferenceDesignator}.";
+        return duplicate;
+    }
+
+    public SchematicComponentInstance UpdateSelectedComponentProperties(
+        string referenceDesignator,
+        string displayName,
+        string value)
+    {
+        if (SelectedComponent is null)
+        {
+            throw new InvalidOperationException("No schematic component is selected.");
+        }
+
+        string normalizedReference = referenceDesignator.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedReference))
+        {
+            throw new InvalidOperationException("Reference designator is required.");
+        }
+
+        int index = Components.IndexOf(SelectedComponent);
+        if (index < 0)
+        {
+            throw new InvalidOperationException("The selected schematic component is no longer in the document.");
+        }
+
+        SchematicComponentInstance updated = SelectedComponent with
+        {
+            ReferenceDesignator = normalizedReference,
+            DisplayName = string.IsNullOrWhiteSpace(displayName) ? SelectedComponent.DisplayName : displayName.Trim(),
+            Value = value.Trim()
+        };
+        Components[index] = updated;
+        SelectedComponent = updated;
+        RefreshWireEndpointReferenceDesignators(updated);
+        RebuildNets();
+        StatusText = $"Updated {updated.ReferenceDesignator} properties.";
+        return updated;
+    }
+
+    public void ZoomIn() =>
+        ZoomLevel = Math.Min(8.0, Math.Round(ZoomLevel * 1.25, 4));
+
+    public void ZoomOut() =>
+        ZoomLevel = Math.Max(0.25, Math.Round(ZoomLevel / 1.25, 4));
+
+    public void ToggleGridVisibility()
+    {
+        IsGridVisible = !IsGridVisible;
+        StatusText = IsGridVisible ? "Grid visible." : "Grid hidden.";
+    }
+
+    public void ToggleGridStyle()
+    {
+        GridStyle = GridStyle == "Dots" ? "Lines" : "Dots";
+        StatusText = $"Grid style set to {GridStyle}.";
+    }
+
+    public void SetGridSpacingMillimeters(decimal millimeters)
+    {
+        if (millimeters <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(millimeters), "Grid spacing must be positive.");
+        }
+
+        decimal bounded = Math.Clamp(millimeters, 0.1m, 25.4m);
+        GridSpacingInternal = (long)Math.Round(bounded * CadUnit.InternalUnitsPerMillimeter, MidpointRounding.AwayFromZero);
+        StatusText = $"Grid spacing set to {FormatMillimeters(GridSpacingInternal)} mm.";
+    }
+
+    public bool ConnectPinAt(CadPoint point)
+    {
+        SchematicPinEndpoint? endpoint = FindPinAt(point);
+        if (endpoint is null)
+        {
+            StatusText = "No pin at cursor.";
+            return false;
+        }
+
+        if (PendingWireStart is null)
+        {
+            PendingWireStart = endpoint;
+            StatusText = $"Started wire at {endpoint.ReferenceDesignator}.{endpoint.PinName}";
+            return true;
+        }
+
+        if (PendingWireStart == endpoint)
+        {
+            StatusText = "Choose a different pin to complete the wire.";
+            return false;
+        }
+
+        AddWire(PendingWireStart, endpoint, NormalizeCompletedRoute([PendingWireStart.Position], endpoint.Position));
+        PendingWireStart = null;
+        ClearPendingRoutePoints();
+        return true;
+    }
+
+    public bool TraceClickAt(CadPoint point)
+    {
+        SchematicPinEndpoint? endpoint = FindPinAt(point);
+        if (PendingWireStart is null)
+        {
+            if (endpoint is null)
+            {
+                StatusText = "Start schematic trace on a component pin.";
+                return false;
+            }
+
+            PendingWireStart = endpoint;
+            SetPendingRoutePoints([endpoint.Position]);
+            PendingWirePreviewPoint = null;
+            StatusText = $"Started wire at {endpoint.ReferenceDesignator}.{endpoint.PinName}";
+            return true;
+        }
+
+        if (endpoint is not null && endpoint != PendingWireStart)
+        {
+            List<CadPoint> route = NormalizeCompletedRoute(pendingWireRoutePoints, endpoint.Position);
+            AddWire(PendingWireStart, endpoint, route);
+            PendingWireStart = null;
+            ClearPendingRoutePoints();
+            PendingWirePreviewPoint = null;
+            return true;
+        }
+
+        CadPoint snappedPoint = placementGrid.Snap(point);
+        AddOrthogonalLeg(pendingWireRoutePoints, snappedPoint);
+        OnPropertyChanged(nameof(PendingWireRoutePoints));
+        OnPropertyChanged(nameof(PendingWirePreviewRoutePoints));
+
+        StatusText = $"Added wire segment at {FormatMillimeters(snappedPoint.X)} mm, {FormatMillimeters(snappedPoint.Y)} mm";
+        return true;
+    }
+
+    public SchematicPinEndpoint? UpdateHoveredPinAt(CadPoint point)
+    {
+        HoveredPin = FindPinAt(point);
+        return HoveredPin;
+    }
+
+    public void UpdateTracePreviewAt(CadPoint point)
+    {
+        if (PendingWireStart is null)
+        {
+            PendingWirePreviewPoint = null;
+            return;
+        }
+
+        SchematicPinEndpoint? endpoint = UpdateHoveredPinAt(point);
+        PendingWirePreviewPoint = endpoint is not null && endpoint != PendingWireStart
+            ? endpoint.Position
+            : placementGrid.Snap(point);
+    }
+
+    public bool CancelPendingWire()
+    {
+        if (PendingWireStart is null && pendingWireRoutePoints.Count == 0 && PendingWirePreviewPoint is null)
+        {
+            StatusText = "No pending wire to cancel.";
+            return false;
+        }
+
+        PendingWireStart = null;
+        ClearPendingRoutePoints();
+        PendingWirePreviewPoint = null;
+        HoveredPin = null;
+        StatusText = "Cancelled pending wire.";
+        return true;
+    }
+
+    public SchematicWire? SelectWireAt(CadPoint point)
+    {
+        const double tolerance = 350_000;
+        double nearestDistance = double.MaxValue;
+        SchematicWire? nearestWire = null;
+        int? nearestSegmentIndex = null;
+        for (int wireIndex = Wires.Count - 1; wireIndex >= 0; wireIndex--)
+        {
+            SchematicWire wire = Wires[wireIndex];
+            int? segmentIndex = NearestSegmentIndex(point, wire.RoutePoints, tolerance, out double distance);
+            if (segmentIndex is not null && distance < nearestDistance)
+            {
+                nearestDistance = distance;
+                nearestWire = wire;
+                nearestSegmentIndex = segmentIndex;
+            }
+        }
+
+        if (nearestWire is not null)
+        {
+            SelectedComponent = null;
+            SelectedWire = nearestWire;
+            SelectedWireSegmentIndex = nearestSegmentIndex;
+            SelectedPinEndpoint = null;
+            SelectedNetLabel = null;
+            StatusText = $"Selected wire {nearestWire.NetName}.";
+            return nearestWire;
+        }
+
+        SelectedWire = null;
+        SelectedWireSegmentIndex = null;
+        SelectNetLabelAt(point);
+        return null;
+    }
+
+    public SchematicWire MoveSelectedWireSegmentTo(CadPoint requestedPosition)
+    {
+        if (SelectedWire is null || SelectedWireSegmentIndex is null)
+        {
+            throw new InvalidOperationException("No schematic wire segment is selected.");
+        }
+
+        int wireIndex = Wires.IndexOf(SelectedWire);
+        if (wireIndex < 0)
+        {
+            throw new InvalidOperationException("The selected schematic wire is no longer in the document.");
+        }
+
+        int segmentIndex = SelectedWireSegmentIndex.Value;
+        if (segmentIndex <= 0 || segmentIndex >= SelectedWire.RoutePoints.Count)
+        {
+            throw new InvalidOperationException("The selected schematic wire segment is invalid.");
+        }
+
+        CadPoint snapped = placementGrid.Snap(requestedPosition);
+        List<CadPoint> routePoints = [..SelectedWire.RoutePoints];
+        CadPoint start = routePoints[segmentIndex - 1];
+        CadPoint end = routePoints[segmentIndex];
+        if (start.Y == end.Y)
+        {
+            routePoints[segmentIndex - 1] = new CadPoint(start.X, snapped.Y);
+            routePoints[segmentIndex] = new CadPoint(end.X, snapped.Y);
+        }
+        else if (start.X == end.X)
+        {
+            routePoints[segmentIndex - 1] = new CadPoint(snapped.X, start.Y);
+            routePoints[segmentIndex] = new CadPoint(snapped.X, end.Y);
+        }
+        else
+        {
+            throw new InvalidOperationException("Only orthogonal wire segments can be moved.");
+        }
+
+        SchematicWire moved = SelectedWire with { RoutePoints = routePoints };
+        Wires[wireIndex] = moved;
+        SelectedWire = moved;
+        StatusText = $"Moved wire segment {segmentIndex} on {moved.NetName}.";
+        return moved;
+    }
+
+    public SchematicWire InsertVertexIntoSelectedWireSegment(CadPoint requestedPosition)
+    {
+        if (SelectedWire is null || SelectedWireSegmentIndex is null)
+        {
+            throw new InvalidOperationException("No schematic wire segment is selected.");
+        }
+
+        int wireIndex = Wires.IndexOf(SelectedWire);
+        if (wireIndex < 0)
+        {
+            throw new InvalidOperationException("The selected schematic wire is no longer in the document.");
+        }
+
+        int segmentIndex = SelectedWireSegmentIndex.Value;
+        if (segmentIndex <= 0 || segmentIndex >= SelectedWire.RoutePoints.Count)
+        {
+            throw new InvalidOperationException("The selected schematic wire segment is invalid.");
+        }
+
+        CadPoint snapped = placementGrid.Snap(requestedPosition);
+        IReadOnlyList<CadPoint> routePoints = SelectedWire.RoutePoints;
+        CadPoint start = routePoints[segmentIndex - 1];
+        CadPoint end = routePoints[segmentIndex];
+        if (start.X != end.X && start.Y != end.Y)
+        {
+            throw new InvalidOperationException("Only orthogonal wire segments can accept inserted vertices.");
+        }
+
+        List<CadPoint> updatedRoute = [];
+        for (int index = 0; index < segmentIndex; index++)
+        {
+            updatedRoute.Add(routePoints[index]);
+        }
+
+        AddInsertedOrthogonalVertex(updatedRoute, start, end, snapped);
+
+        for (int index = segmentIndex + 1; index < routePoints.Count; index++)
+        {
+            updatedRoute.Add(routePoints[index]);
+        }
+
+        updatedRoute = CompactRoute(updatedRoute);
+        SchematicWire updated = SelectedWire with { RoutePoints = updatedRoute };
+        Wires[wireIndex] = updated;
+        SelectedWire = updated;
+        SelectedWireSegmentIndex = NearestSegmentIndex(snapped, updated.RoutePoints, 0, out _) ?? segmentIndex;
+        StatusText = $"Inserted wire vertex on {updated.NetName}.";
+        return updated;
+    }
+
+    public SchematicWire DeleteSelectedWireSegment()
+    {
+        if (SelectedWire is null || SelectedWireSegmentIndex is null)
+        {
+            throw new InvalidOperationException("No schematic wire segment is selected.");
+        }
+
+        int wireIndex = Wires.IndexOf(SelectedWire);
+        if (wireIndex < 0)
+        {
+            throw new InvalidOperationException("The selected schematic wire is no longer in the document.");
+        }
+
+        int segmentIndex = SelectedWireSegmentIndex.Value;
+        if (segmentIndex <= 0 || segmentIndex >= SelectedWire.RoutePoints.Count)
+        {
+            throw new InvalidOperationException("The selected schematic wire segment is invalid.");
+        }
+
+        IReadOnlyList<CadPoint> routePoints = SelectedWire.RoutePoints;
+        if (routePoints.Count <= 2)
+        {
+            throw new InvalidOperationException("Use wire delete for a single-segment schematic wire.");
+        }
+
+        CadPoint deletedStart = routePoints[segmentIndex - 1];
+        CadPoint deletedEnd = routePoints[segmentIndex];
+        int anchorBeforeIndex = Math.Max(0, segmentIndex - 2);
+        int anchorAfterIndex = Math.Min(routePoints.Count - 1, segmentIndex + 1);
+
+        List<CadPoint> updatedRoute = [];
+        for (int index = 0; index <= anchorBeforeIndex; index++)
+        {
+            updatedRoute.Add(routePoints[index]);
+        }
+
+        AddOrthogonalLegAvoidingDeletedSegment(
+            updatedRoute,
+            routePoints[anchorAfterIndex],
+            deletedStart,
+            deletedEnd);
+
+        for (int index = anchorAfterIndex + 1; index < routePoints.Count; index++)
+        {
+            updatedRoute.Add(routePoints[index]);
+        }
+
+        updatedRoute = CompactRoute(updatedRoute);
+        SchematicWire updated = SelectedWire with { RoutePoints = updatedRoute };
+        Wires[wireIndex] = updated;
+        SelectedWire = updated;
+        SelectedWireSegmentIndex = null;
+        RebuildNets();
+        SelectedWire = Wires.Single(wire => wire.WireId == updated.WireId);
+        StatusText = $"Deleted wire segment {segmentIndex} on {SelectedWire.NetName}.";
+        return SelectedWire;
+    }
+
+    public SchematicWire RenameSelectedWireNet(string netName)
+    {
+        if (SelectedWire is null)
+        {
+            throw new InvalidOperationException("No schematic wire is selected.");
+        }
+
+        string normalizedNetName = netName.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedNetName))
+        {
+            throw new InvalidOperationException("Net name is required.");
+        }
+
+        int wireIndex = Wires.IndexOf(SelectedWire);
+        if (wireIndex < 0)
+        {
+            throw new InvalidOperationException("The selected schematic wire is no longer in the document.");
+        }
+
+        SchematicWire renamed = SelectedWire with
+        {
+            NetName = normalizedNetName,
+            ManualNetName = normalizedNetName
+        };
+        Wires[wireIndex] = renamed;
+        SelectedWire = renamed;
+        RebuildNets();
+        SelectedWire = Wires.Single(wire => wire.WireId == renamed.WireId);
+        StatusText = $"Renamed selected net to {SelectedWire.NetName}.";
+        return SelectedWire;
+    }
+
+    public bool DeleteSelectedWire()
+    {
+        if (SelectedWire is null)
+        {
+            StatusText = "Select a wire before deleting it.";
+            return false;
+        }
+
+        Wires.Remove(SelectedWire);
+        SelectedWire = null;
+        SelectedWireSegmentIndex = null;
+        RebuildNets();
+        StatusText = "Deleted selected wire.";
+        return true;
+    }
+
+    public bool DeleteSelectedComponent()
+    {
+        if (SelectedComponent is null)
+        {
+            StatusText = "Select a schematic component before deleting it.";
+            return false;
+        }
+
+        SchematicComponentInstance deleted = SelectedComponent;
+        int attachedWireCount = Wires.Count(wire =>
+            wire.Start.InstanceId == deleted.InstanceId ||
+            wire.End.InstanceId == deleted.InstanceId);
+
+        Components.Remove(deleted);
+        for (int index = Wires.Count - 1; index >= 0; index--)
+        {
+            SchematicWire wire = Wires[index];
+            if (wire.Start.InstanceId == deleted.InstanceId ||
+                wire.End.InstanceId == deleted.InstanceId)
+            {
+                Wires.RemoveAt(index);
+            }
+        }
+
+        SelectedComponent = null;
+        SelectedWire = null;
+        SelectedWireSegmentIndex = null;
+        RebuildNets();
+        string wireText = $"{attachedWireCount} attached wire{(attachedWireCount == 1 ? "" : "s")}";
+        StatusText = $"Deleted {deleted.ReferenceDesignator} and {wireText}.";
+        return true;
+    }
+
+    private static bool Contains(SchematicComponentInstance instance, CadPoint point)
+    {
+        CadRectangle placedBounds = RotatedBounds(instance);
+        return placedBounds.Contains(point);
+    }
+
+    private SchematicPinEndpoint? FindPinAt(CadPoint point)
+    {
+        const long tolerance = 1_250_000;
+        SchematicPinEndpoint? nearest = null;
+        long nearestDistanceSquared = long.MaxValue;
+        for (int componentIndex = Components.Count - 1; componentIndex >= 0; componentIndex--)
+        {
+            SchematicComponentInstance instance = Components[componentIndex];
+            foreach (ComponentSymbolPinPreview pin in instance.SymbolPreview.Pins)
+            {
+                CadPoint pinPosition = TransformLocalPoint(instance, pin.ConnectPoint);
+                if (Math.Abs(pinPosition.X - point.X) <= tolerance &&
+                    Math.Abs(pinPosition.Y - point.Y) <= tolerance)
+                {
+                    long dx = pinPosition.X - point.X;
+                    long dy = pinPosition.Y - point.Y;
+                    long distanceSquared = (dx * dx) + (dy * dy);
+                    if (distanceSquared >= nearestDistanceSquared)
+                    {
+                        continue;
+                    }
+
+                    nearestDistanceSquared = distanceSquared;
+                    nearest = new SchematicPinEndpoint(
+                        instance.InstanceId,
+                        instance.ReferenceDesignator,
+                        pin.Name,
+                        pinPosition);
+                }
+            }
+        }
+
+        return nearest;
+    }
+
+    private void AddWire(SchematicPinEndpoint start, SchematicPinEndpoint end, IReadOnlyList<CadPoint> routePoints)
+    {
+        Wires.Add(new SchematicWire(Guid.NewGuid().ToString("N"), start, end, routePoints));
+        RebuildNets();
+        SchematicWire completedWire = Wires[Wires.Count - 1];
+        StatusText = $"Connected {start.ReferenceDesignator}.{start.PinName} to {end.ReferenceDesignator}.{end.PinName}. Net {completedWire.NetName}.";
+    }
+
+    private void RefreshWireEndpointsForMovedComponent(SchematicComponentInstance moved)
+    {
+        for (int index = 0; index < Wires.Count; index++)
+        {
+            SchematicWire wire = Wires[index];
+            SchematicWire updated = wire;
+            List<CadPoint> routePoints = [..wire.RoutePoints];
+
+            if (wire.Start.InstanceId == moved.InstanceId &&
+                TryCreateEndpointForMovedPin(moved, wire.Start.PinName, out SchematicPinEndpoint start))
+            {
+                updated = updated with { Start = start };
+                if (routePoints.Count > 0)
+                {
+                    routePoints[0] = start.Position;
+                    RepairAdjacentEndpointSegment(routePoints, 0);
+                }
+            }
+
+            if (wire.End.InstanceId == moved.InstanceId &&
+                TryCreateEndpointForMovedPin(moved, wire.End.PinName, out SchematicPinEndpoint end))
+            {
+                updated = updated with { End = end };
+                if (routePoints.Count > 0)
+                {
+                    routePoints[^1] = end.Position;
+                    RepairAdjacentEndpointSegment(routePoints, routePoints.Count - 1);
+                }
+            }
+
+            routePoints = OrthogonalizeRoute(routePoints);
+            if (!ReferenceEquals(updated, wire) || !routePoints.SequenceEqual(wire.RoutePoints))
+            {
+                Wires[index] = updated with { RoutePoints = routePoints };
+            }
+        }
+
+        RebuildNets();
+    }
+
+    private void RefreshWireEndpointReferenceDesignators(SchematicComponentInstance updatedComponent)
+    {
+        for (int index = 0; index < Wires.Count; index++)
+        {
+            SchematicWire wire = Wires[index];
+            SchematicWire updated = wire;
+            if (wire.Start.InstanceId == updatedComponent.InstanceId)
+            {
+                updated = updated with
+                {
+                    Start = wire.Start with { ReferenceDesignator = updatedComponent.ReferenceDesignator }
+                };
+            }
+
+            if (wire.End.InstanceId == updatedComponent.InstanceId)
+            {
+                updated = updated with
+                {
+                    End = updated.End with { ReferenceDesignator = updatedComponent.ReferenceDesignator }
+                };
+            }
+
+            if (!ReferenceEquals(updated, wire))
+            {
+                Wires[index] = updated;
+            }
+        }
+    }
+
+    private static bool TryCreateEndpointForMovedPin(
+        SchematicComponentInstance moved,
+        string pinName,
+        out SchematicPinEndpoint endpoint)
+    {
+        ComponentSymbolPinPreview? pin = moved.SymbolPreview.Pins
+            .FirstOrDefault(candidate => candidate.Name == pinName);
+        if (pin is null)
+        {
+            endpoint = default!;
+            return false;
+        }
+
+        endpoint = new SchematicPinEndpoint(
+            moved.InstanceId,
+            moved.ReferenceDesignator,
+            pin.Name,
+            TransformLocalPoint(moved, pin.ConnectPoint));
+        return true;
+    }
+
+    public static CadPoint TransformLocalPoint(SchematicComponentInstance instance, CadPoint localPoint)
+    {
+        CadPoint mirrored = instance.IsMirrored
+            ? new CadPoint(-localPoint.X, localPoint.Y)
+            : localPoint;
+        CadPoint rotated = RotateLocalPoint(mirrored, instance.RotationDegrees);
+        return new CadPoint(instance.Position.X + rotated.X, instance.Position.Y + rotated.Y);
+    }
+
+    private static CadRectangle RotatedBounds(SchematicComponentInstance instance)
+    {
+        CadRectangle bounds = instance.SymbolPreview.Bounds;
+        CadPoint[] corners =
+        [
+            TransformLocalPoint(instance, new CadPoint(bounds.Left, bounds.Top)),
+            TransformLocalPoint(instance, new CadPoint(bounds.Right, bounds.Top)),
+            TransformLocalPoint(instance, new CadPoint(bounds.Right, bounds.Bottom)),
+            TransformLocalPoint(instance, new CadPoint(bounds.Left, bounds.Bottom))
+        ];
+        return new CadRectangle(
+            corners.Min(point => point.X),
+            corners.Min(point => point.Y),
+            corners.Max(point => point.X),
+            corners.Max(point => point.Y));
+    }
+
+    private static CadPoint RotateLocalPoint(CadPoint point, int rotationDegrees) =>
+        NormalizeRotation(rotationDegrees) switch
+        {
+            90 => new CadPoint(-point.Y, point.X),
+            180 => new CadPoint(-point.X, -point.Y),
+            270 => new CadPoint(point.Y, -point.X),
+            _ => point
+        };
+
+    private static int NormalizeRotation(int rotationDegrees)
+    {
+        int normalized = rotationDegrees % 360;
+        return normalized < 0 ? normalized + 360 : normalized;
+    }
+
+    private static List<CadPoint> NormalizeCompletedRoute(IReadOnlyList<CadPoint> currentRoutePoints, CadPoint endpoint)
+    {
+        List<CadPoint> route = [..currentRoutePoints];
+        if (route.Count != 1)
+        {
+            AddOrthogonalLeg(route, endpoint);
+            return route;
+        }
+
+        CadPoint start = route[0];
+        long dx = Math.Abs(endpoint.X - start.X);
+        long dy = Math.Abs(endpoint.Y - start.Y);
+        if (Math.Max(dx, dy) >= 2_000_000)
+        {
+            AddOrthogonalLeg(route, endpoint);
+            return route;
+        }
+
+        long doglegOffset = start.Y <= endpoint.Y ? -2_000_000 : 2_000_000;
+        route.Add(new CadPoint(start.X, start.Y + doglegOffset));
+        route.Add(new CadPoint(endpoint.X, start.Y + doglegOffset));
+        route.Add(endpoint);
+        return route;
+    }
+
+    private static void AddOrthogonalLeg(List<CadPoint> route, CadPoint target)
+    {
+        if (route.Count == 0)
+        {
+            route.Add(target);
+            return;
+        }
+
+        CadPoint last = route[^1];
+        if (last == target)
+        {
+            return;
+        }
+
+        if (last.X != target.X && last.Y != target.Y)
+        {
+            CadPoint corner = new(target.X, last.Y);
+            if (route[^1] != corner)
+            {
+                route.Add(corner);
+            }
+        }
+
+        if (route[^1] != target)
+        {
+            route.Add(target);
+        }
+    }
+
+    private static void AddOrthogonalLegAvoidingDeletedSegment(
+        List<CadPoint> route,
+        CadPoint target,
+        CadPoint deletedStart,
+        CadPoint deletedEnd)
+    {
+        if (route.Count == 0)
+        {
+            route.Add(target);
+            return;
+        }
+
+        CadPoint last = route[^1];
+        if (last == target)
+        {
+            return;
+        }
+
+        if (last.X != target.X && last.Y != target.Y)
+        {
+            CadPoint horizontalThenVerticalCorner = new(target.X, last.Y);
+            CadPoint verticalThenHorizontalCorner = new(last.X, target.Y);
+            CadPoint corner = horizontalThenVerticalCorner == deletedStart ||
+                horizontalThenVerticalCorner == deletedEnd
+                    ? verticalThenHorizontalCorner
+                    : horizontalThenVerticalCorner;
+
+            if (route[^1] != corner)
+            {
+                route.Add(corner);
+            }
+        }
+
+        if (route[^1] != target)
+        {
+            route.Add(target);
+        }
+    }
+
+    private static void AddInsertedOrthogonalVertex(
+        List<CadPoint> route,
+        CadPoint segmentStart,
+        CadPoint segmentEnd,
+        CadPoint insertedVertex)
+    {
+        if (segmentStart.Y == segmentEnd.Y)
+        {
+            AddRoutePoint(route, new CadPoint(insertedVertex.X, segmentStart.Y));
+            AddRoutePoint(route, insertedVertex);
+            AddRoutePoint(route, new CadPoint(segmentEnd.X, insertedVertex.Y));
+            AddRoutePoint(route, segmentEnd);
+            return;
+        }
+
+        AddRoutePoint(route, new CadPoint(segmentStart.X, insertedVertex.Y));
+        AddRoutePoint(route, insertedVertex);
+        AddRoutePoint(route, new CadPoint(insertedVertex.X, segmentEnd.Y));
+        AddRoutePoint(route, segmentEnd);
+    }
+
+    private static void AddRoutePoint(List<CadPoint> route, CadPoint point)
+    {
+        if (route.Count == 0 || route[^1] != point)
+        {
+            route.Add(point);
+        }
+    }
+
+    private static List<CadPoint> CompactRoute(IReadOnlyList<CadPoint> routePoints)
+    {
+        List<CadPoint> compacted = [];
+        foreach (CadPoint point in routePoints)
+        {
+            if (compacted.Count == 0 || compacted[^1] != point)
+            {
+                compacted.Add(point);
+            }
+        }
+
+        bool removedPoint;
+        do
+        {
+            removedPoint = false;
+            for (int index = 1; index < compacted.Count - 1; index++)
+            {
+                CadPoint previous = compacted[index - 1];
+                CadPoint current = compacted[index];
+                CadPoint next = compacted[index + 1];
+                if ((previous.X == current.X && current.X == next.X) ||
+                    (previous.Y == current.Y && current.Y == next.Y))
+                {
+                    compacted.RemoveAt(index);
+                    removedPoint = true;
+                    break;
+                }
+            }
+
+            for (int index = 1; index < compacted.Count; index++)
+            {
+                if (compacted[index - 1] == compacted[index])
+                {
+                    compacted.RemoveAt(index);
+                    removedPoint = true;
+                    break;
+                }
+            }
+        }
+        while (removedPoint);
+
+        return compacted;
+    }
+
+    private static void RepairAdjacentEndpointSegment(List<CadPoint> routePoints, int endpointIndex)
+    {
+        if (routePoints.Count < 2)
+        {
+            return;
+        }
+
+        if (endpointIndex == 0)
+        {
+            CadPoint endpoint = routePoints[0];
+            CadPoint adjacent = routePoints[1];
+            routePoints[1] = Math.Abs(adjacent.X - endpoint.X) <= Math.Abs(adjacent.Y - endpoint.Y)
+                ? new CadPoint(endpoint.X, adjacent.Y)
+                : new CadPoint(adjacent.X, endpoint.Y);
+            return;
+        }
+
+        CadPoint previous = routePoints[endpointIndex - 1];
+        CadPoint end = routePoints[endpointIndex];
+        routePoints[endpointIndex - 1] = Math.Abs(previous.X - end.X) <= Math.Abs(previous.Y - end.Y)
+            ? new CadPoint(end.X, previous.Y)
+            : new CadPoint(previous.X, end.Y);
+    }
+
+    private static List<CadPoint> OrthogonalizeRoute(IReadOnlyList<CadPoint> routePoints)
+    {
+        if (routePoints.Count < 2)
+        {
+            return [..routePoints];
+        }
+
+        List<CadPoint> orthogonal = [routePoints[0]];
+        for (int index = 1; index < routePoints.Count; index++)
+        {
+            AddOrthogonalLeg(orthogonal, routePoints[index]);
+        }
+
+        return orthogonal;
+    }
+
+    private void RebuildNets()
+    {
+        Nets.Clear();
+        if (Wires.Count == 0)
+        {
+            return;
+        }
+
+        Dictionary<string, SchematicPinEndpoint> endpointsByKey = [];
+        Dictionary<string, List<string>> adjacency = [];
+        foreach (SchematicWire wire in Wires)
+        {
+            string startKey = PinKey(wire.Start);
+            string endKey = PinKey(wire.End);
+            endpointsByKey[startKey] = wire.Start;
+            endpointsByKey[endKey] = wire.End;
+            AddEdge(adjacency, startKey, endKey);
+            AddEdge(adjacency, endKey, startKey);
+        }
+
+        Dictionary<string, string> netByPinKey = [];
+        HashSet<string> visited = [];
+        int netNumber = 1;
+        foreach (string pinKey in endpointsByKey.Keys.Order(StringComparer.Ordinal))
+        {
+            if (!visited.Add(pinKey))
+            {
+                continue;
+            }
+
+            List<string> componentPins = [];
+            Queue<string> queue = new([pinKey]);
+            while (queue.Count > 0)
+            {
+                string current = queue.Dequeue();
+                componentPins.Add(current);
+                foreach (string next in adjacency[current])
+                {
+                    if (visited.Add(next))
+                    {
+                        queue.Enqueue(next);
+                    }
+                }
+            }
+
+            string netName = Wires
+                .Where(wire => componentPins.Contains(PinKey(wire.Start), StringComparer.Ordinal) ||
+                               componentPins.Contains(PinKey(wire.End), StringComparer.Ordinal))
+                .Select(wire => wire.ManualNetName)
+                .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? $"N${netNumber++}";
+            foreach (string componentPin in componentPins)
+            {
+                netByPinKey[componentPin] = netName;
+            }
+
+            string[] wireIds = Wires
+                .Where(wire => componentPins.Contains(PinKey(wire.Start), StringComparer.Ordinal) ||
+                               componentPins.Contains(PinKey(wire.End), StringComparer.Ordinal))
+                .Select(wire => wire.WireId)
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+            string[] pinNames = componentPins
+                .Select(pin => EndpointLabel(endpointsByKey[pin]))
+                .Order(StringComparer.Ordinal)
+                .ToArray();
+            Nets.Add(new SchematicNet(netName, pinNames, wireIds));
+        }
+
+        for (int index = 0; index < Wires.Count; index++)
+        {
+            SchematicWire wire = Wires[index];
+            Wires[index] = wire with { NetName = netByPinKey[PinKey(wire.Start)] };
+        }
+    }
+
+    private static void AddEdge(Dictionary<string, List<string>> adjacency, string start, string end)
+    {
+        if (!adjacency.TryGetValue(start, out List<string>? connected))
+        {
+            connected = [];
+            adjacency[start] = connected;
+        }
+
+        connected.Add(end);
+    }
+
+    private static string PinKey(SchematicPinEndpoint endpoint) =>
+        $"{endpoint.InstanceId}:{endpoint.PinName}";
+
+    private static string EndpointLabel(SchematicPinEndpoint endpoint) =>
+        $"{endpoint.ReferenceDesignator}.{endpoint.PinName}";
+
+    private static int? NearestSegmentIndex(CadPoint point, IReadOnlyList<CadPoint> routePoints, double tolerance, out double nearestDistance)
+    {
+        nearestDistance = double.MaxValue;
+        if (routePoints.Count < 2)
+        {
+            return null;
+        }
+
+        int? nearestIndex = null;
+        for (int index = 1; index < routePoints.Count; index++)
+        {
+            double distance = DistanceToSegment(point, routePoints[index - 1], routePoints[index]);
+            if (distance <= tolerance && distance < nearestDistance)
+            {
+                nearestDistance = distance;
+                nearestIndex = index;
+            }
+        }
+
+        return nearestIndex;
+    }
+
+    private static double DistanceToSegment(CadPoint point, CadPoint start, CadPoint end)
+    {
+        double dx = end.X - start.X;
+        double dy = end.Y - start.Y;
+        if (Math.Abs(dx) < double.Epsilon && Math.Abs(dy) < double.Epsilon)
+        {
+            return Distance(point, start);
+        }
+
+        double t = ((point.X - start.X) * dx + (point.Y - start.Y) * dy) / ((dx * dx) + (dy * dy));
+        t = Math.Clamp(t, 0, 1);
+        double closestX = start.X + (t * dx);
+        double closestY = start.Y + (t * dy);
+        return Math.Sqrt(Math.Pow(point.X - closestX, 2) + Math.Pow(point.Y - closestY, 2));
+    }
+
+    private static double Distance(CadPoint first, CadPoint second) =>
+        Math.Sqrt(Math.Pow(first.X - second.X, 2) + Math.Pow(first.Y - second.Y, 2));
+
+    private void SetPendingRoutePoints(IReadOnlyList<CadPoint> routePoints)
+    {
+        pendingWireRoutePoints.Clear();
+        pendingWireRoutePoints.AddRange(routePoints);
+        OnPropertyChanged(nameof(PendingWireRoutePoints));
+        OnPropertyChanged(nameof(PendingWirePreviewRoutePoints));
+    }
+
+    private void ClearPendingRoutePoints()
+    {
+        pendingWireRoutePoints.Clear();
+        OnPropertyChanged(nameof(PendingWireRoutePoints));
+        OnPropertyChanged(nameof(PendingWirePreviewRoutePoints));
+    }
+
+    private static string FormatMillimeters(long internalUnits) =>
+        ((decimal)internalUnits / CadUnit.InternalUnitsPerMillimeter).ToString("0.000", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static ComponentSymbolPreview NormalizeSymbolPreview(ComponentSymbolPreview? preview)
+    {
+        if (preview is not null && (preview.Lines.Count > 0 || preview.Pins.Count > 0))
+        {
+            return preview;
+        }
+
+        CadRectangle bounds = new(-2_000_000, -1_000_000, 2_000_000, 1_000_000);
+        return new ComponentSymbolPreview(
+            bounds,
+            [
+                new ComponentPreviewLine(new CadPoint(bounds.Left, bounds.Top), new CadPoint(bounds.Right, bounds.Top)),
+                new ComponentPreviewLine(new CadPoint(bounds.Right, bounds.Top), new CadPoint(bounds.Right, bounds.Bottom)),
+                new ComponentPreviewLine(new CadPoint(bounds.Right, bounds.Bottom), new CadPoint(bounds.Left, bounds.Bottom)),
+                new ComponentPreviewLine(new CadPoint(bounds.Left, bounds.Bottom), new CadPoint(bounds.Left, bounds.Top))
+            ],
+            []);
+    }
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+}
