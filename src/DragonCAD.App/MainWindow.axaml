@@ -273,14 +273,6 @@
                                 Classes="workbench-tab"
                                 Classes.active="{Binding IsFabricationTabActive}"
                                 Content="Fabrication" />
-                        <Button Command="{Binding Load7805SampleCommand}"
-                                Padding="16,8"
-                                Background="#142033"
-                                BorderBrush="{StaticResource DragonBorder}"
-                                BorderThickness="1,1,1,0"
-                                CornerRadius="8,8,0,0"
-                                Foreground="{StaticResource DragonGreen}"
-                                Content="Load 7805 Sample" />
                     </StackPanel>
                 </Border>
 

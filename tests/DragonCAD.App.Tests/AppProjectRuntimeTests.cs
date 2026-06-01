@@ -261,6 +261,16 @@ public sealed class AppProjectRuntimeTests
     }
 
     [Fact]
+    public void MainWindowKeepsSampleLoaderOutOfDocumentTabs()
+    {
+        string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
+
+        Assert.Contains("Load7805SampleCommand", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<MenuItem Header=\"Load 7805 Sample\"", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"Load 7805 Sample\"", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowIncludesSchematicIconToolRail()
     {
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
