@@ -68,6 +68,7 @@ Provider-specific parsers create catalog candidates only. No imported provider r
 - BOM cost rollup now combines component quantities with normalized vendor listings, selects deterministic provider offers and price breaks, totals estimated cost, and emits missing-source diagnostics.
 - Trusted-library vendor match promotion now produces deterministic non-mutating promotion plans/records for reviewed provider matches before any core library write path exists.
 - Vendor live-smoke coverage is opt-in behind `DRAGONCAD_VENDOR_LIVE_SMOKE`; the default test path stays offline and does not create HTTP clients.
+- App-side marketplace panels now expose BOM rollup, deduplication review, trusted-library promotion, integration status, and live-smoke status in the workbench.
 
 Verification evidence:
 - `dotnet build src\DragonCAD.Sourcing\DragonCAD.Sourcing.csproj -v:minimal` passed.
@@ -79,6 +80,7 @@ Verification evidence:
 - Marketplace API sync command focused tests passed with 3 tests.
 - Digi-Key OAuth token cache focused tests passed with 3 tests.
 - Credential fallback, provider retry, full bundled-library preload, in-use vendor sync, fresh-state skip, persisted sync-state, force-refresh, provider-specific freshness, editable freshness-policy, reset-defaults, validation, clear-state, BOM rollup, deduplication, trusted-library promotion, partnership document, fabrication ordering, and opt-in live-smoke focused tests passed.
+- Marketplace UI integration focused tests passed for the new panel bindings and seeded view-model properties.
 
 ## Next Integration Steps
 

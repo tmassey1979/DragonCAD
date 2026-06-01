@@ -1926,6 +1926,22 @@ public sealed class MainWindowViewModelTests
         Assert.True(asset.Length > 100_000_000);
     }
 
+    [Fact]
+    public void DesignPreviewExposesMarketplaceIntegrationPanels()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateDesignPreview(maxBuiltInDevices: 1);
+
+        Assert.NotEmpty(viewModel.MarketplaceBomCostRollup.Rows);
+        Assert.Contains("Total:", viewModel.MarketplaceBomCostRollup.TotalSummary, StringComparison.Ordinal);
+        Assert.NotEmpty(viewModel.ComponentDeduplicationReview.Rows);
+        Assert.NotEmpty(viewModel.TrustedLibraryPromotionQueue.Rows);
+        Assert.NotEmpty(viewModel.FabricationOrderingReadiness.Rows);
+        Assert.Equal("Live vendor smoke is disabled", viewModel.VendorLiveSmoke.GateStatus);
+        Assert.Equal(7, viewModel.MarketplaceIntegrationStatus.Rows.Count);
+        Assert.Contains(viewModel.MarketplaceIntegrationStatus.Rows, row => row.SectionLabel == "BOM rollup");
+        Assert.Contains(viewModel.MarketplaceIntegrationStatus.Rows, row => row.SectionLabel == "Trusted-library promotion");
+    }
+
     private static string ComputeSha256(string content) =>
         Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(content))).ToLowerInvariant();
 }

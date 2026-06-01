@@ -6,16 +6,22 @@
         xmlns:ds="clr-namespace:DragonCAD.App.Datasheets"
         xmlns:fb="clr-namespace:DragonCAD.App.Fabrication"
         xmlns:fe="clr-namespace:DragonCAD.App.Fabrication.Export"
+        xmlns:fo="clr-namespace:DragonCAD.App.Fabrication.Ordering"
         xmlns:mp="clr-namespace:DragonCAD.App.Marketplace"
         xmlns:ma="clr-namespace:DragonCAD.App.Marketplace.Audit"
+        xmlns:mb="clr-namespace:DragonCAD.App.Marketplace.Bom"
         xmlns:mc="clr-namespace:DragonCAD.App.Marketplace.Cart"
         xmlns:mce="clr-namespace:DragonCAD.App.Marketplace.Cart.Export"
         xmlns:mco="clr-namespace:DragonCAD.App.Marketplace.Cart.Ordering"
+        xmlns:md="clr-namespace:DragonCAD.App.Marketplace.Deduplication"
         xmlns:mf="clr-namespace:DragonCAD.App.Marketplace.Filters"
         xmlns:mq="clr-namespace:DragonCAD.App.Marketplace.Quality"
+        xmlns:msm="clr-namespace:DragonCAD.App.Marketplace.Smoke"
+        xmlns:mst="clr-namespace:DragonCAD.App.Marketplace.Status"
         xmlns:ms="clr-namespace:DragonCAD.App.Marketplace.Sync"
         xmlns:msi="clr-namespace:DragonCAD.App.Marketplace.Sync.InUse"
         xmlns:msr="clr-namespace:DragonCAD.App.Marketplace.Sync.Results"
+        xmlns:mtl="clr-namespace:DragonCAD.App.Marketplace.TrustedLibrary"
         xmlns:se="clr-namespace:DragonCAD.App.SchematicEditor"
         x:Class="DragonCAD.App.MainWindow"
         x:DataType="app:MainWindowViewModel"
@@ -1316,6 +1322,224 @@
                                         </Border>
                                     </StackPanel>
                                 </Border>
+                                <Border BorderBrush="{StaticResource DragonBorder}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="10">
+                                    <StackPanel Spacing="8">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="Integration Status"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource DragonText}" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding MarketplaceIntegrationStatus.OverallSeverityLabel}"
+                                                       Foreground="{StaticResource DragonGold}" />
+                                        </Grid>
+                                        <TextBlock Text="{Binding MarketplaceIntegrationStatus.NextActionText}"
+                                                   FontSize="11"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{StaticResource DragonMutedText}" />
+                                        <ItemsControl ItemsSource="{Binding MarketplaceIntegrationStatus.Rows}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="mst:MarketplaceIntegrationStatusRow"
+                                                              x:DataType="mst:MarketplaceIntegrationStatusRow">
+                                                    <Grid ColumnDefinitions="*,Auto"
+                                                          ColumnSpacing="8"
+                                                          Margin="0,2">
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding SectionLabel}"
+                                                                       Foreground="{StaticResource DragonText}" />
+                                                            <TextBlock Text="{Binding CountSummary}"
+                                                                       FontSize="11"
+                                                                       Foreground="{StaticResource DragonMutedText}" />
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding SeverityLabel}"
+                                                                   Foreground="{StaticResource DragonGreen}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                                <Border BorderBrush="{StaticResource DragonBorder}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="10">
+                                    <StackPanel Spacing="8">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="BOM Cost Rollup"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource DragonText}" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding MarketplaceBomCostRollup.TotalSummary}"
+                                                       Foreground="{StaticResource DragonGreen}" />
+                                        </Grid>
+                                        <ItemsControl ItemsSource="{Binding MarketplaceBomCostRollup.Rows}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="mb:MarketplaceBomCostRollupRow"
+                                                              x:DataType="mb:MarketplaceBomCostRollupRow">
+                                                    <Grid ColumnDefinitions="*,Auto"
+                                                          ColumnSpacing="8"
+                                                          Margin="0,2">
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding ComponentName}"
+                                                                       Foreground="{StaticResource DragonText}" />
+                                                            <TextBlock Text="{Binding SelectedProvider}"
+                                                                       FontSize="11"
+                                                                       Foreground="{StaticResource DragonMutedText}" />
+                                                        </StackPanel>
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding SelectedExtendedCost}"
+                                                                   Foreground="{StaticResource DragonGreen}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <ItemsControl ItemsSource="{Binding MarketplaceBomCostRollup.Diagnostics}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="mb:MarketplaceBomDiagnosticRow"
+                                                              x:DataType="mb:MarketplaceBomDiagnosticRow">
+                                                    <TextBlock Text="{Binding Message}"
+                                                               FontSize="11"
+                                                               TextWrapping="Wrap"
+                                                               Foreground="{StaticResource DragonGold}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                                <Border BorderBrush="{StaticResource DragonBorder}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="10">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Dedup Review"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource DragonText}" />
+                                        <ItemsControl ItemsSource="{Binding ComponentDeduplicationReview.Rows}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="md:ComponentDeduplicationReviewRow"
+                                                              x:DataType="md:ComponentDeduplicationReviewRow">
+                                                    <StackPanel Margin="0,2"
+                                                                Spacing="3">
+                                                        <Grid ColumnDefinitions="*,Auto">
+                                                            <TextBlock Text="{Binding CanonicalName}"
+                                                                       Foreground="{StaticResource DragonText}" />
+                                                            <TextBlock Grid.Column="1"
+                                                                       Text="{Binding ReviewStateDisplay}"
+                                                                       Foreground="{StaticResource DragonGreen}" />
+                                                        </Grid>
+                                                        <TextBlock Text="{Binding ConflictSummary}"
+                                                                   FontSize="11"
+                                                                   TextWrapping="Wrap"
+                                                                   Foreground="{StaticResource DragonMutedText}" />
+                                                        <StackPanel Orientation="Horizontal"
+                                                                    Spacing="6">
+                                                            <Button Content="Approve"
+                                                                    Command="{Binding ApproveCommand}"
+                                                                    Padding="6,2" />
+                                                            <Button Content="Reject"
+                                                                    Command="{Binding RejectCommand}"
+                                                                    Padding="6,2" />
+                                                            <Button Content="Reset"
+                                                                    Command="{Binding ResetCommand}"
+                                                                    Padding="6,2" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                                <Border BorderBrush="{StaticResource DragonBorder}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="10">
+                                    <StackPanel Spacing="8">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Text="Trusted-Library Promotion"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource DragonText}" />
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding TrustedLibraryPromotionQueue.QueueSummary}"
+                                                       Foreground="{StaticResource DragonGreen}" />
+                                        </Grid>
+                                        <ItemsControl ItemsSource="{Binding TrustedLibraryPromotionQueue.Rows}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="mtl:TrustedLibraryPromotionRow"
+                                                              x:DataType="mtl:TrustedLibraryPromotionRow">
+                                                    <StackPanel Margin="0,2"
+                                                                Spacing="3">
+                                                        <Grid ColumnDefinitions="*,Auto">
+                                                            <TextBlock Text="{Binding TargetComponentId}"
+                                                                       Foreground="{StaticResource DragonText}" />
+                                                            <TextBlock Grid.Column="1"
+                                                                       Text="{Binding StageReadiness}"
+                                                                       Foreground="{StaticResource DragonGreen}" />
+                                                        </Grid>
+                                                        <TextBlock Text="{Binding WarningSummary}"
+                                                                   FontSize="11"
+                                                                   TextWrapping="Wrap"
+                                                                   Foreground="{StaticResource DragonMutedText}" />
+                                                        <StackPanel Orientation="Horizontal"
+                                                                    Spacing="6">
+                                                            <Button Content="Approve"
+                                                                    Command="{Binding MarkApprovedCommand}"
+                                                                    Padding="6,2" />
+                                                            <Button Content="Reject"
+                                                                    Command="{Binding MarkRejectedCommand}"
+                                                                    Padding="6,2" />
+                                                            <Button Content="Pending"
+                                                                    Command="{Binding MarkPendingCommand}"
+                                                                    Padding="6,2" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                                <Border BorderBrush="{StaticResource DragonBorder}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="10">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="Live Vendor Smoke"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource DragonText}" />
+                                        <TextBlock Text="{Binding VendorLiveSmoke.GateStatus}"
+                                                   Foreground="{StaticResource DragonMutedText}" />
+                                        <TextBlock Text="{Binding VendorLiveSmoke.LastRunSummary}"
+                                                   FontSize="11"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{StaticResource DragonMutedText}" />
+                                        <Grid ColumnDefinitions="*,Auto"
+                                              ColumnSpacing="6">
+                                            <TextBox Text="{Binding VendorLiveSmoke.QueryText}"
+                                                     PlaceholderText="Live smoke query" />
+                                            <Button Grid.Column="1"
+                                                    Content="Run All"
+                                                    Command="{Binding VendorLiveSmoke.RunAllCommand}" />
+                                        </Grid>
+                                        <ItemsControl ItemsSource="{Binding VendorLiveSmoke.Providers}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="msm:VendorLiveSmokeProviderRow"
+                                                              x:DataType="msm:VendorLiveSmokeProviderRow">
+                                                    <Grid ColumnDefinitions="*,Auto"
+                                                          ColumnSpacing="8"
+                                                          Margin="0,2">
+                                                        <TextBlock Text="{Binding ProviderName}"
+                                                                   Foreground="{StaticResource DragonText}" />
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding Status}"
+                                                                   Foreground="{StaticResource DragonGreen}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
                             </StackPanel>
                             </ScrollViewer>
                         </Border>
@@ -2009,6 +2233,40 @@
                                 <TextBlock Text="{Binding Fabrication.SelectedOption.StatusText}"
                                            TextWrapping="Wrap"
                                            Foreground="{StaticResource DragonMutedText}" />
+                                <Border BorderBrush="{StaticResource DragonBorder}"
+                                        BorderThickness="1"
+                                        CornerRadius="4"
+                                        Padding="10">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="Ordering Readiness"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource DragonText}" />
+                                        <ItemsControl ItemsSource="{Binding FabricationOrderingReadiness.Rows}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="fo:FabricationOrderingReadinessRow"
+                                                              x:DataType="fo:FabricationOrderingReadinessRow">
+                                                    <StackPanel Margin="0,2"
+                                                                Spacing="3">
+                                                        <Grid ColumnDefinitions="*,Auto">
+                                                            <TextBlock Text="{Binding ProviderName}"
+                                                                       Foreground="{StaticResource DragonText}" />
+                                                            <TextBlock Grid.Column="1"
+                                                                       Text="{Binding PackageReadiness}"
+                                                                       Foreground="{StaticResource DragonGreen}" />
+                                                        </Grid>
+                                                        <TextBlock Text="{Binding LayerSupport}"
+                                                                   FontSize="11"
+                                                                   Foreground="{StaticResource DragonMutedText}" />
+                                                        <TextBlock Text="{Binding CheckoutSubmissionDisabledExplanation}"
+                                                                   FontSize="11"
+                                                                   TextWrapping="Wrap"
+                                                                   Foreground="{StaticResource DragonMutedText}" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
                                 <Border BorderBrush="{StaticResource DragonBorder}"
                                         BorderThickness="1"
                                         CornerRadius="4"

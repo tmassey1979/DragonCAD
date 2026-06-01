@@ -1627,3 +1627,22 @@ Deferred by design:
 - Live vendor smoke was not executed because it is intentionally opt-in and should only run when `DRAGONCAD_VENDOR_LIVE_SMOKE=1` is set for a local check.
 - No real vendor ordering or checkout submission was added.
 - No app UI was added yet for BOM rollups, deduplication review, or trusted-library promotion queues.
+
+---
+
+## Wave 59 Completion Notes
+
+Completed implementation slices:
+- Added app-side view models for BOM cost rollups, component deduplication review, trusted-library promotion, fabrication ordering readiness, vendor live-smoke status, and marketplace integration status.
+- Wired the new marketplace panels into the Marketplace inspector so backend sourcing foundations are visible from the workbench.
+- Wired fabrication ordering readiness into the Fabrication handoff panel, including provider readiness and disabled checkout explanations.
+- Added shell coverage that verifies the new properties and XAML bindings are present.
+
+Verification evidence:
+- Focused shell integration tests passed with 2 tests.
+- Full app test project passed with 331 tests.
+
+Deferred by design:
+- The new panels are seeded from deterministic sample data; live cart/project-derived rollups remain a follow-up.
+- Review commands are local in-memory state changes only.
+- Live vendor smoke remains disabled by default and requires explicit `DRAGONCAD_VENDOR_LIVE_SMOKE=1`.

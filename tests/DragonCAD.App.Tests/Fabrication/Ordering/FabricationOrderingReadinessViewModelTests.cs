@@ -1,0 +1,128 @@
+using DragonCAD.App.Fabrication.Ordering;
+
+namespace DragonCAD.App.Tests.Fabrication.Ordering;
+
+public sealed class FabricationOrderingReadinessViewModelTests
+{
+    [Fact]
+    public void FromSourcesBuildsRowsForOshParkAndPcbCartReadiness()
+    {
+        FabricationOrderingReadinessViewModel viewModel = FabricationOrderingReadinessViewModel.FromSources(
+        [
+            new FabricationOrderingReadinessSource(
+                ProviderName: "OSH Park",
+                ProviderKind: "Prototype",
+                Mode: "Prototype board",
+                SupportedLayers: [2, 4],
+                MinimumQuantity: 3,
+                MaximumQuantity: 3,
+                ValidationDiagnostics: []),
+            new FabricationOrderingReadinessSource(
+                ProviderName: "PCBCart",
+                ProviderKind: "Production",
+                Mode: "Assembled board",
+                SupportedLayers: [1, 2, 4, 6, 8, 10, 12],
+                MinimumQuantity: 5,
+                MaximumQuantity: 10000,
+                ValidationDiagnostics:
+                [
+                    FabricationOrderingDiagnostic.Error("assembly-package-missing-role", "Assembly package is missing required BillOfMaterials file for PCBCart.", "BillOfMaterials"),
+                    FabricationOrderingDiagnostic.Warning("manual-review-required", "Manual fabrication review is required before provider submission.")
+                ])
+        ]);
+
+        Assert.Equal(["OSH Park", "PCBCart"], viewModel.Rows.Select(row => row.ProviderName));
+
+        FabricationOrderingReadinessRow oshPark = viewModel.Rows[0];
+        Assert.Equal("Prototype", oshPark.ProviderKind);
+        Assert.Equal("Prototype board", oshPark.Mode);
+        Assert.Equal("2, 4 layers", oshPark.LayerSupport);
+        Assert.Equal("3 boards", oshPark.QuantitySupport);
+        Assert.Equal("Ready", oshPark.PackageReadiness);
+        Assert.Empty(oshPark.MissingFiles);
+        Assert.False(oshPark.IsCheckoutSubmissionEnabled);
+        Assert.Equal("Checkout/submission is disabled: DragonCAD prepares the package only and does not place fabrication orders.", oshPark.CheckoutSubmissionDisabledExplanation);
+
+        FabricationOrderingReadinessRow pcbCart = viewModel.Rows[1];
+        Assert.Equal("Production", pcbCart.ProviderKind);
+        Assert.Equal("Assembled board", pcbCart.Mode);
+        Assert.Equal("1, 2, 4, 6, 8, 10, 12 layers", pcbCart.LayerSupport);
+        Assert.Equal("5-10000 boards", pcbCart.QuantitySupport);
+        Assert.Equal("Blocked", pcbCart.PackageReadiness);
+        Assert.Equal(["BillOfMaterials"], pcbCart.MissingFiles);
+        Assert.Equal(["Manual fabrication review is required before provider submission."], pcbCart.Warnings);
+        Assert.Equal("Checkout/submission is disabled: package is blocked by 1 missing required file.", pcbCart.CheckoutSubmissionDisabledExplanation);
+    }
+
+    [Fact]
+    public void FromDomainPackagesAdaptsProviderProfilesAndValidationResultsByShape()
+    {
+        ShapeProviderProfile profile = new(
+            ProviderKind: ShapeProviderKind.Production,
+            MinimumQuantity: 5,
+            MaximumQuantity: 10000,
+            SupportedLayerCounts: [2, 4, 6]);
+        ShapeProvider provider = new("PCBCart", profile);
+        ShapePackage package = new(provider, ShapeOrderMode.AssembledBoard);
+        ShapeValidation validation = new(
+        [
+            new ShapeDiagnostic(ShapeSeverity.Error, "assembly-package-missing-role", "Assembly package is missing required PickAndPlace file for PCBCart.", ShapeFileRole.PickAndPlace),
+            new ShapeDiagnostic(ShapeSeverity.Warning, "manual-review-required", "Manual fabrication review is required before provider submission.", null)
+        ]);
+
+        FabricationOrderingReadinessViewModel viewModel = FabricationOrderingReadinessViewModel.FromDomainPackages(
+        [
+            new FabricationOrderingDomainPackage(package, validation)
+        ]);
+
+        FabricationOrderingReadinessRow row = Assert.Single(viewModel.Rows);
+        Assert.Equal("PCBCart", row.ProviderName);
+        Assert.Equal("Production", row.ProviderKind);
+        Assert.Equal("Assembled board", row.Mode);
+        Assert.Equal("2, 4, 6 layers", row.LayerSupport);
+        Assert.Equal("5-10000 boards", row.QuantitySupport);
+        Assert.Equal("Blocked", row.PackageReadiness);
+        Assert.Equal(["PickAndPlace"], row.MissingFiles);
+        Assert.Equal(["Manual fabrication review is required before provider submission."], row.Warnings);
+    }
+
+    private sealed record ShapePackage(ShapeProvider Provider, ShapeOrderMode OrderMode);
+
+    private sealed record ShapeProvider(string DisplayName, ShapeProviderProfile Profile);
+
+    private sealed record ShapeProviderProfile(
+        ShapeProviderKind ProviderKind,
+        int MinimumQuantity,
+        int MaximumQuantity,
+        IReadOnlyList<int> SupportedLayerCounts);
+
+    private sealed record ShapeValidation(IReadOnlyList<ShapeDiagnostic> Diagnostics);
+
+    private sealed record ShapeDiagnostic(ShapeSeverity Severity, string Code, string Message, ShapeFileRole? FileRole);
+
+    private enum ShapeProviderKind
+    {
+        Prototype,
+        Production
+    }
+
+    private enum ShapeOrderMode
+    {
+        PrototypeBoard,
+        ProductionBoard,
+        AssembledBoard
+    }
+
+    private enum ShapeSeverity
+    {
+        Information,
+        Warning,
+        Error
+    }
+
+    private enum ShapeFileRole
+    {
+        BillOfMaterials,
+        PickAndPlace
+    }
+}

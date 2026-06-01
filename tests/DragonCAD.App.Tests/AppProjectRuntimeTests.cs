@@ -137,6 +137,18 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("Run In-Use Sync", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Force Refresh", mainWindow, StringComparison.Ordinal);
         Assert.Contains("SyncStateLabel", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("MarketplaceBomCostRollup", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("BOM Cost Rollup", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ComponentDeduplicationReview", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Dedup Review", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("TrustedLibraryPromotionQueue", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Trusted-Library Promotion", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("VendorLiveSmoke", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Live Vendor Smoke", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("MarketplaceIntegrationStatus", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Integration Status", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("FabricationOrderingReadiness", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Ordering Readiness", mainWindow, StringComparison.Ordinal);
     }
 
     [Fact]

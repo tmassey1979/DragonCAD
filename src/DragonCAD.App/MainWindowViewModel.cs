@@ -11,29 +11,39 @@ using DragonCAD.App.Diagnostics;
 using DragonCAD.App.Fabrication;
 using DragonCAD.App.Fabrication.Export;
 using DragonCAD.App.Fabrication.Handoff;
+using DragonCAD.App.Fabrication.Ordering;
 using DragonCAD.App.Marketplace;
 using DragonCAD.App.Marketplace.Audit;
+using DragonCAD.App.Marketplace.Bom;
 using DragonCAD.App.Marketplace.Cart;
 using DragonCAD.App.Marketplace.Cart.Commands;
 using DragonCAD.App.Marketplace.Cart.Export;
 using DragonCAD.App.Marketplace.Cart.Ordering;
+using DragonCAD.App.Marketplace.Deduplication;
 using DragonCAD.App.Marketplace.Filters;
 using DragonCAD.App.Marketplace.Quality;
+using DragonCAD.App.Marketplace.Smoke;
+using DragonCAD.App.Marketplace.Status;
 using DragonCAD.App.Marketplace.Sync;
 using DragonCAD.App.Marketplace.Sync.InUse;
 using DragonCAD.App.Marketplace.Sync.Results;
+using DragonCAD.App.Marketplace.TrustedLibrary;
 using DragonCAD.App.Placement;
 using DragonCAD.App.SchematicEditor;
 using DragonCAD.Core.Components.Catalog;
+using DragonCAD.Core.Components.Identity;
 using DragonCAD.Core.Components.Marketplace;
 using DragonCAD.Core.Components.Marketplace.Provenance;
 using DragonCAD.Core.Geometry;
 using DragonCAD.Core.Libraries;
 using DragonCAD.Sourcing;
+using DragonCAD.Sourcing.Bom;
 using DragonCAD.Sourcing.Catalog;
 using DragonCAD.Sourcing.Catalog.DigiKey;
 using DragonCAD.Sourcing.Catalog.Mouser;
 using DragonCAD.Sourcing.Catalog.Sync;
+using DragonCAD.Sourcing.Deduplication;
+using DragonCAD.Sourcing.TrustedLibrary;
 
 namespace DragonCAD.App;
 
@@ -363,6 +373,20 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             : MarketplaceQualityBadgeEvaluator.Evaluate(Marketplace.SelectedComponent, SeededMarketplaceProvenance);
 
     public VendorCatalogSyncDashboardViewModel VendorCatalogSync { get; } = CreateSeededVendorCatalogSync();
+
+    public MarketplaceBomCostRollupViewModel MarketplaceBomCostRollup { get; } = CreateSeededMarketplaceBomCostRollup();
+
+    public ComponentDeduplicationReviewViewModel ComponentDeduplicationReview { get; } = CreateSeededComponentDeduplicationReview();
+
+    public TrustedLibraryPromotionQueueViewModel TrustedLibraryPromotionQueue { get; } = CreateSeededTrustedLibraryPromotionQueue();
+
+    public FabricationOrderingReadinessViewModel FabricationOrderingReadiness { get; } = CreateSeededFabricationOrderingReadiness();
+
+    public VendorLiveSmokeViewModel VendorLiveSmoke { get; } =
+        new(new VendorLiveSmokeHarnessAdapter(DragonCAD.Sourcing.Catalog.Smoke.VendorLiveSmokeHarness.CreateDefault()));
+
+    public MarketplaceIntegrationStatusDashboardViewModel MarketplaceIntegrationStatus { get; } =
+        CreateSeededMarketplaceIntegrationStatus();
 
     public IReadOnlyList<string> VendorCatalogSyncProviderOptions { get; } = ["Digi-Key", "Mouser"];
 
@@ -1278,6 +1302,147 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
                 new VendorCatalogSyncStatus("SparkFun", true, CatalogCredentialState.NotRequired, new DateTimeOffset(2026, 5, 29, 12, 0, 0, TimeSpan.Zero), 422, 301, 8),
                 new VendorCatalogSyncStatus("Jameco", true, CatalogCredentialState.NotSupported, null, 0, 0, 0)
             ]);
+
+    private static MarketplaceBomCostRollupViewModel CreateSeededMarketplaceBomCostRollup()
+    {
+        BomCostRollup rollup = BomCostRollupCalculator.RollUp(
+            [
+                new BomComponentQuantity("U1", "LM7805CT/NOPB", 3),
+                new BomComponentQuantity("U2", "NE555P", 5),
+                new BomComponentQuantity("C1-C4", "CAP-10UF-0603", 4)
+            ],
+            CreateSeededCatalogListings());
+
+        return MarketplaceBomCostRollupViewModel.FromRollup(rollup);
+    }
+
+    private static ComponentDeduplicationReviewViewModel CreateSeededComponentDeduplicationReview() =>
+        ComponentDeduplicationReviewViewModel.FromCandidates(
+        [
+            new ComponentCandidate(
+                "LM7805CT/NOPB",
+                "Texas Instruments",
+                "TO-220",
+                "5 V regulator",
+                ["LM7805", "7805"],
+                ["Digi-Key:296-12345-1-ND", "Mouser:595-LM7805CT"],
+                [
+                    new ComponentMergeWarning(
+                        ComponentMergeWarningKind.PackageDisagreement,
+                        "Provider catalog package fields should be reviewed before canonical merge.",
+                        ["TO-220", "TO-220-3"],
+                        ["Digi-Key:296-12345-1-ND", "Mouser:595-LM7805CT"])
+                ]),
+            new ComponentCandidate(
+                "NE555P",
+                "Texas Instruments",
+                "DIP-8",
+                "timer",
+                ["555", "NE555"],
+                ["Digi-Key:296-NE555P-ND", "Mouser:595-NE555P"],
+                [])
+        ]);
+
+    private static TrustedLibraryPromotionQueueViewModel CreateSeededTrustedLibraryPromotionQueue()
+    {
+        TrustedLibraryVendorMatchPromotionPlan plan = TrustedLibraryVendorMatchPromotionPlanner.Plan(
+        [
+            new ReviewedVendorCatalogMatch(
+                TrustedLibraryMatchReviewState.Approved,
+                "Digi-Key",
+                "296-12345-1-ND",
+                "LM7805CT/NOPB",
+                new ComponentId("dragon:lm7805"),
+                [new TrustedLibraryArtifactPath("datasheet", "datasheets/lm7805.pdf", "sha256:lm7805")],
+                []),
+            new ReviewedVendorCatalogMatch(
+                TrustedLibraryMatchReviewState.PendingReview,
+                "Mouser",
+                "595-NE555P",
+                "NE555P",
+                new ComponentId("dragon:ne555"),
+                [new TrustedLibraryArtifactPath("catalog", "catalog/mouser-ne555.json", null)],
+                ["Confirm package mapping before staging."])
+        ]);
+
+        return TrustedLibraryPromotionQueueViewModel.FromPlan(plan);
+    }
+
+    private static FabricationOrderingReadinessViewModel CreateSeededFabricationOrderingReadiness() =>
+        FabricationOrderingReadinessViewModel.FromSources(
+        [
+            new FabricationOrderingReadinessSource(
+                "OSH Park",
+                "Prototype",
+                "Prototype board order",
+                [2, 4],
+                3,
+                999,
+                []),
+            new FabricationOrderingReadinessSource(
+                "PCB Cart",
+                "Production",
+                "Production quote",
+                [2, 4, 6],
+                5,
+                10000,
+                [
+                    FabricationOrderingDiagnostic.Error("DragonCAD.Fabrication.MissingPickAndPlace", "Pick-and-place CSV is required for assembly quoting.", "Pick and Place"),
+                    FabricationOrderingDiagnostic.Warning("DragonCAD.Fabrication.BomReview", "BOM should be reviewed before requesting production quote.")
+                ])
+        ]);
+
+    private static MarketplaceIntegrationStatusDashboardViewModel CreateSeededMarketplaceIntegrationStatus() =>
+        MarketplaceIntegrationStatusDashboardViewModel.FromSections(
+        [
+            new MarketplaceIntegrationSectionStatus(MarketplaceIntegrationSection.ApiSync, 2, 0, 0),
+            new MarketplaceIntegrationSectionStatus(MarketplaceIntegrationSection.InUseSync, 0, 1, 0),
+            new MarketplaceIntegrationSectionStatus(MarketplaceIntegrationSection.BomRollup, 2, 0, 1),
+            new MarketplaceIntegrationSectionStatus(MarketplaceIntegrationSection.DedupReview, 1, 1, 0),
+            new MarketplaceIntegrationSectionStatus(MarketplaceIntegrationSection.TrustedLibraryPromotion, 1, 1, 0),
+            new MarketplaceIntegrationSectionStatus(MarketplaceIntegrationSection.FabricationOrdering, 1, 1, 1),
+            new MarketplaceIntegrationSectionStatus(MarketplaceIntegrationSection.LiveSmoke, 0, 0, 2)
+        ]);
+
+    private static IReadOnlyList<NormalizedCatalogListing> CreateSeededCatalogListings() =>
+    [
+        new NormalizedCatalogListing(
+            "Digi-Key",
+            "296-12345-1-ND",
+            "LM7805CT/NOPB",
+            "Texas Instruments",
+            "5V linear regulator",
+            PriceLadder.Normalize([new QuantityPriceBreak(1, Money.Usd(0.72m)), new QuantityPriceBreak(10, Money.Usd(0.51m))]),
+            1234,
+            new Uri("https://example.test/lm7805.pdf"),
+            new Uri("https://www.digikey.com/en/products/detail/texas-instruments/LM7805CT-NOPB/12345"),
+            new Dictionary<string, string> { ["PackageType"] = "TO-220" },
+            CatalogProviderCapabilities.Api),
+        new NormalizedCatalogListing(
+            "Mouser",
+            "595-LM7805CT",
+            "LM7805CT/NOPB",
+            "Texas Instruments",
+            "Linear Voltage Regulators 5V",
+            PriceLadder.Normalize([new QuantityPriceBreak(1, Money.Usd(0.81m)), new QuantityPriceBreak(10, Money.Usd(0.58m))]),
+            810,
+            new Uri("https://example.test/lm7805-mouser.pdf"),
+            new Uri("https://www.mouser.com/ProductDetail/595-LM7805CT"),
+            new Dictionary<string, string> { ["Packaging"] = "Tube" },
+            CatalogProviderCapabilities.Api),
+        new NormalizedCatalogListing(
+            "Digi-Key",
+            "296-NE555P-ND",
+            "NE555P",
+            "Texas Instruments",
+            "Precision timer",
+            PriceLadder.Normalize([new QuantityPriceBreak(1, Money.Usd(0.39m)), new QuantityPriceBreak(10, Money.Usd(0.29m))]),
+            5400,
+            new Uri("https://example.test/ne555.pdf"),
+            new Uri("https://www.digikey.com/en/products/detail/texas-instruments/NE555P/277057"),
+            new Dictionary<string, string> { ["PackageType"] = "PDIP" },
+            CatalogProviderCapabilities.Api)
+    ];
 
     private static CatalogCredentialState ResolveDigiKeyCredentialState()
     {
