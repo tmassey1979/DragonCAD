@@ -7,6 +7,44 @@ namespace DragonCAD.App.Tests.Marketplace.Deduplication;
 public sealed class ComponentDeduplicationReviewViewModelTests
 {
     [Fact]
+    public void FromCandidatesExposesEmptyStateDisplayTextWhenNoCandidatesNeedReview()
+    {
+        ComponentDeduplicationReviewViewModel viewModel = ComponentDeduplicationReviewViewModel.FromCandidates([]);
+
+        Assert.False(viewModel.HasCandidates);
+        Assert.Equal("No duplicate candidates", viewModel.EmptyStateTitle);
+        Assert.Equal("Library and marketplace components are already distinct.", viewModel.EmptyStateMessage);
+        Assert.Equal("0 candidates", viewModel.CandidateCountLabel);
+        Assert.Equal("0 pending", viewModel.PendingCountLabel);
+        Assert.Equal("No duplicate candidates to review", viewModel.ReviewSummary);
+    }
+
+    [Fact]
+    public void ReviewDisplayCountsUpdateWhenRowsAreReviewed()
+    {
+        ComponentDeduplicationReviewViewModel viewModel = ComponentDeduplicationReviewViewModel.FromCandidates(
+            [
+                Candidate("NE555P", "Texas Instruments", ["Digi-Key:296-NE555P", "Mouser:595-NE555P"]),
+                Candidate("LM7805CT", "Texas Instruments", ["Digi-Key:296-LM7805CT", "Mouser:595-LM7805CT"])
+            ]);
+
+        Assert.True(viewModel.HasCandidates);
+        Assert.Equal("2 candidates", viewModel.CandidateCountLabel);
+        Assert.Equal("2 pending", viewModel.PendingCountLabel);
+        Assert.Equal("0 approved", viewModel.ApprovedCountLabel);
+        Assert.Equal("0 rejected", viewModel.RejectedCountLabel);
+        Assert.Equal("2 pending across 2 candidates", viewModel.ReviewSummary);
+
+        viewModel.Rows[0].ApproveCommand.Execute(null);
+        viewModel.Rows[1].RejectCommand.Execute(null);
+
+        Assert.Equal("0 pending", viewModel.PendingCountLabel);
+        Assert.Equal("1 approved", viewModel.ApprovedCountLabel);
+        Assert.Equal("1 rejected", viewModel.RejectedCountLabel);
+        Assert.Equal("All 2 candidates reviewed", viewModel.ReviewSummary);
+    }
+
+    [Fact]
     public void FromMarketplaceRowsGroupsRowsByCanonicalAliasesAndPreservesProviderSourceKeys()
     {
         MarketplaceComponentRow[] rows =
@@ -173,4 +211,17 @@ public sealed class ComponentDeduplicationReviewViewModelTests
             DatasheetUrl: "",
             StockQuantity: 100,
             MinimumUnitPriceUsd: 1.25m);
+
+    private static ComponentCandidate Candidate(
+        string manufacturerPartNumber,
+        string manufacturer,
+        IReadOnlyList<string> sourceKeys) =>
+        new(
+            manufacturerPartNumber,
+            manufacturer,
+            "DIP-8",
+            null,
+            [],
+            sourceKeys,
+            []);
 }

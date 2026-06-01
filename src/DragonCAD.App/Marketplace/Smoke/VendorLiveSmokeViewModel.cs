@@ -48,6 +48,22 @@ public sealed class VendorLiveSmokeViewModel : INotifyPropertyChanged
         ? string.Empty
         : $"Set {VendorLiveSmokeHarness.GateEnvironmentVariable}=1 to enable real Digi-Key and Mouser calls.";
 
+    public string RunAllActionLabel => IsRunning
+        ? "Running live smoke..."
+        : IsGateEnabled ? "Run all live smoke" : "Enable live smoke gate";
+
+    public string CommandStatusLabel => IsGateEnabled
+        ? $"Ready: {RunnableProviderCount:N0} of {ProviderCount:N0} providers runnable"
+        : $"Disabled: {RunnableProviderCount:N0} of {ProviderCount:N0} providers runnable";
+
+    public int ProviderCount => providers.Count;
+
+    public int RunnableProviderCount => IsGateEnabled && !IsRunning
+        ? providers.Count(row => row.CanRun)
+        : 0;
+
+    public int DisabledProviderCount => ProviderCount - RunnableProviderCount;
+
     public IReadOnlyList<VendorLiveSmokeProviderRow> Providers => providers;
 
     public IReadOnlyList<VendorLiveSmokeDiagnosticRow> Diagnostics => diagnostics;
@@ -133,6 +149,7 @@ public sealed class VendorLiveSmokeViewModel : INotifyPropertyChanged
             isRunning = value;
             RaiseCommandStateChanged();
             OnPropertyChanged();
+            RaiseCommandDisplayChanged();
         }
     }
 
@@ -155,6 +172,7 @@ public sealed class VendorLiveSmokeViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(GateStatus));
         OnPropertyChanged(nameof(DisabledMessage));
         OnPropertyChanged(nameof(Providers));
+        RaiseCommandDisplayChanged();
     }
 
     public async Task RunAllAsync(CancellationToken cancellationToken = default)
@@ -251,6 +269,7 @@ public sealed class VendorLiveSmokeViewModel : INotifyPropertyChanged
 
         ReplaceDiagnostics(results.SelectMany(result => result.Diagnostics).Select(VendorLiveSmokeDiagnosticRow.FromDiagnostic).ToArray());
         OnPropertyChanged(nameof(Providers));
+        RaiseCommandDisplayChanged();
     }
 
     private void ReplaceDiagnostics(IEnumerable<VendorLiveSmokeDiagnosticRow> rows)
@@ -284,6 +303,15 @@ public sealed class VendorLiveSmokeViewModel : INotifyPropertyChanged
         (RunDigiKeyCommand as AsyncDelegateCommand)?.RaiseCanExecuteChanged();
         (RunMouserCommand as AsyncDelegateCommand)?.RaiseCanExecuteChanged();
         (RunAllCommand as AsyncDelegateCommand)?.RaiseCanExecuteChanged();
+    }
+
+    private void RaiseCommandDisplayChanged()
+    {
+        OnPropertyChanged(nameof(RunAllActionLabel));
+        OnPropertyChanged(nameof(CommandStatusLabel));
+        OnPropertyChanged(nameof(ProviderCount));
+        OnPropertyChanged(nameof(RunnableProviderCount));
+        OnPropertyChanged(nameof(DisabledProviderCount));
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>

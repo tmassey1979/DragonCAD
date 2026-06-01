@@ -17,9 +17,9 @@ public sealed class TrustedLibraryPromotionQueueViewModel : INotifyPropertyChang
         {
             row.PropertyChanged += (_, args) =>
             {
-                if (args.PropertyName is nameof(TrustedLibraryPromotionRow.CanStage))
+                if (args.PropertyName is nameof(TrustedLibraryPromotionRow.ReviewState))
                 {
-                    OnPropertyChanged(nameof(QueueSummary));
+                    NotifyQueueStatusChanged();
                 }
             };
         }
@@ -31,13 +31,26 @@ public sealed class TrustedLibraryPromotionQueueViewModel : INotifyPropertyChang
 
     public bool MutatesCoreLibrary { get; }
 
+    public int ReadyCount => CountRows(TrustedLibraryMatchReviewState.Approved);
+
+    public int PendingCount => CountRows(TrustedLibraryMatchReviewState.PendingReview);
+
+    public int BlockedCount => CountRows(TrustedLibraryMatchReviewState.Rejected);
+
+    public string ReadyStatusLabel => FormatStatusLabel(ReadyCount, "ready");
+
+    public string PendingStatusLabel => FormatStatusLabel(PendingCount, "pending");
+
+    public string BlockedStatusLabel => FormatStatusLabel(BlockedCount, "blocked");
+
+    public string QueueStatusSummary => $"{ReadyStatusLabel} / {PendingStatusLabel} / {BlockedStatusLabel}";
+
     public string QueueSummary
     {
         get
         {
-            int readyCount = Rows.Count(row => row.CanStage);
             string candidateLabel = Rows.Count == 1 ? "promotion candidate" : "promotion candidates";
-            return $"{Rows.Count} {candidateLabel}, {readyCount} ready to stage";
+            return $"{Rows.Count} {candidateLabel}, {ReadyCount} ready to stage";
         }
     }
 
@@ -64,6 +77,23 @@ public sealed class TrustedLibraryPromotionQueueViewModel : INotifyPropertyChang
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
+    private int CountRows(TrustedLibraryMatchReviewState reviewState) =>
+        Rows.Count(row => row.ReviewState == reviewState);
+
+    private void NotifyQueueStatusChanged()
+    {
+        OnPropertyChanged(nameof(ReadyCount));
+        OnPropertyChanged(nameof(PendingCount));
+        OnPropertyChanged(nameof(BlockedCount));
+        OnPropertyChanged(nameof(ReadyStatusLabel));
+        OnPropertyChanged(nameof(PendingStatusLabel));
+        OnPropertyChanged(nameof(BlockedStatusLabel));
+        OnPropertyChanged(nameof(QueueStatusSummary));
+        OnPropertyChanged(nameof(QueueSummary));
+    }
+
+    private static string FormatStatusLabel(int count, string status) => $"{count} {status}";
 }
 
 public sealed record TrustedLibraryReviewedCandidate

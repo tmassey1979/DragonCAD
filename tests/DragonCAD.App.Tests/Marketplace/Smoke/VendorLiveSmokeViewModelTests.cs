@@ -29,6 +29,29 @@ public sealed class VendorLiveSmokeViewModelTests
     }
 
     [Fact]
+    public void CommandDisplaySurfaceSummarizesRunnableAndDisabledState()
+    {
+        var harness = new FakeVendorLiveSmokeHarness(isEnabled: false);
+        VendorLiveSmokeViewModel viewModel = new(harness);
+
+        Assert.Equal("Enable live smoke gate", ReadStringProperty(viewModel, "RunAllActionLabel"));
+        Assert.Equal("Disabled: 0 of 2 providers runnable", ReadStringProperty(viewModel, "CommandStatusLabel"));
+        Assert.Equal(2, ReadIntProperty(viewModel, "ProviderCount"));
+        Assert.Equal(0, ReadIntProperty(viewModel, "RunnableProviderCount"));
+        Assert.Equal(2, ReadIntProperty(viewModel, "DisabledProviderCount"));
+
+        harness.IsEnabled = true;
+
+        viewModel.RefreshStatus();
+
+        Assert.Equal("Run all live smoke", ReadStringProperty(viewModel, "RunAllActionLabel"));
+        Assert.Equal("Ready: 2 of 2 providers runnable", ReadStringProperty(viewModel, "CommandStatusLabel"));
+        Assert.Equal(2, ReadIntProperty(viewModel, "ProviderCount"));
+        Assert.Equal(2, ReadIntProperty(viewModel, "RunnableProviderCount"));
+        Assert.Equal(0, ReadIntProperty(viewModel, "DisabledProviderCount"));
+    }
+
+    [Fact]
     public async Task RunProviderUpdatesLastResultProviderRowAndDiagnostics()
     {
         var diagnostic = new CatalogImportDiagnostic(
@@ -161,6 +184,19 @@ public sealed class VendorLiveSmokeViewModelTests
         Assert.Equal(expected, viewModel.RunDigiKeyCommand.CanExecute(null));
         Assert.Equal(expected, viewModel.RunMouserCommand.CanExecute(null));
         Assert.Equal(expected, viewModel.RunAllCommand.CanExecute(null));
+    }
+
+    private static string ReadStringProperty(VendorLiveSmokeViewModel viewModel, string propertyName) =>
+        Assert.IsType<string>(ReadProperty(viewModel, propertyName));
+
+    private static int ReadIntProperty(VendorLiveSmokeViewModel viewModel, string propertyName) =>
+        Assert.IsType<int>(ReadProperty(viewModel, propertyName));
+
+    private static object? ReadProperty(VendorLiveSmokeViewModel viewModel, string propertyName)
+    {
+        var property = typeof(VendorLiveSmokeViewModel).GetProperty(propertyName);
+        Assert.NotNull(property);
+        return property.GetValue(viewModel);
     }
 
     private sealed class FakeVendorLiveSmokeHarness : IVendorLiveSmokeHarness

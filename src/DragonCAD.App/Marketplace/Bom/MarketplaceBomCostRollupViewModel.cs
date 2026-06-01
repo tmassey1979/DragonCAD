@@ -30,6 +30,29 @@ public sealed class MarketplaceBomCostRollupViewModel
 
     public bool IsComplete { get; }
 
+    public bool IsEmpty => Rows.Count == 0;
+
+    public string EmptyStateMessage =>
+        IsEmpty ? "Add parts to the marketplace cart to build a BOM rollup." : string.Empty;
+
+    public string ReadyStateSummary
+    {
+        get
+        {
+            if (IsEmpty)
+            {
+                return "No BOM lines ready";
+            }
+
+            if (!IsComplete)
+            {
+                return $"{FormatDiagnosticsLabel(Diagnostics.Count)} need attention across {FormatCount(Rows.Count, "component")}";
+            }
+
+            return $"Ready to source {FormatCount(Rows.Count, "component")} from {FormatCount(ProviderSummaries.Count, "provider")}";
+        }
+    }
+
     public static MarketplaceBomCostRollupViewModel FromRollup(BomCostRollup rollup)
     {
         ArgumentNullException.ThrowIfNull(rollup);
@@ -66,6 +89,12 @@ public sealed class MarketplaceBomCostRollupViewModel
     }
 
     private static string Pluralize(int count, string singular) => count == 1 ? singular : $"{singular}s";
+
+    private static string FormatCount(int count, string singular) =>
+        $"{count:N0} {Pluralize(count, singular)}";
+
+    private static string FormatDiagnosticsLabel(int count) =>
+        FormatCount(count, "diagnostic");
 }
 
 public sealed record MarketplaceBomCostRollupRow(

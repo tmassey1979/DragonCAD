@@ -9,6 +9,39 @@ namespace DragonCAD.App.Tests.Marketplace.Bom;
 public sealed class MarketplaceBomCostRollupViewModelTests
 {
     [Fact]
+    public void FromCartExposesEmptyCartStateForDisplay()
+    {
+        MarketplaceCartViewModel cart = new();
+
+        MarketplaceBomCostRollupViewModel viewModel = MarketplaceBomCostRollupFactory.FromCart(cart, []);
+
+        Assert.True(viewModel.IsEmpty);
+        Assert.Equal("Add parts to the marketplace cart to build a BOM rollup.", viewModel.EmptyStateMessage);
+        Assert.Equal("No BOM lines ready", viewModel.ReadyStateSummary);
+    }
+
+    [Fact]
+    public void FromRollupExposesReadyStateSummaryForCompletePricedBom()
+    {
+        var rollup = new BomCostRollup(
+            Money.Usd(2.55m),
+            [
+                new BomCostRollupLine(
+                    new BomComponentQuantity("U1", "ATMEGA328P", quantity: 3),
+                    [Offer("Digi-Key", "DK-U-1", "ATMEGA328P", requiredQuantity: 3, priceBreak: 1, unitPrice: 0.85m, extendedCost: 2.55m, stockQuantity: 10)],
+                    Offer("Digi-Key", "DK-U-1", "ATMEGA328P", requiredQuantity: 3, priceBreak: 1, unitPrice: 0.85m, extendedCost: 2.55m, stockQuantity: 10))
+            ],
+            [],
+            [new BomProviderSummary("Digi-Key", 1, Money.Usd(2.55m))]);
+
+        MarketplaceBomCostRollupViewModel viewModel = MarketplaceBomCostRollupViewModel.FromRollup(rollup);
+
+        Assert.False(viewModel.IsEmpty);
+        Assert.Equal("", viewModel.EmptyStateMessage);
+        Assert.Equal("Ready to source 1 component from 1 provider", viewModel.ReadyStateSummary);
+    }
+
+    [Fact]
     public void FromCartAggregatesCartQuantitiesAndPricesFromMarketplaceCatalogRows()
     {
         MarketplaceComponentRow digiKeyRow = Row(

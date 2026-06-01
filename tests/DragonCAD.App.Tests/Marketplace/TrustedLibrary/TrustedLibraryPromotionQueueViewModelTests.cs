@@ -143,6 +143,81 @@ public sealed class TrustedLibraryPromotionQueueViewModelTests
     }
 
     [Fact]
+    public void FromPlanExposesQueueStatusCountsAndLabelsForLibraryMarketDisplay()
+    {
+        TrustedLibraryPromotionQueueViewModel viewModel = TrustedLibraryPromotionQueueViewModel.FromPlan(
+            new TrustedLibraryVendorMatchPromotionPlan(
+            [
+                PromotionRecord(
+                    reviewState: TrustedLibraryMatchReviewState.Approved,
+                    provider: "Digi-Key",
+                    vendorSku: "296-LM7805CT-ND",
+                    manufacturerPartNumber: "LM7805CT/NOPB",
+                    targetComponentId: "core:regulator:lm7805ct",
+                    artifacts: [],
+                    warnings: []),
+                PromotionRecord(
+                    reviewState: TrustedLibraryMatchReviewState.PendingReview,
+                    provider: "Jameco",
+                    vendorSku: "51262",
+                    manufacturerPartNumber: "7805",
+                    targetComponentId: "core:regulator:7805",
+                    artifacts: [],
+                    warnings: []),
+                PromotionRecord(
+                    reviewState: TrustedLibraryMatchReviewState.Rejected,
+                    provider: "Mouser",
+                    vendorSku: "595-NE555P",
+                    manufacturerPartNumber: "NE555P",
+                    targetComponentId: "core:timer:ne555p",
+                    artifacts: [],
+                    warnings: []),
+            ]));
+
+        Assert.Equal(1, viewModel.ReadyCount);
+        Assert.Equal(1, viewModel.PendingCount);
+        Assert.Equal(1, viewModel.BlockedCount);
+        Assert.Equal("1 ready", viewModel.ReadyStatusLabel);
+        Assert.Equal("1 pending", viewModel.PendingStatusLabel);
+        Assert.Equal("1 blocked", viewModel.BlockedStatusLabel);
+        Assert.Equal("1 ready / 1 pending / 1 blocked", viewModel.QueueStatusSummary);
+    }
+
+    [Fact]
+    public void RowCommandsNotifyQueueStatusCountsAndLabels()
+    {
+        TrustedLibraryPromotionQueueViewModel viewModel = TrustedLibraryPromotionQueueViewModel.FromPlan(
+            new TrustedLibraryVendorMatchPromotionPlan(
+            [
+                PromotionRecord(
+                    reviewState: TrustedLibraryMatchReviewState.PendingReview,
+                    provider: "Mouser",
+                    vendorSku: "595-NE555P",
+                    manufacturerPartNumber: "NE555P",
+                    targetComponentId: "core:timer:ne555p",
+                    artifacts: [],
+                    warnings: []),
+            ]));
+        TrustedLibraryPromotionRow row = Assert.Single(viewModel.Rows);
+        List<string?> changedProperties = [];
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+
+        row.MarkApprovedCommand.Execute(null);
+
+        Assert.Equal(1, viewModel.ReadyCount);
+        Assert.Equal(0, viewModel.PendingCount);
+        Assert.Equal(0, viewModel.BlockedCount);
+        Assert.Equal("1 ready / 0 pending / 0 blocked", viewModel.QueueStatusSummary);
+        Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.ReadyCount), changedProperties);
+        Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.PendingCount), changedProperties);
+        Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.BlockedCount), changedProperties);
+        Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.ReadyStatusLabel), changedProperties);
+        Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.PendingStatusLabel), changedProperties);
+        Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.BlockedStatusLabel), changedProperties);
+        Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.QueueStatusSummary), changedProperties);
+    }
+
+    [Fact]
     public void RowCommandsUpdateReviewStateInMemoryWithoutChangingSourcePlan()
     {
         TrustedLibraryVendorMatchPromotionRecord sourceRecord = PromotionRecord(

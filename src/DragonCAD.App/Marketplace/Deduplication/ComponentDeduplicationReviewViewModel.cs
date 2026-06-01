@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using DragonCAD.App.Marketplace;
@@ -8,14 +9,51 @@ using DragonCAD.Sourcing.Deduplication;
 
 namespace DragonCAD.App.Marketplace.Deduplication;
 
-public sealed class ComponentDeduplicationReviewViewModel
+public sealed class ComponentDeduplicationReviewViewModel : INotifyPropertyChanged
 {
     private ComponentDeduplicationReviewViewModel(IReadOnlyList<ComponentDeduplicationReviewRow> rows)
     {
         Rows = new ObservableCollection<ComponentDeduplicationReviewRow>(rows);
+        Rows.CollectionChanged += OnRowsChanged;
+
+        foreach (ComponentDeduplicationReviewRow row in Rows)
+        {
+            row.PropertyChanged += OnRowPropertyChanged;
+        }
     }
 
+    public event PropertyChangedEventHandler? PropertyChanged;
+
     public ObservableCollection<ComponentDeduplicationReviewRow> Rows { get; }
+
+    public bool HasCandidates => Rows.Count > 0;
+
+    public int CandidateCount => Rows.Count;
+
+    public int PendingCount => Rows.Count(row => row.ReviewState == ComponentDeduplicationReviewState.Pending);
+
+    public int ApprovedCount => Rows.Count(row => row.ReviewState == ComponentDeduplicationReviewState.Approved);
+
+    public int RejectedCount => Rows.Count(row => row.ReviewState == ComponentDeduplicationReviewState.Rejected);
+
+    public string EmptyStateTitle => "No duplicate candidates";
+
+    public string EmptyStateMessage => "Library and marketplace components are already distinct.";
+
+    public string CandidateCountLabel => FormatCount(CandidateCount, "candidate", "candidates");
+
+    public string PendingCountLabel => FormatCount(PendingCount, "pending");
+
+    public string ApprovedCountLabel => FormatCount(ApprovedCount, "approved");
+
+    public string RejectedCountLabel => FormatCount(RejectedCount, "rejected");
+
+    public string ReviewSummary =>
+        CandidateCount == 0
+            ? "No duplicate candidates to review"
+            : PendingCount == 0
+                ? $"All {CandidateCountLabel} reviewed"
+                : $"{PendingCountLabel} across {CandidateCountLabel}";
 
     public static ComponentDeduplicationReviewViewModel FromCandidates(IEnumerable<ComponentCandidate> candidates)
     {
@@ -27,6 +65,55 @@ public sealed class ComponentDeduplicationReviewViewModel
 
     public static ComponentDeduplicationReviewViewModel FromMarketplaceRows(IEnumerable<MarketplaceComponentRow> rows) =>
         ComponentDeduplicationReviewFactory.FromMarketplaceRows(rows);
+
+    private void OnRowsChanged(object? sender, NotifyCollectionChangedEventArgs args)
+    {
+        if (args.OldItems is not null)
+        {
+            foreach (ComponentDeduplicationReviewRow row in args.OldItems)
+            {
+                row.PropertyChanged -= OnRowPropertyChanged;
+            }
+        }
+
+        if (args.NewItems is not null)
+        {
+            foreach (ComponentDeduplicationReviewRow row in args.NewItems)
+            {
+                row.PropertyChanged += OnRowPropertyChanged;
+            }
+        }
+
+        OnDisplayPropertiesChanged();
+    }
+
+    private void OnRowPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(ComponentDeduplicationReviewRow.ReviewState))
+        {
+            OnDisplayPropertiesChanged();
+        }
+    }
+
+    private void OnDisplayPropertiesChanged()
+    {
+        OnPropertyChanged(nameof(HasCandidates));
+        OnPropertyChanged(nameof(CandidateCount));
+        OnPropertyChanged(nameof(PendingCount));
+        OnPropertyChanged(nameof(ApprovedCount));
+        OnPropertyChanged(nameof(RejectedCount));
+        OnPropertyChanged(nameof(CandidateCountLabel));
+        OnPropertyChanged(nameof(PendingCountLabel));
+        OnPropertyChanged(nameof(ApprovedCountLabel));
+        OnPropertyChanged(nameof(RejectedCountLabel));
+        OnPropertyChanged(nameof(ReviewSummary));
+    }
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
+    private static string FormatCount(int count, string singularLabel, string? pluralLabel = null) =>
+        count == 1 ? $"1 {singularLabel}" : $"{count} {pluralLabel ?? singularLabel}";
 }
 
 public static class ComponentDeduplicationReviewFactory

@@ -34,21 +34,54 @@ public sealed class MarketplaceIntegrationStatusDashboardViewModel
 
     public int BlockedItemCount => Rows.Sum(row => row.BlockedCount);
 
-    public string OverallSeverityLabel
+    public int AttentionSectionCount => Rows.Count(row => row.WarningCount > 0 || row.BlockedCount > 0);
+
+    public MarketplaceIntegrationSeverity OverallSeverity
     {
         get
         {
             if (BlockedItemCount > 0)
             {
-                return "Blocked";
+                return MarketplaceIntegrationSeverity.Blocked;
             }
 
             if (WarningItemCount > 0)
             {
-                return "Attention";
+                return MarketplaceIntegrationSeverity.Attention;
             }
 
-            return "Ready";
+            return MarketplaceIntegrationSeverity.Ready;
+        }
+    }
+
+    public string OverallSeverityLabel =>
+        OverallSeverity switch
+        {
+            MarketplaceIntegrationSeverity.Blocked => "Blocked",
+            MarketplaceIntegrationSeverity.Attention => "Attention",
+            _ => "Ready"
+        };
+
+    public string SummaryText
+    {
+        get
+        {
+            if (BlockedItemCount > 0)
+            {
+                string blockedSummary = $"{BlockedItemCount:N0} blocked";
+                string warningSummary = WarningItemCount > 0
+                    ? $", {WarningItemCount:N0} {Pluralize(WarningItemCount, "warning")}"
+                    : string.Empty;
+
+                return $"{blockedSummary}{warningSummary} across {AttentionSectionCount:N0} {Pluralize(AttentionSectionCount, "section")}";
+            }
+
+            if (WarningItemCount > 0)
+            {
+                return $"{WarningItemCount:N0} {Pluralize(WarningItemCount, "warning")} across {AttentionSectionCount:N0} {Pluralize(AttentionSectionCount, "section")}";
+            }
+
+            return $"{ReadySectionCount:N0} {Pluralize(ReadySectionCount, "section")} ready";
         }
     }
 
@@ -107,6 +140,13 @@ public enum MarketplaceIntegrationSection
     TrustedLibraryPromotion,
     FabricationOrdering,
     LiveSmoke
+}
+
+public enum MarketplaceIntegrationSeverity
+{
+    Ready,
+    Attention,
+    Blocked
 }
 
 public sealed record MarketplaceIntegrationStatusRow(

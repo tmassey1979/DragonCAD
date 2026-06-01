@@ -8,9 +8,34 @@ public sealed class FabricationOrderingReadinessViewModel
     private FabricationOrderingReadinessViewModel(IReadOnlyList<FabricationOrderingReadinessRow> rows)
     {
         Rows = rows;
+        ProviderCount = rows.Count;
+        ReadyProviderCount = rows.Count(row => string.Equals(row.PackageReadiness, "Ready", StringComparison.OrdinalIgnoreCase));
+        BlockedProviderCount = rows.Count(row => string.Equals(row.PackageReadiness, "Blocked", StringComparison.OrdinalIgnoreCase));
+        WarningCount = rows.Sum(row => row.Warnings.Count);
+        MissingFileCount = rows.Sum(row => row.MissingFiles.Count);
+        SummaryText = CreateSummaryText();
+        EmptyStateText = HasRows
+            ? string.Empty
+            : "Select a marketplace or manufacturing provider to review package readiness.";
     }
 
     public IReadOnlyList<FabricationOrderingReadinessRow> Rows { get; }
+
+    public bool HasRows => Rows.Count > 0;
+
+    public int ProviderCount { get; }
+
+    public int ReadyProviderCount { get; }
+
+    public int BlockedProviderCount { get; }
+
+    public int WarningCount { get; }
+
+    public int MissingFileCount { get; }
+
+    public string SummaryText { get; }
+
+    public string EmptyStateText { get; }
 
     public static FabricationOrderingReadinessViewModel FromSources(IEnumerable<FabricationOrderingReadinessSource> sources)
     {
@@ -184,6 +209,23 @@ public sealed class FabricationOrderingReadinessViewModel
         string spaced = new(characters.ToArray());
         return char.ToUpperInvariant(spaced[0]) + spaced[1..].ToLowerInvariant();
     }
+
+    private string CreateSummaryText()
+    {
+        if (!HasRows)
+        {
+            return "No fabrication provider selected.";
+        }
+
+        return $"{ProviderCount} {Pluralize("provider", ProviderCount)}: " +
+            $"{ReadyProviderCount} ready, " +
+            $"{BlockedProviderCount} blocked, " +
+            $"{WarningCount} {Pluralize("warning", WarningCount)}, " +
+            $"{MissingFileCount} missing {Pluralize("file", MissingFileCount)}.";
+    }
+
+    private static string Pluralize(string singular, int count) =>
+        count == 1 ? singular : $"{singular}s";
 }
 
 public sealed record FabricationOrderingDomainPackage(object Package, object ValidationResult);

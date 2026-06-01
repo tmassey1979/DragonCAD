@@ -149,6 +149,12 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("Integration Status", mainWindow, StringComparison.Ordinal);
         Assert.Contains("FabricationOrderingReadiness", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Ordering Readiness", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"MarketplaceDashboardStrip\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Classes.active=\"{Binding IsMarketplaceTabActive}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Classes.active=\"{Binding IsComponentManagerTabActive}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Button.workbench-tab.active", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("MarketplaceBomCostRollup.TotalSummary", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("MarketplaceIntegrationStatus.NextActionText", mainWindow, StringComparison.Ordinal);
     }
 
     [Fact]

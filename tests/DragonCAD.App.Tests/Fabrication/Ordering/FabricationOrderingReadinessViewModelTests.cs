@@ -58,6 +58,27 @@ public sealed class FabricationOrderingReadinessViewModelTests
     }
 
     [Fact]
+    public void FromSelectedHandoffOptionExposesEmptyPanelStateWhenNoProviderIsSelected()
+    {
+        FabricationHandoffViewModel handoff = FabricationHandoffViewModel.CreateSample();
+        handoff.SelectedOption = null;
+
+        FabricationOrderingReadinessViewModel viewModel = FabricationOrderingReadinessViewModel.FromSelectedHandoffOption(handoff);
+
+        Assert.False(viewModel.HasRows);
+        Assert.Empty(viewModel.Rows);
+        Assert.Equal(0, viewModel.ProviderCount);
+        Assert.Equal(0, viewModel.ReadyProviderCount);
+        Assert.Equal(0, viewModel.BlockedProviderCount);
+        Assert.Equal(0, viewModel.WarningCount);
+        Assert.Equal(0, viewModel.MissingFileCount);
+        Assert.Equal("No fabrication provider selected.", viewModel.SummaryText);
+        Assert.Equal(
+            "Select a marketplace or manufacturing provider to review package readiness.",
+            viewModel.EmptyStateText);
+    }
+
+    [Fact]
     public void FromSourcesBuildsRowsForOshParkAndPcbCartReadiness()
     {
         FabricationOrderingReadinessViewModel viewModel = FabricationOrderingReadinessViewModel.FromSources(
@@ -105,6 +126,44 @@ public sealed class FabricationOrderingReadinessViewModelTests
         Assert.Equal(["BillOfMaterials"], pcbCart.MissingFiles);
         Assert.Equal(["Manual fabrication review is required before provider submission."], pcbCart.Warnings);
         Assert.Equal("Checkout/submission is disabled: package is blocked by 1 missing required file.", pcbCart.CheckoutSubmissionDisabledExplanation);
+    }
+
+    [Fact]
+    public void FromSourcesExposesAggregatePanelCountsAndSummaryText()
+    {
+        FabricationOrderingReadinessViewModel viewModel = FabricationOrderingReadinessViewModel.FromSources(
+        [
+            new FabricationOrderingReadinessSource(
+                ProviderName: "OSH Park",
+                ProviderKind: "Prototype",
+                Mode: "Prototype board",
+                SupportedLayers: [2, 4],
+                MinimumQuantity: 3,
+                MaximumQuantity: 3,
+                ValidationDiagnostics: []),
+            new FabricationOrderingReadinessSource(
+                ProviderName: "PCBCart",
+                ProviderKind: "Production",
+                Mode: "Assembled board",
+                SupportedLayers: [1, 2, 4, 6, 8, 10, 12],
+                MinimumQuantity: 5,
+                MaximumQuantity: 10000,
+                ValidationDiagnostics:
+                [
+                    FabricationOrderingDiagnostic.Error("assembly-package-missing-bom", "Assembly package is missing required BillOfMaterials file for PCBCart.", "BillOfMaterials"),
+                    FabricationOrderingDiagnostic.Error("assembly-package-missing-pnp", "Assembly package is missing required PickAndPlace file for PCBCart.", "PickAndPlace"),
+                    FabricationOrderingDiagnostic.Warning("manual-review-required", "Manual fabrication review is required before provider submission.")
+                ])
+        ]);
+
+        Assert.True(viewModel.HasRows);
+        Assert.Equal(2, viewModel.ProviderCount);
+        Assert.Equal(1, viewModel.ReadyProviderCount);
+        Assert.Equal(1, viewModel.BlockedProviderCount);
+        Assert.Equal(1, viewModel.WarningCount);
+        Assert.Equal(2, viewModel.MissingFileCount);
+        Assert.Equal("2 providers: 1 ready, 1 blocked, 1 warning, 2 missing files.", viewModel.SummaryText);
+        Assert.Equal(string.Empty, viewModel.EmptyStateText);
     }
 
     [Fact]

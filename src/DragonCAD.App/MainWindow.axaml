@@ -42,6 +42,21 @@
         <KeyBinding Gesture="Ctrl+OemPlus" Command="{Binding ZoomInCommand}" />
         <KeyBinding Gesture="Ctrl+OemMinus" Command="{Binding ZoomOutCommand}" />
     </Window.KeyBindings>
+    <Window.Styles>
+        <Style Selector="Button.workbench-tab">
+            <Setter Property="Padding" Value="16,8" />
+            <Setter Property="Background" Value="#0D1218" />
+            <Setter Property="BorderBrush" Value="{StaticResource DragonBorder}" />
+            <Setter Property="BorderThickness" Value="1,1,1,0" />
+            <Setter Property="CornerRadius" Value="8,8,0,0" />
+            <Setter Property="Foreground" Value="{StaticResource DragonText}" />
+        </Style>
+        <Style Selector="Button.workbench-tab.active">
+            <Setter Property="Background" Value="{StaticResource DragonPanelBackground}" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="BorderBrush" Value="{StaticResource DragonAccent}" />
+        </Style>
+    </Window.Styles>
     <Grid RowDefinitions="48,*,28">
         <Border Background="#0F141B"
                 BorderBrush="{StaticResource DragonBorder}"
@@ -142,52 +157,28 @@
                                 Margin="8,0"
                                 VerticalAlignment="Bottom">
                         <Button Command="{Binding ShowComponentManagerTabCommand}"
-                                Padding="16,8"
-                                Background="{StaticResource DragonPanelBackground}"
-                                BorderBrush="{StaticResource DragonBorder}"
-                                BorderThickness="1,1,1,0"
-                                CornerRadius="8,8,0,0"
-                                Foreground="{StaticResource DragonText}"
+                                Classes="workbench-tab"
+                                Classes.active="{Binding IsComponentManagerTabActive}"
                                 Content="Component Manager" />
                         <Button Command="{Binding ShowMarketplaceTabCommand}"
-                                Padding="16,8"
-                                Background="#0D1218"
-                                BorderBrush="{StaticResource DragonBorder}"
-                                BorderThickness="1,1,1,0"
-                                CornerRadius="8,8,0,0"
-                                Foreground="{StaticResource DragonText}"
+                                Classes="workbench-tab"
+                                Classes.active="{Binding IsMarketplaceTabActive}"
                                 Content="Library + Market" />
                         <Button Command="{Binding ShowSchematicTabCommand}"
-                                Padding="16,8"
-                                Background="#0D1218"
-                                BorderBrush="{StaticResource DragonBorder}"
-                                BorderThickness="1,1,1,0"
-                                CornerRadius="8,8,0,0"
-                                Foreground="{StaticResource DragonText}"
+                                Classes="workbench-tab"
+                                Classes.active="{Binding IsSchematicTabActive}"
                                 Content="Schematic" />
                         <Button Command="{Binding ShowPcbLayoutTabCommand}"
-                                Padding="16,8"
-                                Background="#0D1218"
-                                BorderBrush="{StaticResource DragonBorder}"
-                                BorderThickness="1,1,1,0"
-                                CornerRadius="8,8,0,0"
-                                Foreground="{StaticResource DragonText}"
+                                Classes="workbench-tab"
+                                Classes.active="{Binding IsPcbLayoutTabActive}"
                                 Content="PCB Layout" />
                         <Button Command="{Binding ShowDatasheetsTabCommand}"
-                                Padding="16,8"
-                                Background="#0D1218"
-                                BorderBrush="{StaticResource DragonBorder}"
-                                BorderThickness="1,1,1,0"
-                                CornerRadius="8,8,0,0"
-                                Foreground="{StaticResource DragonText}"
+                                Classes="workbench-tab"
+                                Classes.active="{Binding IsDatasheetsTabActive}"
                                 Content="Datasheets" />
                         <Button Command="{Binding ShowFabricationTabCommand}"
-                                Padding="16,8"
-                                Background="#0D1218"
-                                BorderBrush="{StaticResource DragonBorder}"
-                                BorderThickness="1,1,1,0"
-                                CornerRadius="8,8,0,0"
-                                Foreground="{StaticResource DragonText}"
+                                Classes="workbench-tab"
+                                Classes.active="{Binding IsFabricationTabActive}"
                                 Content="Fabrication" />
                         <Button Command="{Binding Load7805SampleCommand}"
                                 Padding="16,8"
@@ -474,7 +465,7 @@
 
                 <Grid Grid.Row="1"
                       Margin="18"
-                      RowDefinitions="Auto,Auto,*"
+                      RowDefinitions="Auto,Auto,Auto,*"
                       IsVisible="{Binding IsMarketplaceTabActive}">
                     <StackPanel Spacing="6">
                         <TextBlock Text="Component Library &amp; Marketplace"
@@ -510,7 +501,67 @@
                         </ItemsControl>
                     </StackPanel>
 
-                    <Border Grid.Row="1"
+                    <Border x:Name="MarketplaceDashboardStrip"
+                            Grid.Row="1"
+                            Margin="0,14,0,0"
+                            Background="{StaticResource DragonPanelBackground}"
+                            BorderBrush="{StaticResource DragonBorder}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="10">
+                        <Grid ColumnDefinitions="1.15*,1.15*,1.15*,1.15*"
+                              ColumnSpacing="10">
+                            <StackPanel Spacing="3">
+                                <TextBlock Text="Integration"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource DragonText}" />
+                                <TextBlock Text="{Binding MarketplaceIntegrationStatus.OverallSeverityLabel}"
+                                           Foreground="{StaticResource DragonGold}" />
+                                <TextBlock Text="{Binding MarketplaceIntegrationStatus.SummaryText}"
+                                           FontSize="11"
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource DragonMutedText}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1"
+                                        Spacing="3">
+                                <TextBlock Text="BOM"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource DragonText}" />
+                                <TextBlock Text="{Binding MarketplaceBomCostRollup.TotalSummary}"
+                                           Foreground="{StaticResource DragonGreen}" />
+                                <TextBlock Text="{Binding MarketplaceBomCostRollup.ReadyStateSummary}"
+                                           FontSize="11"
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource DragonMutedText}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2"
+                                        Spacing="3">
+                                <TextBlock Text="Dedup"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource DragonText}" />
+                                <TextBlock Text="{Binding ComponentDeduplicationReview.CandidateCountLabel}"
+                                           Foreground="{StaticResource DragonGreen}" />
+                                <TextBlock Text="{Binding ComponentDeduplicationReview.ReviewSummary}"
+                                           FontSize="11"
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource DragonMutedText}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="3"
+                                        Spacing="3">
+                                <TextBlock Text="Fabrication"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource DragonText}" />
+                                <TextBlock Text="{Binding FabricationOrderingReadiness.SummaryText}"
+                                           Foreground="{StaticResource DragonGreen}" />
+                                <TextBlock Text="{Binding VendorLiveSmoke.CommandStatusLabel}"
+                                           FontSize="11"
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource DragonMutedText}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Row="2"
                             Margin="0,16,0,0"
                             Background="{StaticResource DragonPanelBackground}"
                             BorderBrush="{StaticResource DragonBorder}"
@@ -551,7 +602,7 @@
                         </Grid>
                     </Border>
 
-                    <Grid Grid.Row="2"
+                    <Grid Grid.Row="3"
                           Margin="0,14,0,0"
                           ColumnDefinitions="2*,*"
                           ColumnSpacing="14">
