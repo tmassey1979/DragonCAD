@@ -45,6 +45,44 @@ public sealed class TrustedLibraryPromotionQueueViewModel : INotifyPropertyChang
 
     public string QueueStatusSummary => $"{ReadyStatusLabel} / {PendingStatusLabel} / {BlockedStatusLabel}";
 
+    public bool CanStagePromotions => ReadyCount > 0;
+
+    public string PromotionReadinessSummary
+    {
+        get
+        {
+            if (Rows.Count == 0)
+            {
+                return "No promotion candidates queued.";
+            }
+
+            return $"{ReadyCount} of {FormatCandidateCount(Rows.Count)} ready to stage; {FormatReviewCount(PendingCount, "pending")} review; {FormatReviewCount(BlockedCount, "blocked")}.";
+        }
+    }
+
+    public string PromotionActionSummary
+    {
+        get
+        {
+            if (ReadyCount > 0)
+            {
+                return $"Stage {FormatApprovedCandidateCount(ReadyCount)} to the trusted library.";
+            }
+
+            if (PendingCount > 0)
+            {
+                return $"Review {FormatPendingCandidateCount(PendingCount)} before staging.";
+            }
+
+            if (BlockedCount > 0)
+            {
+                return $"Resolve {FormatBlockedCandidateCount(BlockedCount)} before staging.";
+            }
+
+            return "Add reviewed vendor matches to build the trusted-library promotion queue.";
+        }
+    }
+
     public string NextActionStatusLabel
     {
         get
@@ -115,9 +153,26 @@ public sealed class TrustedLibraryPromotionQueueViewModel : INotifyPropertyChang
         OnPropertyChanged(nameof(QueueStatusSummary));
         OnPropertyChanged(nameof(NextActionStatusLabel));
         OnPropertyChanged(nameof(QueueSummary));
+        OnPropertyChanged(nameof(CanStagePromotions));
+        OnPropertyChanged(nameof(PromotionReadinessSummary));
+        OnPropertyChanged(nameof(PromotionActionSummary));
     }
 
     private static string FormatStatusLabel(int count, string status) => $"{count} {status}";
+
+    private static string FormatCandidateCount(int count) =>
+        count == 1 ? "1 promotion candidate" : $"{count} promotion candidates";
+
+    private static string FormatReviewCount(int count, string status) => $"{count} {status}";
+
+    private static string FormatApprovedCandidateCount(int count) =>
+        count == 1 ? "1 approved candidate" : $"{count} approved candidates";
+
+    private static string FormatPendingCandidateCount(int count) =>
+        count == 1 ? "1 pending candidate" : $"{count} pending candidates";
+
+    private static string FormatBlockedCandidateCount(int count) =>
+        count == 1 ? "1 blocked candidate" : $"{count} blocked candidates";
 }
 
 public sealed record TrustedLibraryReviewedCandidate

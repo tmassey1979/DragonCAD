@@ -100,10 +100,14 @@ public sealed class MarketplaceOrderPlanViewModelTests
         Assert.Equal("DRAFT-0001", draft.DraftId);
         Assert.Equal("Draft ready", draft.Status);
         Assert.Equal("Place order", draft.PrimaryActionLabel);
+        Assert.Equal(2, draft.ProviderOrderCount);
+        Assert.Equal("2 provider orders", draft.ProviderOrderCountSummary);
+        Assert.Equal("Checkout setup required", draft.CheckoutReadinessStatus);
         Assert.Equal("$4.27", draft.TotalSummary);
         Assert.Equal(2, draft.ProviderOrders.Count);
         Assert.Equal(["Digi-Key", "Mouser"], draft.ProviderOrders.Select(provider => provider.Provider));
         Assert.All(draft.ProviderOrders, provider => Assert.Equal("Review order in DragonCAD", provider.ActionLabel));
+        Assert.All(draft.ProviderOrders, provider => Assert.Equal("Draft ready for checkout setup", provider.Status));
         Assert.Contains(draft.ProviderOrders, provider => provider.Provider == "Digi-Key" && provider.LineCount == 1 && provider.UnitCount == 4);
     }
 
@@ -116,6 +120,9 @@ public sealed class MarketplaceOrderPlanViewModelTests
 
         Assert.Equal("Cart empty", draft.Status);
         Assert.Equal("Add items", draft.PrimaryActionLabel);
+        Assert.Equal(0, draft.ProviderOrderCount);
+        Assert.Equal("No provider orders", draft.ProviderOrderCountSummary);
+        Assert.Equal("No checkout needed", draft.CheckoutReadinessStatus);
     }
 
     [Fact]
@@ -136,6 +143,10 @@ public sealed class MarketplaceOrderPlanViewModelTests
         Assert.False(readiness.CanPlaceOrder);
         Assert.Equal("Blocked: checkout setup required", readiness.Status);
         Assert.Equal("Resolve 3 checkout blockers", readiness.PrimaryActionLabel);
+        Assert.Equal(1, readiness.ProviderOrderCount);
+        Assert.Equal(0, readiness.ReadyProviderOrderCount);
+        Assert.Equal(1, readiness.BlockedProviderOrderCount);
+        Assert.Equal("1 provider order: 0 ready, 1 blocked", readiness.ProviderOrderCountSummary);
         Assert.Contains(readiness.Blockers, blocker => blocker.Code == "ShippingProfileMissing");
         Assert.Contains(readiness.Blockers, blocker => blocker.Code == "PaymentMethodMissing");
         Assert.Contains(readiness.Blockers, blocker => blocker.Code == "ProviderCredentialsMissing" && blocker.Provider == "Digi-Key");
@@ -159,6 +170,10 @@ public sealed class MarketplaceOrderPlanViewModelTests
         Assert.True(readiness.CanPlaceOrder);
         Assert.Equal("Ready for in-app order placement", readiness.Status);
         Assert.Equal("Place order inside DragonCAD", readiness.PrimaryActionLabel);
+        Assert.Equal(1, readiness.ProviderOrderCount);
+        Assert.Equal(1, readiness.ReadyProviderOrderCount);
+        Assert.Equal(0, readiness.BlockedProviderOrderCount);
+        Assert.Equal("1 provider order: 1 ready, 0 blocked", readiness.ProviderOrderCountSummary);
         Assert.Empty(readiness.Blockers);
     }
 

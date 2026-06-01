@@ -129,6 +129,14 @@ public sealed class MarketplaceInAppOrderDraftViewModel
         ? "Add items"
         : "Place order";
 
+    public int ProviderOrderCount => ProviderOrders.Count;
+
+    public string ProviderOrderCountSummary => FormatProviderOrderCount(ProviderOrderCount);
+
+    public string CheckoutReadinessStatus => ProviderOrders.Count == 0
+        ? "No checkout needed"
+        : "Checkout setup required";
+
     public IReadOnlyList<MarketplaceProviderOrderDraftViewModel> ProviderOrders { get; }
 
     public IReadOnlyList<MarketplaceOrderDiagnosticViewModel> Diagnostics { get; }
@@ -150,6 +158,14 @@ public sealed class MarketplaceInAppOrderDraftViewModel
 
         return new MarketplaceInAppOrderDraftViewModel(draftId, providers, orderPlan.UnavailableDiagnostics);
     }
+
+    internal static string FormatProviderOrderCount(int providerOrderCount) =>
+        providerOrderCount switch
+        {
+            0 => "No provider orders",
+            1 => "1 provider order",
+            _ => $"{providerOrderCount} provider orders",
+        };
 }
 
 public sealed class MarketplaceProviderOrderDraftViewModel
@@ -178,6 +194,8 @@ public sealed class MarketplaceProviderOrderDraftViewModel
 
     public string ActionLabel => "Review order in DragonCAD";
 
+    public string Status => "Draft ready for checkout setup";
+
     public static MarketplaceProviderOrderDraftViewModel FromProvider(MarketplaceOrderProviderViewModel provider)
     {
         ArgumentNullException.ThrowIfNull(provider);
@@ -188,14 +206,29 @@ public sealed class MarketplaceProviderOrderDraftViewModel
 
 public sealed class MarketplaceCheckoutReadinessViewModel
 {
-    private MarketplaceCheckoutReadinessViewModel(IReadOnlyList<MarketplaceCheckoutBlockerViewModel> blockers)
+    private MarketplaceCheckoutReadinessViewModel(
+        IReadOnlyList<MarketplaceCheckoutBlockerViewModel> blockers,
+        int providerOrderCount,
+        int blockedProviderOrderCount)
     {
         Blockers = blockers;
+        ProviderOrderCount = providerOrderCount;
+        BlockedProviderOrderCount = blockedProviderOrderCount;
     }
 
     public IReadOnlyList<MarketplaceCheckoutBlockerViewModel> Blockers { get; }
 
     public bool CanPlaceOrder => Blockers.Count == 0;
+
+    public int ProviderOrderCount { get; }
+
+    public int ReadyProviderOrderCount => ProviderOrderCount - BlockedProviderOrderCount;
+
+    public int BlockedProviderOrderCount { get; }
+
+    public string ProviderOrderCountSummary =>
+        $"{MarketplaceInAppOrderDraftViewModel.FormatProviderOrderCount(ProviderOrderCount)}: " +
+        $"{ReadyProviderOrderCount} ready, {BlockedProviderOrderCount} blocked";
 
     public string Status => CanPlaceOrder
         ? "Ready for in-app order placement"
@@ -231,10 +264,12 @@ public sealed class MarketplaceCheckoutReadinessViewModel
                 ""));
         }
 
+        HashSet<string> providersBlockedByCredential = new(StringComparer.Ordinal);
         foreach (MarketplaceProviderOrderDraftViewModel providerOrder in draft.ProviderOrders)
         {
             if (!providersWithCredentials.Contains(providerOrder.Provider))
             {
+                providersBlockedByCredential.Add(providerOrder.Provider);
                 blockers.Add(new MarketplaceCheckoutBlockerViewModel(
                     "ProviderCredentialsMissing",
                     $"Add {providerOrder.Provider} credentials before placing this provider order.",
@@ -242,7 +277,11 @@ public sealed class MarketplaceCheckoutReadinessViewModel
             }
         }
 
-        return new MarketplaceCheckoutReadinessViewModel(blockers);
+        int blockedProviderOrderCount = hasShippingProfile && hasPaymentMethod
+            ? draft.ProviderOrders.Count(providerOrder => providersBlockedByCredential.Contains(providerOrder.Provider))
+            : draft.ProviderOrderCount;
+
+        return new MarketplaceCheckoutReadinessViewModel(blockers, draft.ProviderOrderCount, blockedProviderOrderCount);
     }
 }
 

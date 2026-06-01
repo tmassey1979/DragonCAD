@@ -136,9 +136,41 @@ public sealed class MarketplaceBrowserViewModel : INotifyPropertyChanged
             }
 
             selectedComponent = value;
-            OnPropertyChanged();
+            OnSelectedComponentChanged();
         }
     }
+
+    public bool HasSelectedComponent => SelectedComponent is not null;
+
+    public string SelectedComponentTitle
+    {
+        get
+        {
+            if (SelectedComponent is null)
+            {
+                return "";
+            }
+
+            if (string.IsNullOrWhiteSpace(SelectedComponent.ManufacturerPartNumber))
+            {
+                return SelectedComponent.DisplayName;
+            }
+
+            return $"{SelectedComponent.DisplayName} ({SelectedComponent.ManufacturerPartNumber})";
+        }
+    }
+
+    public string SelectedComponentVendorSummary =>
+        SelectedComponent is null
+            ? ""
+            : $"{SelectedComponent.Provider} / {SelectedComponent.Manufacturer}";
+
+    public string SelectedComponentAvailabilitySummary => SelectedComponent?.StockPriceSummary ?? "";
+
+    public string SelectedComponentEmptySelectionText =>
+        SelectedComponent is null
+            ? "Select a marketplace component to view supplier and availability details."
+            : "";
 
     public static MarketplaceBrowserViewModel FromRows(IEnumerable<MarketplaceComponentRow> rows)
     {
@@ -188,6 +220,16 @@ public sealed class MarketplaceBrowserViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(TotalComponentCount));
         OnPropertyChanged(nameof(SearchSummary));
         OnPropertyChanged(nameof(EmptyStateMessage));
+    }
+
+    private void OnSelectedComponentChanged()
+    {
+        OnPropertyChanged(nameof(SelectedComponent));
+        OnPropertyChanged(nameof(HasSelectedComponent));
+        OnPropertyChanged(nameof(SelectedComponentTitle));
+        OnPropertyChanged(nameof(SelectedComponentVendorSummary));
+        OnPropertyChanged(nameof(SelectedComponentAvailabilitySummary));
+        OnPropertyChanged(nameof(SelectedComponentEmptySelectionText));
     }
 
     private static IReadOnlyList<string> BuildCategoryFilterOptions(IEnumerable<MarketplaceComponentRow> rows) =>

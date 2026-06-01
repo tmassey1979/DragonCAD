@@ -222,6 +222,10 @@ public sealed class MarketplaceCartLine
 
     public decimal SubtotalUsd => UnitPriceUsd * Quantity;
 
+    public string ProviderSourceSummary => $"{Provider} source: {ManufacturerPartNumber}";
+
+    public string NextActionLabel => $"Review {Provider} order";
+
     public string UnitPriceSummary => UnitPriceUsd.ToString("$0.00##", CultureInfo.InvariantCulture);
 
     public string SubtotalSummary => SubtotalUsd.ToString("$0.00##", CultureInfo.InvariantCulture);

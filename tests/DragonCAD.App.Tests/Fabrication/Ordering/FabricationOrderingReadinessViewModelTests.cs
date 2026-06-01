@@ -41,6 +41,9 @@ public sealed class FabricationOrderingReadinessViewModelTests
         Assert.Equal("3 boards", row.QuantitySupport);
         Assert.Equal("Ready", row.PackageReadiness);
         Assert.Empty(row.MissingFiles);
+        Assert.Equal(
+            "Prototype package ready for OSH Park: export package only; checkout/submission stays disabled.",
+            row.PackageActionSummary);
         Assert.Equal("Ready to package", viewModel.NextActionStatusLabel);
     }
 
@@ -128,6 +131,9 @@ public sealed class FabricationOrderingReadinessViewModelTests
         Assert.Equal("Blocked", pcbCart.PackageReadiness);
         Assert.Equal(["BillOfMaterials"], pcbCart.MissingFiles);
         Assert.Equal(["Manual fabrication review is required before provider submission."], pcbCart.Warnings);
+        Assert.Equal(
+            "Production package blocked for PCBCart: add BillOfMaterials before packaging.",
+            pcbCart.PackageActionSummary);
         Assert.Equal("Checkout/submission is disabled: package is blocked by 1 missing required file.", pcbCart.CheckoutSubmissionDisabledExplanation);
     }
 

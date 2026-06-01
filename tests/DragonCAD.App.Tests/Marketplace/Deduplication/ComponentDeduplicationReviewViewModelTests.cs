@@ -82,6 +82,41 @@ public sealed class ComponentDeduplicationReviewViewModelTests
     }
 
     [Fact]
+    public void BulkReviewReadinessSummaryHighlightsPendingRiskAndReviewedState()
+    {
+        ComponentDeduplicationReviewViewModel emptyViewModel = ComponentDeduplicationReviewViewModel.FromCandidates([]);
+
+        Assert.Equal("No duplicate candidates ready for bulk review.", emptyViewModel.BulkReviewReadinessSummary);
+
+        ComponentDeduplicationReviewViewModel viewModel = ComponentDeduplicationReviewViewModel.FromCandidates(
+            [
+                Candidate("NE555P", "Texas Instruments", ["Digi-Key:296-NE555P", "Mouser:595-NE555P"]),
+                CandidateWithWarnings(
+                    "LM7805CT",
+                    "Texas Instruments",
+                    ["Digi-Key:296-LM7805CT", "Mouser:595-LM7805CT"],
+                    [
+                        new ComponentMergeWarning(
+                            ComponentMergeWarningKind.PackageDisagreement,
+                            "Merged listings use different package signals.",
+                            ["TO-220", "TO-263"],
+                            ["Digi-Key:296-LM7805CT", "Mouser:595-LM7805CT"])
+                    ])
+            ]);
+
+        Assert.Equal(
+            "Bulk review not ready: 2 candidates pending, 1 warning to inspect, 4 vendor listings.",
+            viewModel.BulkReviewReadinessSummary);
+
+        viewModel.Rows[0].ApproveCommand.Execute(null);
+        viewModel.Rows[1].RejectCommand.Execute(null);
+
+        Assert.Equal(
+            "Bulk review ready: 1 approved, 1 rejected, 1 warning inspected, 4 vendor listings.",
+            viewModel.BulkReviewReadinessSummary);
+    }
+
+    [Fact]
     public void FromMarketplaceRowsGroupsRowsByCanonicalAliasesAndPreservesProviderSourceKeys()
     {
         MarketplaceComponentRow[] rows =
@@ -253,6 +288,13 @@ public sealed class ComponentDeduplicationReviewViewModelTests
         string manufacturerPartNumber,
         string manufacturer,
         IReadOnlyList<string> sourceKeys) =>
+        CandidateWithWarnings(manufacturerPartNumber, manufacturer, sourceKeys, []);
+
+    private static ComponentCandidate CandidateWithWarnings(
+        string manufacturerPartNumber,
+        string manufacturer,
+        IReadOnlyList<string> sourceKeys,
+        IReadOnlyList<ComponentMergeWarning> warnings) =>
         new(
             manufacturerPartNumber,
             manufacturer,
@@ -260,5 +302,5 @@ public sealed class ComponentDeduplicationReviewViewModelTests
             null,
             [],
             sourceKeys,
-            []);
+            warnings);
 }

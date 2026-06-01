@@ -184,8 +184,35 @@ public sealed class TrustedLibraryPromotionQueueViewModelTests
         Assert.Equal("Stage 1 ready", viewModel.NextActionStatusLabel);
     }
 
+    [Theory]
+    [InlineData(0, 0, 0, "No promotion candidates queued.", "Add reviewed vendor matches to build the trusted-library promotion queue.", false)]
+    [InlineData(0, 1, 0, "0 of 1 promotion candidate ready to stage; 1 pending review; 0 blocked.", "Review 1 pending candidate before staging.", false)]
+    [InlineData(0, 2, 1, "0 of 3 promotion candidates ready to stage; 2 pending review; 1 blocked.", "Review 2 pending candidates before staging.", false)]
+    [InlineData(0, 0, 1, "0 of 1 promotion candidate ready to stage; 0 pending review; 1 blocked.", "Resolve 1 blocked candidate before staging.", false)]
+    [InlineData(1, 2, 1, "1 of 4 promotion candidates ready to stage; 2 pending review; 1 blocked.", "Stage 1 approved candidate to the trusted library.", true)]
+    [InlineData(3, 0, 0, "3 of 3 promotion candidates ready to stage; 0 pending review; 0 blocked.", "Stage 3 approved candidates to the trusted library.", true)]
+    public void FromPlanExposesPromotionReadinessAndActionSummaryForQueueSurface(
+        int readyCount,
+        int pendingCount,
+        int blockedCount,
+        string expectedReadinessSummary,
+        string expectedActionSummary,
+        bool expectedCanStagePromotions)
+    {
+        TrustedLibraryPromotionQueueViewModel viewModel = TrustedLibraryPromotionQueueViewModel.FromPlan(
+            new TrustedLibraryVendorMatchPromotionPlan(
+                BuildPromotionRecords(
+                    readyCount,
+                    pendingCount,
+                    blockedCount)));
+
+        Assert.Equal(expectedReadinessSummary, viewModel.PromotionReadinessSummary);
+        Assert.Equal(expectedActionSummary, viewModel.PromotionActionSummary);
+        Assert.Equal(expectedCanStagePromotions, viewModel.CanStagePromotions);
+    }
+
     [Fact]
-    public void RowCommandsNotifyQueueStatusCountsAndLabels()
+    public void RowCommandsNotifyQueueStatusCountsLabelsAndPromotionSummaries()
     {
         TrustedLibraryPromotionQueueViewModel viewModel = TrustedLibraryPromotionQueueViewModel.FromPlan(
             new TrustedLibraryVendorMatchPromotionPlan(
@@ -210,6 +237,9 @@ public sealed class TrustedLibraryPromotionQueueViewModelTests
         Assert.Equal(0, viewModel.BlockedCount);
         Assert.Equal("1 ready / 0 pending / 0 blocked", viewModel.QueueStatusSummary);
         Assert.Equal("Stage 1 ready", viewModel.NextActionStatusLabel);
+        Assert.Equal("1 of 1 promotion candidate ready to stage; 0 pending review; 0 blocked.", viewModel.PromotionReadinessSummary);
+        Assert.Equal("Stage 1 approved candidate to the trusted library.", viewModel.PromotionActionSummary);
+        Assert.True(viewModel.CanStagePromotions);
         Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.ReadyCount), changedProperties);
         Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.PendingCount), changedProperties);
         Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.BlockedCount), changedProperties);
@@ -218,6 +248,9 @@ public sealed class TrustedLibraryPromotionQueueViewModelTests
         Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.BlockedStatusLabel), changedProperties);
         Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.QueueStatusSummary), changedProperties);
         Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.NextActionStatusLabel), changedProperties);
+        Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.PromotionReadinessSummary), changedProperties);
+        Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.PromotionActionSummary), changedProperties);
+        Assert.Contains(nameof(TrustedLibraryPromotionQueueViewModel.CanStagePromotions), changedProperties);
     }
 
     [Theory]

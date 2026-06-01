@@ -150,6 +150,38 @@ public sealed class MarketplaceBrowserViewModelTests
         Assert.False(viewModel.Components[1].CanAddToBom);
     }
 
+    [Fact]
+    public void SelectedComponentSummaryExposesDetailsPanelText()
+    {
+        MarketplaceBrowserViewModel viewModel = MarketplaceBrowserViewModel.FromRows(
+        [
+            Row("Adafruit", "Module", "Feather ESP32", "3405", canonicalComponentId: "dragon:feather-esp32", stockQuantity: 42, minimumUnitPriceUsd: 19.95m)
+        ]);
+
+        Assert.True(viewModel.HasSelectedComponent);
+        Assert.Equal("Feather ESP32 (3405)", viewModel.SelectedComponentTitle);
+        Assert.Equal("Adafruit / Dragon Test", viewModel.SelectedComponentVendorSummary);
+        Assert.Equal("42 in stock from $19.95", viewModel.SelectedComponentAvailabilitySummary);
+        Assert.Equal("", viewModel.SelectedComponentEmptySelectionText);
+    }
+
+    [Fact]
+    public void SelectedComponentSummaryExposesEmptySelectionText()
+    {
+        MarketplaceBrowserViewModel viewModel = MarketplaceBrowserViewModel.FromRows(
+        [
+            Row("Digi-Key", "IC", "NE555 Timer", "NE555P", canonicalComponentId: "dragon:ne555")
+        ]);
+
+        viewModel.SearchText = "missing";
+
+        Assert.False(viewModel.HasSelectedComponent);
+        Assert.Equal("", viewModel.SelectedComponentTitle);
+        Assert.Equal("", viewModel.SelectedComponentVendorSummary);
+        Assert.Equal("", viewModel.SelectedComponentAvailabilitySummary);
+        Assert.Equal("Select a marketplace component to view supplier and availability details.", viewModel.SelectedComponentEmptySelectionText);
+    }
+
     private static MarketplaceComponentRow Row(
         string provider,
         string category,

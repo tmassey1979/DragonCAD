@@ -34,6 +34,18 @@ public sealed class MarketplaceCartViewModelTests
     }
 
     [Fact]
+    public void CartLineExposesOrderStripReadinessLabels()
+    {
+        MarketplaceCartViewModel viewModel = new();
+
+        viewModel.AddItem(Row("Digi-Key", "ATmega328P", "ATMEGA328P-PU", stockQuantity: 25, price: 2.89m), quantity: 3);
+
+        MarketplaceCartLine line = Assert.Single(viewModel.Lines);
+        Assert.Equal("Digi-Key source: ATMEGA328P-PU", line.ProviderSourceSummary);
+        Assert.Equal("Review Digi-Key order", line.NextActionLabel);
+    }
+
+    [Fact]
     public void CompactStripSummaryAndNotificationsRefreshAfterAddUpdateAndRemove()
     {
         MarketplaceCartViewModel viewModel = new();

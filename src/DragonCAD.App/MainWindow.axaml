@@ -758,17 +758,58 @@
                                 <TextBlock Text="Marketplace Inspector"
                                            FontWeight="SemiBold"
                                            Foreground="{StaticResource DragonText}" />
-                                <TextBlock Text="{Binding Marketplace.SelectedComponent.DisplayName}"
+                                <TextBlock Text="{Binding Marketplace.SelectedComponentTitle}"
                                            FontSize="22"
                                            FontWeight="SemiBold"
                                            TextWrapping="Wrap"
                                            Foreground="{StaticResource DragonText}" />
-                                <TextBlock Text="{Binding Marketplace.SelectedComponent.CanonicalComponentId}"
+                                <TextBlock Text="{Binding Marketplace.SelectedComponentVendorSummary}"
                                            TextWrapping="Wrap"
                                            Foreground="{StaticResource DragonGreen}" />
+                                <TextBlock Text="{Binding Marketplace.SelectedComponentEmptySelectionText}"
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource DragonMutedText}" />
+                                <Grid ColumnDefinitions="*,*"
+                                      ColumnSpacing="10">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="Provider"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource DragonMutedText}" />
+                                        <TextBlock Text="{Binding Marketplace.SelectedComponent.Provider}"
+                                                   Foreground="{StaticResource DragonText}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1"
+                                                Spacing="2">
+                                        <TextBlock Text="Category"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource DragonMutedText}" />
+                                        <TextBlock Text="{Binding Marketplace.SelectedComponent.Category}"
+                                                   Foreground="{StaticResource DragonText}" />
+                                    </StackPanel>
+                                </Grid>
+                                <Grid ColumnDefinitions="*,*"
+                                      ColumnSpacing="10">
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="Manufacturer Part"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource DragonMutedText}" />
+                                        <TextBlock Text="{Binding Marketplace.SelectedComponent.ManufacturerPartNumber}"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{StaticResource DragonText}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1"
+                                                Spacing="2">
+                                        <TextBlock Text="Component ID"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource DragonMutedText}" />
+                                        <TextBlock Text="{Binding Marketplace.SelectedComponent.CanonicalComponentId}"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{StaticResource DragonText}" />
+                                    </StackPanel>
+                                </Grid>
                                 <TextBlock Text="{Binding Marketplace.SelectedComponent.DatasheetStatus}"
                                            Foreground="{StaticResource DragonMutedText}" />
-                                <TextBlock Text="{Binding Marketplace.SelectedComponent.StockPriceSummary}"
+                                <TextBlock Text="{Binding Marketplace.SelectedComponentAvailabilitySummary}"
                                            TextWrapping="Wrap"
                                            Foreground="{StaticResource DragonMutedText}" />
                                 <Border BorderBrush="{StaticResource DragonBorder}"
@@ -832,12 +873,15 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate DataType="mco:MarketplaceOrderProviderViewModel"
                                                               x:DataType="mco:MarketplaceOrderProviderViewModel">
-                                                    <Grid ColumnDefinitions="*,Auto"
+                                                    <Grid ColumnDefinitions="1.2*,*,Auto"
                                                           Margin="0,2"
                                                           ColumnSpacing="8">
                                                         <TextBlock Text="{Binding ActionLabel}"
                                                                    Foreground="{StaticResource DragonText}" />
                                                         <TextBlock Grid.Column="1"
+                                                                   Text="{Binding Provider}"
+                                                                   Foreground="{StaticResource DragonMutedText}" />
+                                                        <TextBlock Grid.Column="2"
                                                                    Text="{Binding SubtotalSummary}"
                                                                    Foreground="{StaticResource DragonGreen}" />
                                                     </Grid>
@@ -883,6 +927,12 @@
                                                 <TextBlock Text="{Binding ActiveMarketplaceOrderDraft.Status}"
                                                            TextWrapping="Wrap"
                                                            Foreground="{StaticResource DragonMutedText}" />
+                                                <TextBlock Text="{Binding ActiveMarketplaceOrderDraft.ProviderOrderCountSummary}"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{StaticResource DragonMutedText}" />
+                                                <TextBlock Text="{Binding ActiveMarketplaceOrderDraft.CheckoutReadinessStatus}"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{StaticResource DragonGreen}" />
                                             </StackPanel>
                                         </Border>
                                         <Border BorderBrush="{StaticResource DragonBorder}"
@@ -1144,9 +1194,12 @@
                                                             <TextBlock Text="{Binding DisplayName}"
                                                                        TextWrapping="Wrap"
                                                                        Foreground="{StaticResource DragonText}" />
-                                                            <TextBlock Text="{Binding Provider}"
+                                                            <TextBlock Text="{Binding ProviderSourceSummary}"
                                                                        FontSize="11"
                                                                        Foreground="{StaticResource DragonMutedText}" />
+                                                            <TextBlock Text="{Binding NextActionLabel}"
+                                                                       FontSize="11"
+                                                                       Foreground="{StaticResource DragonGreen}" />
                                                         </StackPanel>
                                                         <TextBlock Grid.Column="1"
                                                                    Text="{Binding Quantity}"
@@ -1190,6 +1243,13 @@
                                                                Foreground="{StaticResource DragonText}" />
                                                     <TextBlock Grid.Column="1"
                                                                Text="{Binding MarketplaceOrderPlan.TotalSummary}"
+                                                               Foreground="{StaticResource DragonGreen}" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <TextBlock Text="{Binding MarketplaceOrderPlan.Status}"
+                                                               Foreground="{StaticResource DragonMutedText}" />
+                                                    <TextBlock Grid.Column="1"
+                                                               Text="{Binding MarketplaceOrderPlan.PrimaryActionLabel}"
                                                                Foreground="{StaticResource DragonGreen}" />
                                                 </Grid>
                                                 <ItemsControl ItemsSource="{Binding MarketplaceOrderPlan.Providers}">
@@ -1533,6 +1593,10 @@
                                                    FontSize="11"
                                                    TextWrapping="Wrap"
                                                    Foreground="{StaticResource DragonMutedText}" />
+                                        <TextBlock Text="{Binding ComponentDeduplicationReview.BulkReviewReadinessSummary}"
+                                                   FontSize="11"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{StaticResource DragonGold}" />
                                         <ItemsControl ItemsSource="{Binding ComponentDeduplicationReview.Rows}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate DataType="md:ComponentDeduplicationReviewRow"
@@ -1585,6 +1649,14 @@
                                                    FontSize="11"
                                                    TextWrapping="Wrap"
                                                    Foreground="{StaticResource DragonMutedText}" />
+                                        <TextBlock Text="{Binding TrustedLibraryPromotionQueue.PromotionReadinessSummary}"
+                                                   FontSize="11"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{StaticResource DragonMutedText}" />
+                                        <TextBlock Text="{Binding TrustedLibraryPromotionQueue.PromotionActionSummary}"
+                                                   FontSize="11"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{StaticResource DragonGreen}" />
                                         <ItemsControl ItemsSource="{Binding TrustedLibraryPromotionQueue.Rows}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate DataType="mtl:TrustedLibraryPromotionRow"
@@ -2381,6 +2453,10 @@
                                                                    FontSize="11"
                                                                    TextWrapping="Wrap"
                                                                    Foreground="{StaticResource DragonMutedText}" />
+                                                        <TextBlock Text="{Binding PackageActionSummary}"
+                                                                   FontSize="11"
+                                                                   TextWrapping="Wrap"
+                                                                   Foreground="{StaticResource DragonGreen}" />
                                                     </StackPanel>
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>

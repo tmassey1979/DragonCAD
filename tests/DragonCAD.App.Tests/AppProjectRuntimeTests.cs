@@ -160,6 +160,18 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("MarketplaceCart.EmptyStateMessage", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Create Order Draft", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Prepare CSV", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Marketplace.SelectedComponentTitle", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Marketplace.SelectedComponentVendorSummary", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Marketplace.SelectedComponentAvailabilitySummary", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("MarketplaceCart.Lines", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ProviderSourceSummary", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("NextActionLabel", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ActiveMarketplaceOrderDraft.ProviderOrderCountSummary", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ActiveMarketplaceOrderDraft.CheckoutReadinessStatus", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ComponentDeduplicationReview.BulkReviewReadinessSummary", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("TrustedLibraryPromotionQueue.PromotionReadinessSummary", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("TrustedLibraryPromotionQueue.PromotionActionSummary", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("PackageActionSummary", mainWindow, StringComparison.Ordinal);
     }
 
     [Fact]

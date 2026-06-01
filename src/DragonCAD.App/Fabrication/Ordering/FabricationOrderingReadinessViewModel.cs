@@ -317,6 +317,7 @@ public sealed class FabricationOrderingReadinessRow
         PackageReadiness = packageReadiness;
         MissingFiles = missingFiles;
         Warnings = warnings;
+        PackageActionSummary = CreatePackageActionSummary();
         CheckoutSubmissionDisabledExplanation = CreateDisabledExplanation(missingFiles.Count);
     }
 
@@ -335,6 +336,8 @@ public sealed class FabricationOrderingReadinessRow
     public IReadOnlyList<string> MissingFiles { get; }
 
     public IReadOnlyList<string> Warnings { get; }
+
+    public string PackageActionSummary { get; }
 
     public bool IsCheckoutSubmissionEnabled => false;
 
@@ -417,4 +420,32 @@ public sealed class FabricationOrderingReadinessRow
             _ => $"Checkout/submission is disabled: package is blocked by {missingFileCount} missing required files."
         };
     }
+
+    private string CreatePackageActionSummary()
+    {
+        if (MissingFiles.Count > 0)
+        {
+            return $"{ProviderKind} package blocked for {ProviderName}: add {FormatList(MissingFiles)} before packaging.";
+        }
+
+        if (Warnings.Count > 0)
+        {
+            return $"{ProviderKind} package needs review for {ProviderName}: review {Warnings.Count} {Pluralize("warning", Warnings.Count)} before packaging.";
+        }
+
+        return $"{ProviderKind} package ready for {ProviderName}: export package only; checkout/submission stays disabled.";
+    }
+
+    private static string FormatList(IReadOnlyList<string> values)
+    {
+        if (values.Count == 1)
+        {
+            return values[0];
+        }
+
+        return $"{string.Join(", ", values.Take(values.Count - 1))} and {values[^1]}";
+    }
+
+    private static string Pluralize(string singular, int count) =>
+        count == 1 ? singular : $"{singular}s";
 }

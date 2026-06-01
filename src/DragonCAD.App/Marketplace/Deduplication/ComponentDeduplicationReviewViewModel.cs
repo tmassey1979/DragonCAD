@@ -64,6 +64,26 @@ public sealed class ComponentDeduplicationReviewViewModel : INotifyPropertyChang
                 ? $"All {CandidateCountLabel} reviewed"
                 : $"{PendingCountLabel} across {CandidateCountLabel}";
 
+    public string BulkReviewReadinessSummary
+    {
+        get
+        {
+            if (CandidateCount == 0)
+            {
+                return "No duplicate candidates ready for bulk review.";
+            }
+
+            int warningCount = Rows.Sum(row => row.Warnings.Count);
+            int vendorListingCount = Rows.Sum(row => row.VendorListings.Count);
+            string warningText = FormatBulkReviewWarnings(warningCount, PendingCount == 0);
+            string vendorListingText = FormatCount(vendorListingCount, "vendor listing", "vendor listings");
+
+            return PendingCount == 0
+                ? $"Bulk review ready: {ApprovedCountLabel}, {RejectedCountLabel}, {warningText}, {vendorListingText}."
+                : $"Bulk review not ready: {FormatPendingCandidateCount(PendingCount)}, {warningText}, {vendorListingText}.";
+        }
+    }
+
     public static ComponentDeduplicationReviewViewModel FromCandidates(IEnumerable<ComponentCandidate> candidates)
     {
         ArgumentNullException.ThrowIfNull(candidates);
@@ -118,6 +138,7 @@ public sealed class ComponentDeduplicationReviewViewModel : INotifyPropertyChang
         OnPropertyChanged(nameof(ToolbarReviewCounts));
         OnPropertyChanged(nameof(NextReviewActionText));
         OnPropertyChanged(nameof(ReviewSummary));
+        OnPropertyChanged(nameof(BulkReviewReadinessSummary));
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
@@ -125,6 +146,14 @@ public sealed class ComponentDeduplicationReviewViewModel : INotifyPropertyChang
 
     private static string FormatCount(int count, string singularLabel, string? pluralLabel = null) =>
         count == 1 ? $"1 {singularLabel}" : $"{count} {pluralLabel ?? singularLabel}";
+
+    private static string FormatBulkReviewWarnings(int warningCount, bool reviewed) =>
+        warningCount == 1
+            ? $"1 warning {(reviewed ? "inspected" : "to inspect")}"
+            : $"{warningCount} warnings {(reviewed ? "inspected" : "to inspect")}";
+
+    private static string FormatPendingCandidateCount(int pendingCount) =>
+        pendingCount == 1 ? "1 candidate pending" : $"{pendingCount} candidates pending";
 }
 
 public static class ComponentDeduplicationReviewFactory
