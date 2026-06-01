@@ -1,6 +1,9 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using DragonCAD.App.Marketplace;
+using DragonCAD.Sourcing;
+using DragonCAD.Sourcing.Catalog;
 using DragonCAD.Sourcing.Deduplication;
 
 namespace DragonCAD.App.Marketplace.Deduplication;
@@ -20,6 +23,94 @@ public sealed class ComponentDeduplicationReviewViewModel
 
         return new ComponentDeduplicationReviewViewModel(
             candidates.Select(ComponentDeduplicationReviewRow.FromCandidate).ToArray());
+    }
+
+    public static ComponentDeduplicationReviewViewModel FromMarketplaceRows(IEnumerable<MarketplaceComponentRow> rows) =>
+        ComponentDeduplicationReviewFactory.FromMarketplaceRows(rows);
+}
+
+public static class ComponentDeduplicationReviewFactory
+{
+    public static ComponentDeduplicationReviewViewModel FromMarketplaceRows(IEnumerable<MarketplaceComponentRow> rows)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+
+        ComponentCandidate[] candidates = ComponentDeduplicator
+            .GroupCandidates(rows.Select(ToCatalogListing))
+            .Where(candidate => CandidateHasMultipleProviders(candidate))
+            .ToArray();
+
+        return ComponentDeduplicationReviewViewModel.FromCandidates(candidates);
+    }
+
+    private static NormalizedCatalogListing ToCatalogListing(MarketplaceComponentRow row)
+    {
+        ArgumentNullException.ThrowIfNull(row);
+
+        return new NormalizedCatalogListing(
+            RequireText(row.Provider, nameof(row.Provider)),
+            RequireText(row.ManufacturerPartNumber, nameof(row.ManufacturerPartNumber)),
+            RequireText(row.ManufacturerPartNumber, nameof(row.ManufacturerPartNumber)),
+            RequireText(row.Manufacturer, nameof(row.Manufacturer)),
+            row.DisplayName,
+            PriceLadder.Normalize([new QuantityPriceBreak(1, Money.Usd(row.MinimumUnitPriceUsd ?? 0m))]),
+            row.StockQuantity,
+            CreateUri(row.DatasheetUrl),
+            null,
+            BuildFields(row),
+            CatalogProviderCapabilities.Feed);
+    }
+
+    private static IReadOnlyDictionary<string, string> BuildFields(MarketplaceComponentRow row)
+    {
+        var fields = new Dictionary<string, string>(StringComparer.Ordinal);
+        AddField(fields, "Package", row.Category);
+        AddField(fields, "Aliases", string.Join(", ", GetAliases(row)));
+        return fields;
+    }
+
+    private static IEnumerable<string> GetAliases(MarketplaceComponentRow row)
+    {
+        yield return row.CanonicalComponentId;
+
+        if (!string.IsNullOrWhiteSpace(row.DuplicateOfComponentId))
+        {
+            yield return row.DuplicateOfComponentId;
+        }
+    }
+
+    private static bool CandidateHasMultipleProviders(ComponentCandidate candidate) =>
+        candidate.SourceKeys
+            .Select(GetProviderName)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Skip(1)
+            .Any();
+
+    private static string GetProviderName(string sourceKey)
+    {
+        int separatorIndex = sourceKey.IndexOf(':', StringComparison.Ordinal);
+        return separatorIndex <= 0 ? sourceKey : sourceKey[..separatorIndex];
+    }
+
+    private static void AddField(IDictionary<string, string> fields, string key, string value)
+    {
+        if (!string.IsNullOrWhiteSpace(value))
+        {
+            fields[key] = value;
+        }
+    }
+
+    private static Uri? CreateUri(string value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out Uri? uri) ? uri : null;
+
+    private static string RequireText(string value, string parameterName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException("Value is required.", parameterName);
+        }
+
+        return value;
     }
 }
 

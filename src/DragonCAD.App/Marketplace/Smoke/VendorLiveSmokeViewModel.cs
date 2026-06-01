@@ -142,6 +142,21 @@ public sealed class VendorLiveSmokeViewModel : INotifyPropertyChanged
     public Task RunMouserAsync(CancellationToken cancellationToken = default) =>
         RunProviderAsync(MouserProviderName, harness.RunMouserKeywordSearchAsync, cancellationToken);
 
+    public void RefreshStatus()
+    {
+        bool isGateEnabled = IsGateEnabled;
+        for (int index = 0; index < providers.Count; index++)
+        {
+            providers[index] = providers[index].WithGateStatus(isGateEnabled);
+        }
+
+        RaiseCommandStateChanged();
+        OnPropertyChanged(nameof(IsGateEnabled));
+        OnPropertyChanged(nameof(GateStatus));
+        OnPropertyChanged(nameof(DisabledMessage));
+        OnPropertyChanged(nameof(Providers));
+    }
+
     public async Task RunAllAsync(CancellationToken cancellationToken = default)
     {
         if (!TryStartRun())
@@ -312,6 +327,16 @@ public sealed record VendorLiveSmokeProviderRow(
             isGateEnabled,
             $"{result.ListingCount:N0} {Pluralize(result.ListingCount, "listing")}, {result.Diagnostics.Count:N0} {Pluralize(result.Diagnostics.Count, "diagnostic")}");
     }
+
+    public VendorLiveSmokeProviderRow WithGateStatus(bool isGateEnabled) =>
+        this with
+        {
+            Status = isGateEnabled ? StatusWhenEnabled() : "Disabled",
+            ActionLabel = isGateEnabled ? $"Run {ProviderName} smoke" : "Enable live smoke gate",
+            CanRun = isGateEnabled
+        };
+
+    private string StatusWhenEnabled() => Status == "Disabled" ? "Not run" : Status;
 
     private static string Pluralize(int count, string singular) => count == 1 ? singular : $"{singular}s";
 }

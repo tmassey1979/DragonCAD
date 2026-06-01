@@ -1,9 +1,62 @@
+using DragonCAD.App.Fabrication;
 using DragonCAD.App.Fabrication.Ordering;
 
 namespace DragonCAD.App.Tests.Fabrication.Ordering;
 
 public sealed class FabricationOrderingReadinessViewModelTests
 {
+    [Fact]
+    public void FromSelectedHandoffOptionBuildsBlockedPcbCartReadinessFromMissingRequiredFiles()
+    {
+        FabricationHandoffViewModel handoff = FabricationHandoffViewModel.CreateSample();
+        handoff.SelectedOption = handoff.Options.Single(option => option.ProviderName == "PCBCart");
+
+        FabricationOrderingReadinessViewModel viewModel = FabricationOrderingReadinessViewModel.FromSelectedHandoffOption(handoff);
+
+        FabricationOrderingReadinessRow row = Assert.Single(viewModel.Rows);
+        Assert.Equal("PCBCart", row.ProviderName);
+        Assert.Equal("Production", row.ProviderKind);
+        Assert.Equal("Production / assembly", row.Mode);
+        Assert.Equal("1, 2, 4, 6, 8, 10, 12 layers", row.LayerSupport);
+        Assert.Equal("5-10000 boards", row.QuantitySupport);
+        Assert.Equal("Blocked", row.PackageReadiness);
+        Assert.Equal(["BOM", "Gerbers"], row.MissingFiles);
+        Assert.Equal("Checkout/submission is disabled: package is blocked by 2 missing required files.", row.CheckoutSubmissionDisabledExplanation);
+    }
+
+    [Fact]
+    public void FromSelectedHandoffOptionBuildsReadyOshParkReadinessFromCompletePackage()
+    {
+        FabricationHandoffViewModel handoff = FabricationHandoffViewModel.CreateSample();
+        handoff.SelectedOption = handoff.Options.Single(option => option.ProviderName == "OSH Park");
+
+        FabricationOrderingReadinessViewModel viewModel = FabricationOrderingReadinessViewModel.FromSelectedHandoffOption(handoff);
+
+        FabricationOrderingReadinessRow row = Assert.Single(viewModel.Rows);
+        Assert.Equal("OSH Park", row.ProviderName);
+        Assert.Equal("Prototype", row.ProviderKind);
+        Assert.Equal("Prototype board", row.Mode);
+        Assert.Equal("2, 4 layers", row.LayerSupport);
+        Assert.Equal("3 boards", row.QuantitySupport);
+        Assert.Equal("Ready", row.PackageReadiness);
+        Assert.Empty(row.MissingFiles);
+    }
+
+    [Fact]
+    public void FromSelectedHandoffOptionKeepsCheckoutSubmissionDisabledForCompletePackage()
+    {
+        FabricationHandoffViewModel handoff = FabricationHandoffViewModel.CreateSample();
+        handoff.SelectedOption = handoff.Options.Single(option => option.ProviderName == "OSH Park");
+
+        FabricationOrderingReadinessRow row = Assert.Single(
+            FabricationOrderingReadinessViewModel.FromSelectedHandoffOption(handoff).Rows);
+
+        Assert.False(row.IsCheckoutSubmissionEnabled);
+        Assert.Equal(
+            "Checkout/submission is disabled: DragonCAD prepares the package only and does not place fabrication orders.",
+            row.CheckoutSubmissionDisabledExplanation);
+    }
+
     [Fact]
     public void FromSourcesBuildsRowsForOshParkAndPcbCartReadiness()
     {

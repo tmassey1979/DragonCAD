@@ -7,6 +7,76 @@ namespace DragonCAD.App.Tests.Marketplace.TrustedLibrary;
 public sealed class TrustedLibraryPromotionQueueViewModelTests
 {
     [Fact]
+    public void FromReviewedCandidatesBuildsQueueThroughPlannerWithoutMutatingCoreLibrary()
+    {
+        TrustedLibraryPromotionQueueViewModel viewModel = TrustedLibraryPromotionQueueViewModel.FromReviewedCandidates(
+        [
+            Candidate(
+                reviewState: TrustedLibraryMatchReviewState.Rejected,
+                provider: "Mouser",
+                sku: "595-NE555P",
+                manufacturerPartNumber: "NE555P",
+                componentId: "core:timer:ne555p",
+                artifacts:
+                [
+                    new TrustedLibraryReviewedArtifactCandidate("datasheet", "artifacts/vendor/mouser/ne555p.pdf", "sha256:datasheet"),
+                ],
+                warnings: ["Duplicate manufacturer part number requires steward review."]),
+            Candidate(
+                reviewState: TrustedLibraryMatchReviewState.Approved,
+                provider: "Digi-Key",
+                sku: "296-LM7805CT-ND",
+                manufacturerPartNumber: "LM7805CT/NOPB",
+                componentId: "core:regulator:lm7805ct",
+                artifacts:
+                [
+                    new TrustedLibraryReviewedArtifactCandidate("symbol", "artifacts/generated/lm7805ct/symbol.dcad-symbol.json", "sha256:symbol"),
+                    new TrustedLibraryReviewedArtifactCandidate("datasheet", "artifacts/vendor/digikey/lm7805ct.pdf", "sha256:datasheet"),
+                ],
+                warnings: ["Verify TO-220 footprint before promotion."]),
+            Candidate(
+                reviewState: TrustedLibraryMatchReviewState.PendingReview,
+                provider: "Jameco",
+                sku: "51262",
+                manufacturerPartNumber: "7805",
+                componentId: "core:regulator:7805",
+                artifacts:
+                [
+                    new TrustedLibraryReviewedArtifactCandidate("datasheet", "artifacts/manual/jameco/51262.pdf", null),
+                ],
+                warnings: ["Manual feed requires reviewer confirmation."]),
+        ]);
+
+        Assert.False(viewModel.MutatesCoreLibrary);
+        Assert.Equal("3 promotion candidates, 1 ready to stage", viewModel.QueueSummary);
+        Assert.Equal(
+            ["Digi-Key:296-LM7805CT-ND", "Jameco:51262", "Mouser:595-NE555P"],
+            viewModel.Rows.Select(row => $"{row.Provider}:{row.VendorSku}"));
+
+        TrustedLibraryPromotionRow approvedRow = viewModel.Rows[0];
+        Assert.Equal("core:regulator:lm7805ct", approvedRow.TargetComponentId);
+        Assert.Equal(TrustedLibraryMatchReviewState.Approved, approvedRow.ReviewState);
+        Assert.True(approvedRow.CanStage);
+        Assert.Equal("Ready to stage", approvedRow.StageReadiness);
+        Assert.Equal("Verify TO-220 footprint before promotion.", approvedRow.WarningSummary);
+        Assert.Equal(
+            "datasheet:artifacts/vendor/digikey/lm7805ct.pdf; symbol:artifacts/generated/lm7805ct/symbol.dcad-symbol.json",
+            approvedRow.ArtifactPathSummary);
+
+        TrustedLibraryPromotionRow pendingRow = viewModel.Rows[1];
+        Assert.Equal("core:regulator:7805", pendingRow.TargetComponentId);
+        Assert.Equal(TrustedLibraryMatchReviewState.PendingReview, pendingRow.ReviewState);
+        Assert.False(pendingRow.CanStage);
+        Assert.Equal("Blocked until approved", pendingRow.StageReadiness);
+
+        TrustedLibraryPromotionRow rejectedRow = viewModel.Rows[2];
+        Assert.Equal("core:timer:ne555p", rejectedRow.TargetComponentId);
+        Assert.Equal(TrustedLibraryMatchReviewState.Rejected, rejectedRow.ReviewState);
+        Assert.False(rejectedRow.CanStage);
+        Assert.Equal("Rejected", rejectedRow.StageReadiness);
+    }
+
+    [Fact]
     public void FromPlanExposesPromotionRowsWithReviewReadinessWarningsAndArtifacts()
     {
         TrustedLibraryPromotionQueueViewModel viewModel = TrustedLibraryPromotionQueueViewModel.FromPlan(
@@ -128,4 +198,14 @@ public sealed class TrustedLibraryPromotionQueueViewModelTests
             new ComponentId(targetComponentId),
             artifacts,
             warnings);
+
+    private static TrustedLibraryReviewedCandidate Candidate(
+        TrustedLibraryMatchReviewState reviewState,
+        string provider,
+        string sku,
+        string manufacturerPartNumber,
+        string componentId,
+        IReadOnlyList<TrustedLibraryReviewedArtifactCandidate> artifacts,
+        IReadOnlyList<string> warnings) =>
+        new(componentId, provider, sku, manufacturerPartNumber, reviewState, artifacts, warnings);
 }

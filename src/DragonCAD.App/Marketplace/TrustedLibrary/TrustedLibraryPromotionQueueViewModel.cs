@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using DragonCAD.Core.Components.Identity;
 using DragonCAD.Sourcing.TrustedLibrary;
 
 namespace DragonCAD.App.Marketplace.TrustedLibrary;
@@ -51,8 +52,68 @@ public sealed class TrustedLibraryPromotionQueueViewModel : INotifyPropertyChang
         return new TrustedLibraryPromotionQueueViewModel(rows, plan.MutatesCoreLibrary);
     }
 
+    public static TrustedLibraryPromotionQueueViewModel FromReviewedCandidates(IEnumerable<TrustedLibraryReviewedCandidate> candidates)
+    {
+        ArgumentNullException.ThrowIfNull(candidates);
+
+        TrustedLibraryVendorMatchPromotionPlan plan = TrustedLibraryVendorMatchPromotionPlanner.Plan(
+            candidates.Select(candidate => candidate.ToReviewedVendorCatalogMatch()));
+
+        return FromPlan(plan);
+    }
+
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+}
+
+public sealed record TrustedLibraryReviewedCandidate
+{
+    public TrustedLibraryReviewedCandidate(
+        string componentId,
+        string provider,
+        string sku,
+        string manufacturerPartNumber,
+        TrustedLibraryMatchReviewState reviewState,
+        IReadOnlyList<TrustedLibraryReviewedArtifactCandidate> artifactPaths,
+        IReadOnlyList<string> warnings)
+    {
+        ComponentId = componentId;
+        Provider = provider;
+        Sku = sku;
+        ManufacturerPartNumber = manufacturerPartNumber;
+        ReviewState = reviewState;
+        ArtifactPaths = artifactPaths.ToArray();
+        Warnings = warnings.ToArray();
+    }
+
+    public string ComponentId { get; }
+
+    public string Provider { get; }
+
+    public string Sku { get; }
+
+    public string ManufacturerPartNumber { get; }
+
+    public TrustedLibraryMatchReviewState ReviewState { get; }
+
+    public IReadOnlyList<TrustedLibraryReviewedArtifactCandidate> ArtifactPaths { get; }
+
+    public IReadOnlyList<string> Warnings { get; }
+
+    internal ReviewedVendorCatalogMatch ToReviewedVendorCatalogMatch() =>
+        new(
+            ReviewState,
+            Provider,
+            Sku,
+            ManufacturerPartNumber,
+            new ComponentId(ComponentId),
+            ArtifactPaths.Select(artifact => artifact.ToTrustedLibraryArtifactPath()).ToArray(),
+            Warnings);
+}
+
+public sealed record TrustedLibraryReviewedArtifactCandidate(string Kind, string Path, string? Checksum)
+{
+    internal TrustedLibraryArtifactPath ToTrustedLibraryArtifactPath() => new(Kind, Path, Checksum);
 }
 
 public sealed class TrustedLibraryPromotionRow : INotifyPropertyChanged

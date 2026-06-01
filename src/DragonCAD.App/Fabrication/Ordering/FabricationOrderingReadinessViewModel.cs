@@ -1,4 +1,5 @@
 using System.Collections;
+using DragonCAD.App.Fabrication;
 
 namespace DragonCAD.App.Fabrication.Ordering;
 
@@ -33,6 +34,26 @@ public sealed class FabricationOrderingReadinessViewModel
         return FromSources(sources);
     }
 
+    public static FabricationOrderingReadinessViewModel FromSelectedHandoffOption(FabricationHandoffViewModel handoff)
+    {
+        ArgumentNullException.ThrowIfNull(handoff);
+
+        return handoff.SelectedOption is null
+            ? new FabricationOrderingReadinessViewModel([])
+            : FromHandoffOptions([handoff.SelectedOption]);
+    }
+
+    public static FabricationOrderingReadinessViewModel FromHandoffOptions(IEnumerable<FabricationHandoffOptionViewModel> options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+
+        FabricationOrderingReadinessSource[] sources = options
+            .Select(CreateSourceFromHandoffOption)
+            .ToArray();
+
+        return FromSources(sources);
+    }
+
     private static FabricationOrderingReadinessSource CreateSourceFromDomainPackage(FabricationOrderingDomainPackage package)
     {
         ArgumentNullException.ThrowIfNull(package);
@@ -48,6 +69,28 @@ public sealed class FabricationOrderingReadinessViewModel
             MinimumQuantity: GetRequiredInt32(profile, "MinimumQuantity"),
             MaximumQuantity: GetRequiredInt32(profile, "MaximumQuantity"),
             ValidationDiagnostics: GetDiagnostics(package.ValidationResult));
+    }
+
+    private static FabricationOrderingReadinessSource CreateSourceFromHandoffOption(FabricationHandoffOptionViewModel option)
+    {
+        ArgumentNullException.ThrowIfNull(option);
+
+        FabricationOrderingProviderStyle style = FabricationOrderingProviderStyle.For(option);
+
+        return new FabricationOrderingReadinessSource(
+            ProviderName: option.ProviderName,
+            ProviderKind: style.ProviderKind,
+            Mode: option.OrderKindLabel,
+            SupportedLayers: style.SupportedLayers,
+            MinimumQuantity: style.MinimumQuantity,
+            MaximumQuantity: style.MaximumQuantity,
+            ValidationDiagnostics: option.RequiredFiles
+                .Where(file => !file.IsReady)
+                .Select(file => FabricationOrderingDiagnostic.Error(
+                    "fabrication-handoff-missing-file",
+                    $"Missing {file.DisplayName} for {option.ProviderName} {option.OrderKindLabel}.",
+                    file.DisplayName))
+                .ToArray());
     }
 
     private static IReadOnlyList<FabricationOrderingDiagnostic> GetDiagnostics(object validationResult)
@@ -165,6 +208,25 @@ public sealed record FabricationOrderingDiagnostic(
 
     public static FabricationOrderingDiagnostic Warning(string code, string message, string? fileRole = null) =>
         new("Warning", code, message, fileRole);
+}
+
+internal sealed record FabricationOrderingProviderStyle(
+    string ProviderKind,
+    IReadOnlyList<int> SupportedLayers,
+    int MinimumQuantity,
+    int MaximumQuantity)
+{
+    public static FabricationOrderingProviderStyle For(FabricationHandoffOptionViewModel option)
+    {
+        ArgumentNullException.ThrowIfNull(option);
+
+        return option.ProviderId switch
+        {
+            "osh-park" => new("Prototype", [2, 4], 3, 3),
+            "pcbcart" => new("Production", [1, 2, 4, 6, 8, 10, 12], 5, 10000),
+            _ => new("Production", [], 1, int.MaxValue)
+        };
+    }
 }
 
 public sealed class FabricationOrderingReadinessRow

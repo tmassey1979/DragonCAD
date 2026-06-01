@@ -17,7 +17,7 @@ public sealed class VendorLiveSmokeViewModelTests
         Assert.Equal(VendorLiveSmokeHarness.GateEnvironmentVariable, viewModel.GateEnvironmentVariable);
         Assert.Equal("Live vendor smoke is disabled", viewModel.GateStatus);
         Assert.Equal("Set DRAGONCAD_VENDOR_LIVE_SMOKE=1 to enable real Digi-Key and Mouser calls.", viewModel.DisabledMessage);
-        Assert.False(viewModel.RunAllCommand.CanExecute(null));
+        AssertSmokeCommandsCanExecute(viewModel, expected: false);
         Assert.Equal(["Digi-Key", "Mouser"], viewModel.Providers.Select(row => row.ProviderName));
         Assert.All(viewModel.Providers, row =>
         {
@@ -108,9 +108,63 @@ public sealed class VendorLiveSmokeViewModelTests
         Assert.Equal("DragonCAD.LiveSmoke.QueryRequired", diagnostic.Code);
     }
 
+    [Fact]
+    public void RefreshStatusEnablesProviderRowsAndCommandsWithoutCallingHarnessRuns()
+    {
+        var harness = new FakeVendorLiveSmokeHarness(isEnabled: false);
+        VendorLiveSmokeViewModel viewModel = new(harness);
+
+        harness.IsEnabled = true;
+
+        viewModel.RefreshStatus();
+
+        Assert.Empty(harness.Calls);
+        Assert.Equal("Live vendor smoke is enabled", viewModel.GateStatus);
+        AssertSmokeCommandsCanExecute(viewModel, expected: true);
+        Assert.All(viewModel.Providers, row =>
+        {
+            Assert.Equal("Not run", row.Status);
+            Assert.StartsWith("Run ", row.ActionLabel, StringComparison.Ordinal);
+            Assert.True(row.CanRun);
+            Assert.Equal("Not run", row.LastResultSummary);
+        });
+    }
+
+    [Fact]
+    public async Task RefreshStatusDisablesProviderRowsAndCommandsWithoutCallingHarnessRuns()
+    {
+        var harness = new FakeVendorLiveSmokeHarness(isEnabled: true);
+        VendorLiveSmokeViewModel viewModel = new(harness)
+        {
+            QueryText = "NE555"
+        };
+        await viewModel.RunAllAsync();
+        harness.Calls.Clear();
+
+        harness.IsEnabled = false;
+
+        viewModel.RefreshStatus();
+
+        Assert.Empty(harness.Calls);
+        Assert.Equal("Live vendor smoke is disabled", viewModel.GateStatus);
+        AssertSmokeCommandsCanExecute(viewModel, expected: false);
+        Assert.All(viewModel.Providers, row =>
+        {
+            Assert.Equal("Disabled", row.Status);
+            Assert.Equal("Enable live smoke gate", row.ActionLabel);
+            Assert.False(row.CanRun);
+        });
+    }
+
+    private static void AssertSmokeCommandsCanExecute(VendorLiveSmokeViewModel viewModel, bool expected)
+    {
+        Assert.Equal(expected, viewModel.RunDigiKeyCommand.CanExecute(null));
+        Assert.Equal(expected, viewModel.RunMouserCommand.CanExecute(null));
+        Assert.Equal(expected, viewModel.RunAllCommand.CanExecute(null));
+    }
+
     private sealed class FakeVendorLiveSmokeHarness : IVendorLiveSmokeHarness
     {
-        private readonly bool isEnabled;
         private readonly VendorLiveSmokeRunResult digiKeyResult;
         private readonly VendorLiveSmokeRunResult mouserResult;
 
@@ -119,14 +173,16 @@ public sealed class VendorLiveSmokeViewModelTests
             VendorLiveSmokeRunResult? digiKeyResult = null,
             VendorLiveSmokeRunResult? mouserResult = null)
         {
-            this.isEnabled = isEnabled;
+            IsEnabled = isEnabled;
             this.digiKeyResult = digiKeyResult ?? new VendorLiveSmokeRunResult("Digi-Key", VendorLiveSmokeRunStatus.Succeeded, 1, []);
             this.mouserResult = mouserResult ?? new VendorLiveSmokeRunResult("Mouser", VendorLiveSmokeRunStatus.Succeeded, 1, []);
         }
 
         public List<(string ProviderName, string Query, int Limit)> Calls { get; } = [];
 
-        public bool IsEnabled() => isEnabled;
+        public bool IsEnabled { get; set; }
+
+        bool IVendorLiveSmokeHarness.IsEnabled() => IsEnabled;
 
         public Task<VendorLiveSmokeRunResult> RunDigiKeyKeywordSearchAsync(
             string keyword,

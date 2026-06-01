@@ -1931,8 +1931,8 @@ public sealed class MainWindowViewModelTests
     {
         MainWindowViewModel viewModel = MainWindowViewModel.CreateDesignPreview(maxBuiltInDevices: 1);
 
-        Assert.NotEmpty(viewModel.MarketplaceBomCostRollup.Rows);
-        Assert.Contains("Total:", viewModel.MarketplaceBomCostRollup.TotalSummary, StringComparison.Ordinal);
+        Assert.Empty(viewModel.MarketplaceBomCostRollup.Rows);
+        Assert.Equal("Total: $0.00 across 0 components", viewModel.MarketplaceBomCostRollup.TotalSummary);
         Assert.NotEmpty(viewModel.ComponentDeduplicationReview.Rows);
         Assert.NotEmpty(viewModel.TrustedLibraryPromotionQueue.Rows);
         Assert.NotEmpty(viewModel.FabricationOrderingReadiness.Rows);
@@ -1940,6 +1940,26 @@ public sealed class MainWindowViewModelTests
         Assert.Equal(7, viewModel.MarketplaceIntegrationStatus.Rows.Count);
         Assert.Contains(viewModel.MarketplaceIntegrationStatus.Rows, row => row.SectionLabel == "BOM rollup");
         Assert.Contains(viewModel.MarketplaceIntegrationStatus.Rows, row => row.SectionLabel == "Trusted-library promotion");
+    }
+
+    [Fact]
+    public void MarketplaceIntegrationPanelsDeriveFromLiveCartState()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateDesignPreview(maxBuiltInDevices: 1);
+        List<string?> changedProperties = [];
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+
+        viewModel.Marketplace.SelectedComponent = viewModel.Marketplace.Components.Single(row => row.Provider == "Digi-Key");
+        viewModel.AddSelectedMarketplaceComponentToCartCommand.Execute(null);
+
+        Assert.Single(viewModel.MarketplaceBomCostRollup.Rows);
+        Assert.Contains("$0.73", viewModel.MarketplaceBomCostRollup.TotalSummary, StringComparison.Ordinal);
+        Assert.Contains(nameof(MainWindowViewModel.MarketplaceBomCostRollup), changedProperties);
+        Assert.Contains(nameof(MainWindowViewModel.MarketplaceIntegrationStatus), changedProperties);
+
+        var bomStatus = Assert.Single(viewModel.MarketplaceIntegrationStatus.Rows, row => row.SectionLabel == "BOM rollup");
+        Assert.Equal(1, bomStatus.ReadyCount);
+        Assert.Equal(0, bomStatus.BlockedCount);
     }
 
     private static string ComputeSha256(string content) =>

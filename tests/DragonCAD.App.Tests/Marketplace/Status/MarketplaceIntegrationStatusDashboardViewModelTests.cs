@@ -85,10 +85,52 @@ public sealed class MarketplaceIntegrationStatusDashboardViewModelTests
         Assert.All(dashboard.Rows, row => Assert.Equal("Ready", row.SeverityLabel));
     }
 
+    [Fact]
+    public void FromInputsDerivesSectionCountsFromMarketplaceChildInputs()
+    {
+        MarketplaceIntegrationStatusDashboardViewModel dashboard = MarketplaceIntegrationStatusDashboardFactory.FromInputs(
+            new MarketplaceIntegrationStatusInputs(
+                ApiSync: new MarketplaceApiSyncStatusInput(SyncedVendorCount: 3, WarningCount: 1, BlockedCount: 0),
+                InUseSync: new MarketplaceInUseSyncStatusInput(SyncedQueueCount: 9, PendingQueueCount: 2, DueQueueCount: 1),
+                BomRollup: new MarketplaceBomRollupStatusInput(CompleteLineCount: 11, DiagnosticCount: 4, IncompleteLineCount: 2),
+                DedupReview: new MarketplaceDedupReviewStatusInput(ClearComponentCount: 8, PendingComponentCount: 3, WarningCount: 2),
+                TrustedLibraryPromotion: new MarketplaceTrustedPromotionStatusInput(ReadyComponentCount: 5, WarningCount: 1, BlockedCount: 1),
+                FabricationOrdering: new MarketplaceFabricationOrderingStatusInput(ReadyOrderCount: 6, WarningCount: 2, BlockedCount: 3),
+                LiveSmoke: new MarketplaceLiveSmokeStatusInput(PassingCheckCount: 7, WarningCount: 1, BlockedCheckCount: 2)));
+
+        Assert.Equal(7, dashboard.SectionCount);
+        Assert.Equal(49, dashboard.ReadyItemCount);
+        Assert.Equal(16, dashboard.WarningItemCount);
+        Assert.Equal(9, dashboard.BlockedItemCount);
+        Assert.Equal("Blocked", dashboard.OverallSeverityLabel);
+        Assert.Equal("Resolve 9 blocked marketplace integration items", dashboard.NextActionText);
+
+        AssertSection(dashboard, MarketplaceIntegrationSection.ApiSync, ready: 3, warnings: 1, blocked: 0);
+        AssertSection(dashboard, MarketplaceIntegrationSection.InUseSync, ready: 9, warnings: 2, blocked: 1);
+        AssertSection(dashboard, MarketplaceIntegrationSection.BomRollup, ready: 11, warnings: 4, blocked: 2);
+        AssertSection(dashboard, MarketplaceIntegrationSection.DedupReview, ready: 8, warnings: 5, blocked: 0);
+        AssertSection(dashboard, MarketplaceIntegrationSection.TrustedLibraryPromotion, ready: 5, warnings: 1, blocked: 1);
+        AssertSection(dashboard, MarketplaceIntegrationSection.FabricationOrdering, ready: 6, warnings: 2, blocked: 3);
+        AssertSection(dashboard, MarketplaceIntegrationSection.LiveSmoke, ready: 7, warnings: 1, blocked: 2);
+    }
+
     private static MarketplaceIntegrationSectionStatus Section(
         MarketplaceIntegrationSection section,
         int ready = 0,
         int warnings = 0,
         int blocked = 0) =>
         new(section, ready, warnings, blocked);
+
+    private static void AssertSection(
+        MarketplaceIntegrationStatusDashboardViewModel dashboard,
+        MarketplaceIntegrationSection section,
+        int ready,
+        int warnings,
+        int blocked)
+    {
+        MarketplaceIntegrationStatusRow row = Assert.Single(dashboard.Rows, row => row.Section == section);
+        Assert.Equal(ready, row.ReadyCount);
+        Assert.Equal(warnings, row.WarningCount);
+        Assert.Equal(blocked, row.BlockedCount);
+    }
 }

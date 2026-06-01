@@ -374,19 +374,23 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
     public VendorCatalogSyncDashboardViewModel VendorCatalogSync { get; } = CreateSeededVendorCatalogSync();
 
-    public MarketplaceBomCostRollupViewModel MarketplaceBomCostRollup { get; } = CreateSeededMarketplaceBomCostRollup();
+    public MarketplaceBomCostRollupViewModel MarketplaceBomCostRollup =>
+        MarketplaceBomCostRollupFactory.FromCart(MarketplaceCart, Marketplace.Components);
 
-    public ComponentDeduplicationReviewViewModel ComponentDeduplicationReview { get; } = CreateSeededComponentDeduplicationReview();
+    public ComponentDeduplicationReviewViewModel ComponentDeduplicationReview =>
+        ComponentDeduplicationReviewViewModel.FromMarketplaceRows(Marketplace.Components);
 
-    public TrustedLibraryPromotionQueueViewModel TrustedLibraryPromotionQueue { get; } = CreateSeededTrustedLibraryPromotionQueue();
+    public TrustedLibraryPromotionQueueViewModel TrustedLibraryPromotionQueue =>
+        TrustedLibraryPromotionQueueViewModel.FromReviewedCandidates(CreateTrustedLibraryReviewedCandidates());
 
-    public FabricationOrderingReadinessViewModel FabricationOrderingReadiness { get; } = CreateSeededFabricationOrderingReadiness();
+    public FabricationOrderingReadinessViewModel FabricationOrderingReadiness =>
+        FabricationOrderingReadinessViewModel.FromSelectedHandoffOption(Fabrication);
 
     public VendorLiveSmokeViewModel VendorLiveSmoke { get; } =
         new(new VendorLiveSmokeHarnessAdapter(DragonCAD.Sourcing.Catalog.Smoke.VendorLiveSmokeHarness.CreateDefault()));
 
-    public MarketplaceIntegrationStatusDashboardViewModel MarketplaceIntegrationStatus { get; } =
-        CreateSeededMarketplaceIntegrationStatus();
+    public MarketplaceIntegrationStatusDashboardViewModel MarketplaceIntegrationStatus =>
+        MarketplaceIntegrationStatusDashboardFactory.FromInputs(CreateMarketplaceIntegrationStatusInputs());
 
     public IReadOnlyList<string> VendorCatalogSyncProviderOptions { get; } = ["Digi-Key", "Mouser"];
 
@@ -1404,6 +1408,98 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             new MarketplaceIntegrationSectionStatus(MarketplaceIntegrationSection.LiveSmoke, 0, 0, 2)
         ]);
 
+    private IReadOnlyList<TrustedLibraryReviewedCandidate> CreateTrustedLibraryReviewedCandidates() =>
+        Marketplace.Components
+            .Select(row => new TrustedLibraryReviewedCandidate(
+                componentId: string.IsNullOrWhiteSpace(row.CanonicalComponentId) ? $"marketplace:{row.Provider}:{row.ManufacturerPartNumber}" : row.CanonicalComponentId,
+                provider: row.Provider,
+                sku: row.ManufacturerPartNumber,
+                manufacturerPartNumber: row.ManufacturerPartNumber,
+                reviewState: DetermineTrustedLibraryReviewState(row),
+                artifactPaths: CreateTrustedLibraryArtifacts(row),
+                warnings: CreateTrustedLibraryWarnings(row)))
+            .ToArray();
+
+    private static TrustedLibraryMatchReviewState DetermineTrustedLibraryReviewState(MarketplaceComponentRow row)
+    {
+        if (!row.IsCanonical)
+        {
+            return TrustedLibraryMatchReviewState.PendingReview;
+        }
+
+        return row.HasDatasheet
+            ? TrustedLibraryMatchReviewState.Approved
+            : TrustedLibraryMatchReviewState.PendingReview;
+    }
+
+    private static IReadOnlyList<TrustedLibraryReviewedArtifactCandidate> CreateTrustedLibraryArtifacts(MarketplaceComponentRow row)
+    {
+        if (!row.HasDatasheet)
+        {
+            return [];
+        }
+
+        return
+        [
+            new TrustedLibraryReviewedArtifactCandidate("datasheet", row.DatasheetUrl, null)
+        ];
+    }
+
+    private static IReadOnlyList<string> CreateTrustedLibraryWarnings(MarketplaceComponentRow row)
+    {
+        List<string> warnings = [];
+        if (!row.HasDatasheet)
+        {
+            warnings.Add("Datasheet link is missing.");
+        }
+
+        if (!row.IsCanonical)
+        {
+            warnings.Add($"Review duplicate mapping to {row.DuplicateOfComponentId} before promotion.");
+        }
+
+        return warnings;
+    }
+
+    private MarketplaceIntegrationStatusInputs CreateMarketplaceIntegrationStatusInputs()
+    {
+        MarketplaceBomCostRollupViewModel bomRollup = MarketplaceBomCostRollup;
+        ComponentDeduplicationReviewViewModel dedupReview = ComponentDeduplicationReview;
+        TrustedLibraryPromotionQueueViewModel trustedPromotion = TrustedLibraryPromotionQueue;
+        FabricationOrderingReadinessViewModel fabricationOrdering = FabricationOrderingReadiness;
+        IReadOnlyList<InUseVendorCatalogSyncRequest> inUseQueue = InUseVendorCatalogSyncQueue;
+
+        return new MarketplaceIntegrationStatusInputs(
+            ApiSync: new MarketplaceApiSyncStatusInput(
+                SyncedVendorCount: VendorCatalogSync.Providers.Count(provider => provider.CanSync),
+                WarningCount: VendorCatalogSync.Providers.Count(provider => !string.IsNullOrWhiteSpace(provider.Warning)),
+                BlockedCount: VendorCatalogSync.Providers.Count(provider => provider.IsEnabled && !provider.CanSync)),
+            InUseSync: new MarketplaceInUseSyncStatusInput(
+                SyncedQueueCount: inUseQueue.Count(request => !request.IsDue && request.SyncStateLabel != "Never synced"),
+                PendingQueueCount: inUseQueue.Count(request => request.SyncStateLabel == "Never synced"),
+                DueQueueCount: inUseQueue.Count(request => request.IsDue)),
+            BomRollup: new MarketplaceBomRollupStatusInput(
+                CompleteLineCount: bomRollup.Rows.Count(row => row.Diagnostics.Count == 0),
+                DiagnosticCount: bomRollup.Diagnostics.Count,
+                IncompleteLineCount: bomRollup.Rows.Count(row => row.Diagnostics.Count > 0)),
+            DedupReview: new MarketplaceDedupReviewStatusInput(
+                ClearComponentCount: dedupReview.Rows.Count(row => row.Warnings.Count == 0),
+                PendingComponentCount: dedupReview.Rows.Count(row => row.ReviewState == ComponentDeduplicationReviewState.Pending),
+                WarningCount: dedupReview.Rows.Sum(row => row.Warnings.Count)),
+            TrustedLibraryPromotion: new MarketplaceTrustedPromotionStatusInput(
+                ReadyComponentCount: trustedPromotion.Rows.Count(row => row.CanStage),
+                WarningCount: trustedPromotion.Rows.Sum(row => row.Warnings.Count),
+                BlockedCount: trustedPromotion.Rows.Count(row => !row.CanStage)),
+            FabricationOrdering: new MarketplaceFabricationOrderingStatusInput(
+                ReadyOrderCount: fabricationOrdering.Rows.Count(row => row.PackageReadiness == "Ready"),
+                WarningCount: fabricationOrdering.Rows.Sum(row => row.Warnings.Count),
+                BlockedCount: fabricationOrdering.Rows.Count(row => row.PackageReadiness != "Ready")),
+            LiveSmoke: new MarketplaceLiveSmokeStatusInput(
+                PassingCheckCount: VendorLiveSmoke.Providers.Count(row => row.Status == "Succeeded"),
+                WarningCount: VendorLiveSmoke.Diagnostics.Count(row => row.Severity.Equals("Warning", StringComparison.OrdinalIgnoreCase)),
+                BlockedCheckCount: VendorLiveSmoke.Providers.Count(row => !row.CanRun)));
+    }
+
     private static IReadOnlyList<NormalizedCatalogListing> CreateSeededCatalogListings() =>
     [
         new NormalizedCatalogListing(
@@ -1613,6 +1709,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             inUseVendorCatalogSyncStateStore.Save(inUseVendorCatalogSyncStates);
             OnPropertyChanged(nameof(InUseVendorCatalogSyncQueue));
             OnPropertyChanged(nameof(InUseVendorCatalogSyncSummary));
+            OnPropertyChanged(nameof(MarketplaceIntegrationStatus));
         }
         finally
         {
@@ -1662,6 +1759,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         OnPropertyChanged(nameof(InUseVendorCatalogFreshnessPolicySummary));
         OnPropertyChanged(nameof(InUseVendorCatalogSyncQueue));
         OnPropertyChanged(nameof(InUseVendorCatalogSyncSummary));
+        OnPropertyChanged(nameof(MarketplaceIntegrationStatus));
     }
 
     private void ResetInUseVendorFreshnessPolicy()
@@ -1673,6 +1771,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         OnPropertyChanged(nameof(InUseVendorCatalogFreshnessPolicySummary));
         OnPropertyChanged(nameof(InUseVendorCatalogSyncQueue));
         OnPropertyChanged(nameof(InUseVendorCatalogSyncSummary));
+        OnPropertyChanged(nameof(MarketplaceIntegrationStatus));
         VendorCatalogSyncStatusText = "In-use vendor freshness policy reset to defaults.";
         InUseVendorFreshnessValidationStatus = "Freshness policy is valid.";
     }
@@ -1683,6 +1782,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         inUseVendorCatalogSyncStateStore.Save(inUseVendorCatalogSyncStates);
         OnPropertyChanged(nameof(InUseVendorCatalogSyncQueue));
         OnPropertyChanged(nameof(InUseVendorCatalogSyncSummary));
+        OnPropertyChanged(nameof(MarketplaceIntegrationStatus));
         VendorCatalogSyncStatusText = "In-use vendor sync state cleared.";
     }
 
@@ -1693,6 +1793,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         VendorCatalogSyncStatusText = result.Status == VendorCatalogSyncRunStatus.Completed
             ? $"{result.ProviderName} API sync completed: {result.Summary}"
             : result.Summary;
+        OnPropertyChanged(nameof(MarketplaceIntegrationStatus));
     }
 
     private void AddSelectedMarketplaceComponentToCart()
@@ -1727,6 +1828,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         OnPropertyChanged(nameof(MarketplaceCart));
         OnPropertyChanged(nameof(MarketplaceBomExportPreview));
         OnPropertyChanged(nameof(MarketplaceOrderPlan));
+        OnMarketplaceDerivedPanelsChanged();
         OnPropertyChanged(nameof(UnifiedComponentSourceRows));
         OnPropertyChanged(nameof(UnifiedComponentSourceSummary));
     }
@@ -1773,6 +1875,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         OnPropertyChanged(nameof(MarketplaceCart));
         OnPropertyChanged(nameof(MarketplaceBomExportPreview));
         OnPropertyChanged(nameof(MarketplaceOrderPlan));
+        OnMarketplaceDerivedPanelsChanged();
     }
 
     private void PrepareMarketplaceBomCsv()
@@ -3057,6 +3160,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         {
             OnPropertyChanged(nameof(SelectedFabricationHandoffPlan));
             OnPropertyChanged(nameof(FabricationChecklistPreview));
+            OnPropertyChanged(nameof(FabricationOrderingReadiness));
+            OnPropertyChanged(nameof(MarketplaceIntegrationStatus));
         }
     }
 
@@ -3066,6 +3171,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         {
             OnPropertyChanged(nameof(DatasheetLinkPromotionQueue));
             OnPropertyChanged(nameof(DatasheetLinkPromotionQueueSummary));
+            OnPropertyChanged(nameof(TrustedLibraryPromotionQueue));
+            OnPropertyChanged(nameof(MarketplaceIntegrationStatus));
         }
     }
 
@@ -3075,6 +3182,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         {
             OnPropertyChanged(nameof(SelectedMarketplaceQualityBadges));
         }
+    }
+
+    private void OnMarketplaceDerivedPanelsChanged()
+    {
+        OnPropertyChanged(nameof(MarketplaceBomCostRollup));
+        OnPropertyChanged(nameof(ComponentDeduplicationReview));
+        OnPropertyChanged(nameof(TrustedLibraryPromotionQueue));
+        OnPropertyChanged(nameof(FabricationOrderingReadiness));
+        OnPropertyChanged(nameof(MarketplaceIntegrationStatus));
     }
 
     private void ApplyLibrarySearchResult(BuiltInHawkCadLibrarySearchResult result)

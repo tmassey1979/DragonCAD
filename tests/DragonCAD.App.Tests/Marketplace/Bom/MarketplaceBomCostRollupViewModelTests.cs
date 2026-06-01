@@ -1,4 +1,6 @@
 using DragonCAD.App.Marketplace.Bom;
+using DragonCAD.App.Marketplace;
+using DragonCAD.App.Marketplace.Cart;
 using DragonCAD.Sourcing;
 using DragonCAD.Sourcing.Bom;
 
@@ -6,6 +8,83 @@ namespace DragonCAD.App.Tests.Marketplace.Bom;
 
 public sealed class MarketplaceBomCostRollupViewModelTests
 {
+    [Fact]
+    public void FromCartAggregatesCartQuantitiesAndPricesFromMarketplaceCatalogRows()
+    {
+        MarketplaceComponentRow digiKeyRow = Row(
+            provider: "Digi-Key",
+            displayName: "NE555 Timer",
+            manufacturerPartNumber: "NE555P",
+            canonicalComponentId: "dragon:ne555p",
+            stockQuantity: 100,
+            price: 0.42m);
+        MarketplaceComponentRow mouserRow = Row(
+            provider: "Mouser",
+            displayName: "NE555 Timer",
+            manufacturerPartNumber: "NE555P",
+            canonicalComponentId: "dragon:ne555p",
+            stockQuantity: 75,
+            price: 0.37m);
+        MarketplaceCartViewModel cart = new();
+        cart.AddItem(digiKeyRow, quantity: 3);
+        cart.AddItem(mouserRow, quantity: 2);
+
+        MarketplaceBomCostRollupViewModel viewModel = MarketplaceBomCostRollupFactory.FromCart(
+            cart,
+            [mouserRow, digiKeyRow]);
+
+        MarketplaceBomCostRollupRow row = Assert.Single(viewModel.Rows);
+        Assert.Equal("dragon:ne555p", row.ComponentId);
+        Assert.Equal("NE555P", row.ComponentName);
+        Assert.Equal(5, row.Quantity);
+        Assert.Equal("Mouser", row.SelectedProvider);
+        Assert.Equal("NE555P", row.SelectedSku);
+        Assert.Equal("$0.37 ea @ 1+", row.SelectedUnitCost);
+        Assert.Equal("$1.85", row.SelectedExtendedCost);
+
+        MarketplaceBomAlternativeOfferRow alternative = Assert.Single(row.AlternativeOffers);
+        Assert.Equal("Digi-Key", alternative.Provider);
+        Assert.Equal("$0.42 ea @ 1+", alternative.UnitCost);
+        Assert.Equal("$2.10", alternative.ExtendedCost);
+        Assert.Equal("100 in stock", alternative.Availability);
+
+        Assert.True(viewModel.IsComplete);
+        Assert.Empty(viewModel.Diagnostics);
+        Assert.Equal(["Mouser: 1 line, $1.85"], viewModel.ProviderSummaries.Select(summary => summary.Summary));
+        Assert.Equal("Total: $1.85 across 1 component", viewModel.TotalSummary);
+    }
+
+    [Fact]
+    public void FromCartReportsMissingSourceWhenCartLineHasNoPricedCatalogRow()
+    {
+        MarketplaceComponentRow row = Row(
+            provider: "SparkFun",
+            displayName: "USB-C Breakout",
+            manufacturerPartNumber: "BOB-15100",
+            canonicalComponentId: "dragon:bob-15100",
+            stockQuantity: 8,
+            price: 5.95m);
+        MarketplaceCartViewModel cart = new();
+        cart.AddItem(row, quantity: 2);
+
+        MarketplaceBomCostRollupViewModel viewModel = MarketplaceBomCostRollupFactory.FromCart(cart, []);
+
+        MarketplaceBomCostRollupRow rollupRow = Assert.Single(viewModel.Rows);
+        Assert.Equal("dragon:bob-15100", rollupRow.ComponentId);
+        Assert.Equal("BOB-15100", rollupRow.ComponentName);
+        Assert.Equal(2, rollupRow.Quantity);
+        Assert.Equal("Unpriced", rollupRow.SelectedProvider);
+        Assert.Equal(["MissingCatalogSource: No normalized catalog listing found for BOB-15100."], rollupRow.Diagnostics);
+
+        MarketplaceBomDiagnosticRow diagnostic = Assert.Single(viewModel.Diagnostics);
+        Assert.Equal("MissingCatalogSource", diagnostic.Code);
+        Assert.Equal("dragon:bob-15100", diagnostic.ComponentId);
+        Assert.Equal("BOB-15100", diagnostic.ComponentName);
+        Assert.Equal(2, diagnostic.Quantity);
+        Assert.False(viewModel.IsComplete);
+        Assert.Equal("Total: $0.00 across 1 component, 1 diagnostic", viewModel.TotalSummary);
+    }
+
     [Fact]
     public void FromRollupMapsSelectedOffersAlternativeOffersProviderSummariesAndTotal()
     {
@@ -117,4 +196,23 @@ public sealed class MarketplaceBomCostRollupViewModelTests
             Money.Usd(unitPrice),
             Money.Usd(extendedCost),
             stockQuantity);
+
+    private static MarketplaceComponentRow Row(
+        string provider,
+        string displayName,
+        string manufacturerPartNumber,
+        string canonicalComponentId,
+        int stockQuantity,
+        decimal? price) =>
+        new(
+            Provider: provider,
+            Category: "IC",
+            DisplayName: displayName,
+            Manufacturer: "Dragon Test",
+            ManufacturerPartNumber: manufacturerPartNumber,
+            CanonicalComponentId: canonicalComponentId,
+            DuplicateOfComponentId: "",
+            DatasheetUrl: "",
+            StockQuantity: stockQuantity,
+            MinimumUnitPriceUsd: price);
 }

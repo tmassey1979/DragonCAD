@@ -1,10 +1,81 @@
 using DragonCAD.App.Marketplace.Deduplication;
+using DragonCAD.App.Marketplace;
 using DragonCAD.Sourcing.Deduplication;
 
 namespace DragonCAD.App.Tests.Marketplace.Deduplication;
 
 public sealed class ComponentDeduplicationReviewViewModelTests
 {
+    [Fact]
+    public void FromMarketplaceRowsGroupsRowsByCanonicalAliasesAndPreservesProviderSourceKeys()
+    {
+        MarketplaceComponentRow[] rows =
+        [
+            Row(
+                provider: "Digi-Key",
+                category: "Voltage Regulator",
+                displayName: "LM7805 5V Linear Regulator",
+                manufacturer: "Texas Instruments",
+                manufacturerPartNumber: "LM7805CT/NOPB",
+                canonicalComponentId: "dragon:lm7805"),
+            Row(
+                provider: "Mouser",
+                category: "Voltage Regulator",
+                displayName: "L7805CV 5V Linear Regulator",
+                manufacturer: "STMicroelectronics",
+                manufacturerPartNumber: "L7805CV",
+                canonicalComponentId: "dragon:lm7805",
+                duplicateOfComponentId: "dragon:lm7805")
+        ];
+
+        ComponentDeduplicationReviewViewModel viewModel = ComponentDeduplicationReviewViewModel.FromMarketplaceRows(rows);
+
+        ComponentDeduplicationReviewRow row = Assert.Single(viewModel.Rows);
+        Assert.Equal("LM7805CT/NOPB", row.ManufacturerPartNumber);
+        Assert.Contains("dragon:lm7805", row.AliasSummary);
+        Assert.Equal("1 warning", row.WarningBadge);
+        Assert.Equal("Manufacturer disagreement: STMicroelectronics, Texas Instruments", row.ConflictSummary);
+        Assert.Collection(
+            row.VendorListings,
+            listing =>
+            {
+                Assert.Equal("Digi-Key", listing.ProviderName);
+                Assert.Equal(["LM7805CT/NOPB"], listing.VendorSkus);
+            },
+            listing =>
+            {
+                Assert.Equal("Mouser", listing.ProviderName);
+                Assert.Equal(["L7805CV"], listing.VendorSkus);
+            });
+    }
+
+    [Fact]
+    public void FromMarketplaceRowsGroupsDuplicateManufacturerPartNumbersAcrossProviders()
+    {
+        MarketplaceComponentRow[] rows =
+        [
+            Row("Digi-Key", "IC", "NE555 Timer", "Texas Instruments", "NE555P", "dragon:ne555"),
+            Row("Mouser", "IC", "NE555 Timer", "TI", "NE555P", "dragon:ne555")
+        ];
+
+        ComponentDeduplicationReviewViewModel viewModel = ComponentDeduplicationReviewViewModel.FromMarketplaceRows(rows);
+
+        ComponentDeduplicationReviewRow row = Assert.Single(viewModel.Rows);
+        Assert.Equal("NE555P", row.ManufacturerPartNumber);
+        Assert.Collection(
+            row.VendorListings,
+            listing =>
+            {
+                Assert.Equal("Digi-Key", listing.ProviderName);
+                Assert.Equal(["NE555P"], listing.VendorSkus);
+            },
+            listing =>
+            {
+                Assert.Equal("Mouser", listing.ProviderName);
+                Assert.Equal(["NE555P"], listing.VendorSkus);
+            });
+    }
+
     [Fact]
     public void FromCandidatesMapsCandidateIdentityWarningsAndGroupedVendorListings()
     {
@@ -82,4 +153,24 @@ public sealed class ComponentDeduplicationReviewViewModelTests
         Assert.Equal("Rejected", row.ReviewStateDisplay);
         Assert.Equal("Rejected locally; candidate remains unchanged.", row.ReviewNote);
     }
+
+    private static MarketplaceComponentRow Row(
+        string provider,
+        string category,
+        string displayName,
+        string manufacturer,
+        string manufacturerPartNumber,
+        string canonicalComponentId,
+        string duplicateOfComponentId = "") =>
+        new(
+            Provider: provider,
+            Category: category,
+            DisplayName: displayName,
+            Manufacturer: manufacturer,
+            ManufacturerPartNumber: manufacturerPartNumber,
+            CanonicalComponentId: canonicalComponentId,
+            DuplicateOfComponentId: duplicateOfComponentId,
+            DatasheetUrl: "",
+            StockQuantity: 100,
+            MinimumUnitPriceUsd: 1.25m);
 }
