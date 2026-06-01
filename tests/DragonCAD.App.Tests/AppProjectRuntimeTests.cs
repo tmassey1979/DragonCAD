@@ -297,6 +297,20 @@ public sealed class AppProjectRuntimeTests
     }
 
     [Fact]
+    public void MainWindowKeepsSchematicHeaderFocusedOnPrimaryCommands()
+    {
+        string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
+
+        Assert.Contains("x:Name=\"SchematicCanvasHeader\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("SchematicHeaderPrimaryCommands", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("SchematicHeaderEditCommands", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"L\"", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"R\"", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"U\"", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"D\"", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowIncludesSchematicIconToolRail()
     {
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
