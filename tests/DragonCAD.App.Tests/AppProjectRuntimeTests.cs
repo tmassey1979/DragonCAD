@@ -255,10 +255,30 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("<TreeViewItem Header=\"DragonCAD Workspace\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<TreeViewItem Header=\"Design\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<TreeViewItem Header=\"Components\"", mainWindow, StringComparison.Ordinal);
-        Assert.Contains("<TreeViewItem Header=\"Library + Marketplace\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Library + Marketplace\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<TreeViewItem Header=\"Manufacturing\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<TreeViewItem Header=\"Firmware\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<TreeViewItem Header=\"Capsules\"", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowProjectExplorerLeavesNavigateWorkspaceTabs()
+    {
+        string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
+
+        Assert.Contains("Classes=\"tree-nav\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ProjectExplorerComponentsButton\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ShowComponentManagerTabCommand}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ProjectExplorerMarketplaceButton\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ShowMarketplaceTabCommand}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ProjectExplorerSchematicsButton\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ShowSchematicTabCommand}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ProjectExplorerPcbButton\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ShowPcbLayoutTabCommand}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ProjectExplorerDatasheetsButton\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ShowDatasheetsTabCommand}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ProjectExplorerFabricationButton\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ShowFabricationTabCommand}\"", mainWindow, StringComparison.Ordinal);
     }
 
     [Fact]

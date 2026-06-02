@@ -61,6 +61,13 @@
             <Setter Property="Padding" Value="9,5" />
             <Setter Property="MinWidth" Value="0" />
         </Style>
+        <Style Selector="Button.tree-nav">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
+            <Setter Property="Foreground" Value="{StaticResource DragonText}" />
+        </Style>
     </Window.Styles>
     <Grid RowDefinitions="48,*,28">
         <Border Background="#0F141B"
@@ -218,17 +225,60 @@
                                           IsExpanded="True">
                                 <TreeViewItem Header="Design"
                                               IsExpanded="True">
-                                    <TreeViewItem Header="Schematics" />
-                                    <TreeViewItem Header="PCB Layouts" />
+                                    <TreeViewItem>
+                                        <TreeViewItem.Header>
+                                            <Button x:Name="ProjectExplorerSchematicsButton"
+                                                    Classes="tree-nav"
+                                                    Command="{Binding ShowSchematicTabCommand}"
+                                                    Content="Schematics" />
+                                        </TreeViewItem.Header>
+                                    </TreeViewItem>
+                                    <TreeViewItem>
+                                        <TreeViewItem.Header>
+                                            <Button x:Name="ProjectExplorerPcbButton"
+                                                    Classes="tree-nav"
+                                                    Command="{Binding ShowPcbLayoutTabCommand}"
+                                                    Content="PCB Layouts" />
+                                        </TreeViewItem.Header>
+                                    </TreeViewItem>
                                 </TreeViewItem>
                                 <TreeViewItem Header="Components"
                                               IsExpanded="True">
-                                    <TreeViewItem Header="Library + Marketplace" />
-                                    <TreeViewItem Header="Datasheets" />
+                                    <TreeViewItem>
+                                        <TreeViewItem.Header>
+                                            <Button x:Name="ProjectExplorerComponentsButton"
+                                                    Classes="tree-nav"
+                                                    Command="{Binding ShowComponentManagerTabCommand}"
+                                                    Content="Components" />
+                                        </TreeViewItem.Header>
+                                    </TreeViewItem>
+                                    <TreeViewItem>
+                                        <TreeViewItem.Header>
+                                            <Button x:Name="ProjectExplorerMarketplaceButton"
+                                                    Classes="tree-nav"
+                                                    Command="{Binding ShowMarketplaceTabCommand}"
+                                                    Content="Library + Marketplace" />
+                                        </TreeViewItem.Header>
+                                    </TreeViewItem>
+                                    <TreeViewItem>
+                                        <TreeViewItem.Header>
+                                            <Button x:Name="ProjectExplorerDatasheetsButton"
+                                                    Classes="tree-nav"
+                                                    Command="{Binding ShowDatasheetsTabCommand}"
+                                                    Content="Datasheets" />
+                                        </TreeViewItem.Header>
+                                    </TreeViewItem>
                                 </TreeViewItem>
                                 <TreeViewItem Header="Manufacturing"
                                               IsExpanded="True">
-                                    <TreeViewItem Header="Fabrication" />
+                                    <TreeViewItem>
+                                        <TreeViewItem.Header>
+                                            <Button x:Name="ProjectExplorerFabricationButton"
+                                                    Classes="tree-nav"
+                                                    Command="{Binding ShowFabricationTabCommand}"
+                                                    Content="Fabrication" />
+                                        </TreeViewItem.Header>
+                                    </TreeViewItem>
                                     <TreeViewItem Header="BOM and Orders" />
                                 </TreeViewItem>
                                 <TreeViewItem Header="Firmware" />
