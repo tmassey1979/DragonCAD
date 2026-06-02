@@ -34,6 +34,8 @@ public sealed class SchematicCanvasControl : Control
     private static readonly IBrush NetLabelBrush = new SolidColorBrush(Color.FromRgb(0, 70, 160));
     private static readonly IBrush TextBrush = new SolidColorBrush(Color.FromRgb(22, 37, 52));
     private static readonly IBrush PinLabelBrush = new SolidColorBrush(Color.FromRgb(73, 43, 32));
+    private bool isPanningViewport;
+    private Point lastPanScreenPoint;
 
     static SchematicCanvasControl()
     {
@@ -138,6 +140,16 @@ public sealed class SchematicCanvasControl : Control
             Cursor = new Cursor(StandardCursorType.SizeAll);
             e.Pointer.Capture(this);
         }
+        else if (PlacementTarget.CanPanSchematicViewport &&
+            Editor?.SelectedComponent is null &&
+            Editor?.SelectedWire is null &&
+            Editor?.SelectedNetLabel is null)
+        {
+            isPanningViewport = true;
+            lastPanScreenPoint = e.GetPosition(this);
+            Cursor = new Cursor(StandardCursorType.SizeAll);
+            e.Pointer.Capture(this);
+        }
 
         e.Handled = true;
     }
@@ -147,6 +159,16 @@ public sealed class SchematicCanvasControl : Control
         base.OnPointerMoved(e);
         if (PlacementTarget is null)
         {
+            return;
+        }
+
+        if (isPanningViewport && Editor is not null)
+        {
+            Point currentPoint = e.GetPosition(this);
+            Editor.PanViewportByScreenDelta(currentPoint - lastPanScreenPoint, 0.00002 * Editor.ZoomLevel);
+            lastPanScreenPoint = currentPoint;
+            Cursor = new Cursor(StandardCursorType.SizeAll);
+            e.Handled = true;
             return;
         }
 
@@ -163,6 +185,15 @@ public sealed class SchematicCanvasControl : Control
         base.OnPointerReleased(e);
         if (PlacementTarget is null)
         {
+            return;
+        }
+
+        if (isPanningViewport)
+        {
+            isPanningViewport = false;
+            Cursor = null;
+            e.Pointer.Capture(null);
+            e.Handled = true;
             return;
         }
 

@@ -1203,6 +1203,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
     public bool IsWireToolActive => ActiveSchematicTool == "Wire";
 
+    public bool CanPanSchematicViewport => ActivePlacement is null && ActiveSchematicTool == "Select";
+
     public bool IsDraggingSchematicComponent
     {
         get => isDraggingSchematicComponent;
@@ -1336,6 +1338,53 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             }
 
             return "No board selection";
+        }
+    }
+
+    public string SelectedBoardPartReferenceDesignator =>
+        BoardEditor.SelectedComponent?.ReferenceDesignator ?? "";
+
+    public string SelectedBoardPartName =>
+        BoardEditor.SelectedComponent?.DisplayName ?? "";
+
+    public string SelectedBoardPartValue =>
+        BoardEditor.SelectedComponent?.Value ?? "";
+
+    public string SelectedBoardPartComponentId =>
+        BoardEditor.SelectedComponent?.ComponentId ?? "";
+
+    public string SelectedBoardPartGeometrySummary
+    {
+        get
+        {
+            BoardComponentInstance? component = BoardEditor.SelectedComponent;
+            if (component is null)
+            {
+                return "";
+            }
+
+            int padCount = component.FootprintPreview.Pads.Count;
+            int lineCount = component.FootprintPreview.Lines.Count;
+            CadRectangle bounds = component.FootprintPreview.Bounds;
+            string sizeText = bounds.Width > 0 || bounds.Height > 0
+                ? $", {FormatMillimeters(bounds.Width)} x {FormatMillimeters(bounds.Height)} mm"
+                : "";
+            return $"{padCount} {Pluralize(padCount, "pad")}, {lineCount} {Pluralize(lineCount, "outline segment")}{sizeText}";
+        }
+    }
+
+    public string SelectedBoardPartPlacementSummary
+    {
+        get
+        {
+            BoardComponentInstance? component = BoardEditor.SelectedComponent;
+            if (component is null)
+            {
+                return "";
+            }
+
+            string mirrorText = component.IsMirrored ? ", mirrored" : "";
+            return $"{FormatMillimeters(component.Position.X)} mm, {FormatMillimeters(component.Position.Y)} mm, {component.RotationDegrees} deg{mirrorText}";
         }
     }
 
@@ -4181,6 +4230,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             nameof(BoardEditorViewModel.SelectedVia))
         {
             OnPropertyChanged(nameof(BoardSelectionSummary));
+            OnPropertyChanged(nameof(SelectedBoardPartReferenceDesignator));
+            OnPropertyChanged(nameof(SelectedBoardPartName));
+            OnPropertyChanged(nameof(SelectedBoardPartValue));
+            OnPropertyChanged(nameof(SelectedBoardPartComponentId));
+            OnPropertyChanged(nameof(SelectedBoardPartGeometrySummary));
+            OnPropertyChanged(nameof(SelectedBoardPartPlacementSummary));
             OnPropertyChanged(nameof(SelectedBoardTraceWidthMillimeters));
         }
     }

@@ -275,6 +275,17 @@ public sealed class SchematicEditorViewModelTests
     }
 
     [Fact]
+    public void PanViewportByScreenDeltaMovesSheetUnderCursor()
+    {
+        SchematicEditorViewModel editor = new();
+
+        editor.PanViewportByScreenDelta(new Avalonia.Vector(40, -20), pixelsPerInternalUnit: 0.00002);
+
+        Assert.Equal(new CadPoint(-2_000_000, 1_000_000), editor.ViewportOrigin);
+        Assert.Contains("Schematic pan", editor.StatusText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SchematicGridSettingsControlVisibilityStyleSpacingAndSnapping()
     {
         SchematicEditorViewModel editor = new();

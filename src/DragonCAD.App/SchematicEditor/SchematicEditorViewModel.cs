@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using Avalonia;
 using DragonCAD.App.ComponentManager;
 using DragonCAD.App.Placement;
 using DragonCAD.Core.Geometry;
@@ -719,6 +720,19 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             cursorCadPoint.Y - (long)Math.Round((cursorCadPoint.Y - ViewportOrigin.Y) * ratio, MidpointRounding.AwayFromZero));
         ZoomLevel = nextZoom;
         StatusText = $"Schematic zoom {ZoomLevel:0.##}x.";
+    }
+
+    public void PanViewportByScreenDelta(Vector screenDelta, double pixelsPerInternalUnit)
+    {
+        if (pixelsPerInternalUnit <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(pixelsPerInternalUnit), "Viewport scale must be positive.");
+        }
+
+        long deltaX = (long)Math.Round(screenDelta.X / pixelsPerInternalUnit, MidpointRounding.AwayFromZero);
+        long deltaY = (long)Math.Round(screenDelta.Y / pixelsPerInternalUnit, MidpointRounding.AwayFromZero);
+        ViewportOrigin = new CadPoint(ViewportOrigin.X - deltaX, ViewportOrigin.Y - deltaY);
+        StatusText = $"Schematic pan {FormatMillimeters(ViewportOrigin.X)} mm, {FormatMillimeters(ViewportOrigin.Y)} mm.";
     }
 
     public void ToggleGridVisibility()

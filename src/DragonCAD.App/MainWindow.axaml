@@ -3978,6 +3978,34 @@
                                             <TextBlock Text="{Binding BoardSelectionSummary}"
                                                        TextWrapping="Wrap"
                                                        Foreground="{StaticResource DragonGreen}" />
+                                            <Border Background="#090D12"
+                                                    BorderBrush="{StaticResource DragonBorder}"
+                                                    BorderThickness="1"
+                                                    Padding="8"
+                                                    CornerRadius="3">
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock Text="Selected Board Part"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{StaticResource DragonText}" />
+                                                    <TextBlock Text="{Binding SelectedBoardPartReferenceDesignator}"
+                                                               Foreground="{StaticResource DragonGreen}" />
+                                                    <TextBlock Text="{Binding SelectedBoardPartName}"
+                                                               TextWrapping="Wrap"
+                                                               Foreground="{StaticResource DragonText}" />
+                                                    <TextBlock Text="{Binding SelectedBoardPartValue}"
+                                                               TextWrapping="Wrap"
+                                                               Foreground="{StaticResource DragonMutedText}" />
+                                                    <TextBlock Text="{Binding SelectedBoardPartComponentId}"
+                                                               TextWrapping="Wrap"
+                                                               Foreground="{StaticResource DragonMutedText}" />
+                                                    <TextBlock Text="{Binding SelectedBoardPartGeometrySummary}"
+                                                               TextWrapping="Wrap"
+                                                               Foreground="{StaticResource DragonMutedText}" />
+                                                    <TextBlock Text="{Binding SelectedBoardPartPlacementSummary}"
+                                                               TextWrapping="Wrap"
+                                                               Foreground="{StaticResource DragonMutedText}" />
+                                                </StackPanel>
+                                            </Border>
                                             <TextBlock Text="Trace Width (mm)"
                                                        Foreground="{StaticResource DragonMutedText}" />
                                             <TextBox Text="{Binding SelectedBoardTraceWidthMillimeters, Mode=TwoWay}"

@@ -48,6 +48,17 @@ public sealed class BoardEditorViewModelTests
     }
 
     [Fact]
+    public void PanViewportByScreenDeltaMovesBoardUnderCursor()
+    {
+        BoardEditorViewModel board = new();
+
+        board.PanViewportByScreenDelta(new Avalonia.Vector(50, -25), pixelsPerInternalUnit: 0.000025);
+
+        Assert.Equal(new CadPoint(2_000_000, 1_000_000), board.ViewportOrigin);
+        Assert.Contains("Board pan", board.StatusText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SynchronizeFromSchematicCreatesBoardComponentShellsWithMatchingSyncIds()
     {
         BoardEditorViewModel board = new();

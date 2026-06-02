@@ -15,4 +15,6 @@ public interface ISchematicPlacementTarget
     bool IsDraggingSchematicComponent { get; }
 
     bool IsDraggingSchematicWireSegment { get; }
+
+    bool CanPanSchematicViewport { get; }
 }

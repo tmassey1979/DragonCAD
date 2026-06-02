@@ -2044,6 +2044,27 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void SelectedBoardPartInspectorShowsPartIdentityAndGeometry()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 20);
+        viewModel.ComponentManager.SelectedComponent = Assert.Single(
+            viewModel.ComponentManager.Components,
+            row => row.DisplayName.Contains("RESISTOR", StringComparison.Ordinal));
+        viewModel.PlaceSelectedComponentCommand.Execute(null);
+        viewModel.HandleSchematicCanvasClick(new CadPoint(0, 0));
+
+        viewModel.BoardEditor.SelectComponentAt(new CadPoint(0, 0));
+
+        Assert.Equal("U1", viewModel.SelectedBoardPartReferenceDesignator);
+        Assert.Equal(viewModel.BoardEditor.SelectedComponent?.DisplayName, viewModel.SelectedBoardPartName);
+        Assert.Equal(viewModel.BoardEditor.SelectedComponent?.ComponentId, viewModel.SelectedBoardPartComponentId);
+        Assert.Contains("pads", viewModel.SelectedBoardPartGeometrySummary, StringComparison.Ordinal);
+        Assert.Contains("0 deg", viewModel.SelectedBoardPartPlacementSummary, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void BoardRouteToolCommandRoutesTraceFromBoardCanvasClicks()
     {
         MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(

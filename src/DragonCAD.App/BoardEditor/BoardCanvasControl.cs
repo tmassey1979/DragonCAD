@@ -29,6 +29,7 @@ public sealed class BoardCanvasControl : Control
     private static readonly Pen HoverTracePen = new(new SolidColorBrush(Color.FromRgb(70, 180, 255)), 3.2);
     private CadVector dragOffset;
     private BoardDragMode dragMode;
+    private Point lastPanScreenPoint;
 
     static BoardCanvasControl()
     {
@@ -137,9 +138,11 @@ public sealed class BoardCanvasControl : Control
         bool selected = Editor.SelectAt(point);
         if (!selected)
         {
-            dragMode = BoardDragMode.None;
+            dragMode = BoardDragMode.Pan;
+            lastPanScreenPoint = e.GetPosition(this);
             Editor.ClearHover();
-            Cursor = CursorForEditorState();
+            Cursor = new Cursor(StandardCursorType.SizeAll);
+            e.Pointer.Capture(this);
             e.Handled = true;
             return;
         }
@@ -187,6 +190,16 @@ public sealed class BoardCanvasControl : Control
             return;
         }
 
+        if (dragMode == BoardDragMode.Pan)
+        {
+            Point currentPoint = e.GetPosition(this);
+            Editor.PanViewportByScreenDelta(currentPoint - lastPanScreenPoint, 0.000025 * Editor.ZoomLevel);
+            lastPanScreenPoint = currentPoint;
+            Cursor = new Cursor(StandardCursorType.SizeAll);
+            e.Handled = true;
+            return;
+        }
+
         MoveSelectionTo(point);
         Cursor = new Cursor(StandardCursorType.SizeAll);
         e.Handled = true;
@@ -200,7 +213,7 @@ public sealed class BoardCanvasControl : Control
             return;
         }
 
-        if (dragMode != BoardDragMode.None)
+        if (dragMode != BoardDragMode.None && dragMode != BoardDragMode.Pan)
         {
             CadPoint point = CreateViewport().ScreenToCad(e.GetPosition(this), Bounds.Center);
             MoveSelectionTo(point);
@@ -547,6 +560,7 @@ public sealed class BoardCanvasControl : Control
     private enum BoardDragMode
     {
         None,
+        Pan,
         Component,
         Via,
         TraceSegment
