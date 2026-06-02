@@ -13,7 +13,8 @@ public sealed record SchematicComponentInstance(
     ComponentFootprintPreview FootprintPreview,
     string Value = "",
     int RotationDegrees = 0,
-    bool IsMirrored = false)
+    bool IsMirrored = false,
+    SchematicSymbolRenderPreview? SymbolRenderPreview = null)
 {
     public SchematicComponentInstance(
         string instanceId,

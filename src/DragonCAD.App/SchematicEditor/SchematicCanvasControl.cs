@@ -374,15 +374,15 @@ public sealed class SchematicCanvasControl : Control
             DrawSelection(context, viewport, center, instance, HoverSelectionPen);
         }
 
-        foreach (ComponentPreviewLine line in instance.SymbolPreview.Lines)
+        SchematicSymbolRenderPreview renderPreview =
+            instance.SymbolRenderPreview ?? SchematicSymbolRenderPreview.FromComponentPreview(instance.SymbolPreview);
+
+        foreach (SchematicSymbolPrimitivePreview primitive in renderPreview.Primitives)
         {
-            context.DrawLine(
-                SymbolPen,
-                Translate(viewport.Map(new CadPoint(0, 0), SchematicEditorViewModel.TransformLocalPoint(instance, line.Start)), center),
-                Translate(viewport.Map(new CadPoint(0, 0), SchematicEditorViewModel.TransformLocalPoint(instance, line.End)), center));
+            DrawSymbolPrimitive(context, viewport, center, instance, primitive);
         }
 
-        foreach (ComponentSymbolPinPreview pin in instance.SymbolPreview.Pins)
+        foreach (ComponentSymbolPinPreview pin in renderPreview.Pins)
         {
             Point connectPoint = Translate(viewport.Map(new CadPoint(0, 0), SchematicEditorViewModel.TransformLocalPoint(instance, pin.ConnectPoint)), center);
             bool isHoveredPin = IsHoveredPin(instance, pin);
@@ -391,6 +391,7 @@ public sealed class SchematicCanvasControl : Control
                 connectPoint,
                 Translate(viewport.Map(new CadPoint(0, 0), SchematicEditorViewModel.TransformLocalPoint(instance, pin.BodyPoint)), center));
             context.DrawEllipse(isHoveredPin ? HoverPinBrush : null, isHoveredPin ? WireSelectionPen : PinPen, connectPoint, isHoveredPin ? 4.5 : 3, isHoveredPin ? 4.5 : 3);
+            DrawPinDirection(context, connectPoint, pin);
             DrawPinLabel(context, connectPoint, pin);
         }
 
@@ -432,6 +433,150 @@ public sealed class SchematicCanvasControl : Control
             PinLabelBrush);
         context.DrawText(label, SchematicPinLabelLayout.LabelOrigin(connectPoint, pin.Orientation, label.Width, label.Height));
     }
+
+    private static void DrawPinDirection(DrawingContext context, Point connectPoint, ComponentSymbolPinPreview pin)
+    {
+        Point[] points = pin.Orientation switch
+        {
+            "Right" => [new Point(connectPoint.X + 8, connectPoint.Y), new Point(connectPoint.X + 2, connectPoint.Y - 4), new Point(connectPoint.X + 2, connectPoint.Y + 4)],
+            "Up" => [new Point(connectPoint.X, connectPoint.Y - 8), new Point(connectPoint.X - 4, connectPoint.Y - 2), new Point(connectPoint.X + 4, connectPoint.Y - 2)],
+            "Down" => [new Point(connectPoint.X, connectPoint.Y + 8), new Point(connectPoint.X - 4, connectPoint.Y + 2), new Point(connectPoint.X + 4, connectPoint.Y + 2)],
+            _ => [new Point(connectPoint.X - 8, connectPoint.Y), new Point(connectPoint.X - 2, connectPoint.Y - 4), new Point(connectPoint.X - 2, connectPoint.Y + 4)]
+        };
+
+        context.DrawLine(PinPen, points[0], points[1]);
+        context.DrawLine(PinPen, points[0], points[2]);
+    }
+
+    private static void DrawSymbolPrimitive(
+        DrawingContext context,
+        SchematicCanvasViewport viewport,
+        Point center,
+        SchematicComponentInstance instance,
+        SchematicSymbolPrimitivePreview primitive)
+    {
+        Pen pen = PenForPrimitive(primitive);
+        switch (primitive)
+        {
+            case SchematicSymbolLine line:
+                context.DrawLine(
+                    pen,
+                    MapLocal(viewport, center, instance, line.Start),
+                    MapLocal(viewport, center, instance, line.End));
+                break;
+            case SchematicSymbolRectangle rectangle:
+                DrawRectanglePrimitive(context, viewport, center, instance, rectangle, pen);
+                break;
+            case SchematicSymbolCircle circle:
+                DrawCirclePrimitive(context, viewport, center, instance, circle, pen);
+                break;
+            case SchematicSymbolArc arc:
+                DrawArcPrimitive(context, viewport, center, instance, arc, pen);
+                break;
+            case SchematicSymbolText text:
+                DrawSymbolText(context, viewport, center, instance, text);
+                break;
+        }
+    }
+
+    private static void DrawRectanglePrimitive(
+        DrawingContext context,
+        SchematicCanvasViewport viewport,
+        Point center,
+        SchematicComponentInstance instance,
+        SchematicSymbolRectangle rectangle,
+        Pen pen)
+    {
+        Point topLeft = MapLocal(viewport, center, instance, new CadPoint(rectangle.Bounds.Left, rectangle.Bounds.Top));
+        Point bottomRight = MapLocal(viewport, center, instance, new CadPoint(rectangle.Bounds.Right, rectangle.Bounds.Bottom));
+        context.DrawRectangle(null, pen, new Rect(topLeft, bottomRight).Normalize());
+    }
+
+    private static void DrawCirclePrimitive(
+        DrawingContext context,
+        SchematicCanvasViewport viewport,
+        Point center,
+        SchematicComponentInstance instance,
+        SchematicSymbolCircle circle,
+        Pen pen)
+    {
+        Point centerPoint = MapLocal(viewport, center, instance, circle.Center);
+        double radius = Math.Abs(viewport.Map(new CadPoint(0, 0), new CadPoint(circle.Radius, 0)).X - viewport.Map(new CadPoint(0, 0), new CadPoint(0, 0)).X);
+        context.DrawEllipse(null, pen, centerPoint, radius, radius);
+    }
+
+    private static void DrawArcPrimitive(
+        DrawingContext context,
+        SchematicCanvasViewport viewport,
+        Point center,
+        SchematicComponentInstance instance,
+        SchematicSymbolArc arc,
+        Pen pen)
+    {
+        StreamGeometry geometry = new();
+        using StreamGeometryContext geometryContext = geometry.Open();
+        Point start = ArcPoint(viewport, center, instance, arc, arc.StartAngleDegrees);
+        Point end = ArcPoint(viewport, center, instance, arc, arc.StartAngleDegrees + arc.SweepAngleDegrees);
+        double radius = Math.Abs(viewport.Map(new CadPoint(0, 0), new CadPoint(arc.Radius, 0)).X - viewport.Map(new CadPoint(0, 0), new CadPoint(0, 0)).X);
+        geometryContext.BeginFigure(start, false);
+        geometryContext.ArcTo(
+            end,
+            new Size(radius, radius),
+            0,
+            Math.Abs(arc.SweepAngleDegrees) > 180,
+            arc.SweepAngleDegrees >= 0 ? SweepDirection.Clockwise : SweepDirection.CounterClockwise);
+        context.DrawGeometry(null, pen, geometry);
+    }
+
+    private static void DrawSymbolText(
+        DrawingContext context,
+        SchematicCanvasViewport viewport,
+        Point center,
+        SchematicComponentInstance instance,
+        SchematicSymbolText text)
+    {
+        FormattedText label = new(
+            text.Value,
+            System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            Typeface.Default,
+            text.Kind == DragonCAD.Core.Components.Definitions.ComponentSymbolTextKind.Custom ? 10 : 11,
+            BrushForPrimitive(text));
+        context.DrawText(label, MapLocal(viewport, center, instance, text.Position));
+    }
+
+    private static Point ArcPoint(
+        SchematicCanvasViewport viewport,
+        Point center,
+        SchematicComponentInstance instance,
+        SchematicSymbolArc arc,
+        int angleDegrees)
+    {
+        double radians = angleDegrees * Math.PI / 180.0;
+        long x = arc.Center.X + (long)Math.Round(Math.Cos(radians) * arc.Radius);
+        long y = arc.Center.Y + (long)Math.Round(Math.Sin(radians) * arc.Radius);
+        return MapLocal(viewport, center, instance, new CadPoint(x, y));
+    }
+
+    private static Point MapLocal(
+        SchematicCanvasViewport viewport,
+        Point center,
+        SchematicComponentInstance instance,
+        CadPoint localPoint) =>
+        Translate(viewport.Map(new CadPoint(0, 0), SchematicEditorViewModel.TransformLocalPoint(instance, localPoint)), center);
+
+    private static Pen PenForPrimitive(SchematicSymbolPrimitivePreview primitive) =>
+        new(BrushForPrimitive(primitive), primitive.Layer == "95" ? 1.0 : 1.4);
+
+    private static IBrush BrushForPrimitive(SchematicSymbolPrimitivePreview primitive) =>
+        primitive.Color.ToLowerInvariant() switch
+        {
+            "red" => PinPen.Brush,
+            "blue" => WirePen.Brush,
+            "brown" => PinLabelBrush,
+            "black" => TextBrush,
+            _ => SymbolPen.Brush
+        };
 
     private static void DrawSelection(
         DrawingContext context,

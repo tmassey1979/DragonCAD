@@ -149,7 +149,10 @@ public sealed record ComponentSymbol(
     string Name,
     IReadOnlyList<ComponentSymbolPin> Pins,
     IReadOnlyList<ComponentLine> Lines,
-    IReadOnlyList<ComponentSymbolText> Texts);
+    IReadOnlyList<ComponentSymbolText> Texts)
+{
+    public IReadOnlyList<ComponentSymbolPrimitive> Primitives { get; init; } = [];
+}
 
 public sealed record ComponentSymbolPin(
     ComponentPinId PinId,
@@ -177,6 +180,50 @@ public enum ComponentSymbolTextKind
     Value,
     Custom
 }
+
+public abstract record ComponentSymbolPrimitive(string Layer, string Color)
+{
+    public static ComponentSymbolLinePrimitive Line(CadPoint start, CadPoint end, string layer, string color) =>
+        new(start, end, layer, color);
+
+    public static ComponentSymbolArcPrimitive Arc(CadPoint center, long radius, int startAngleDegrees, int sweepAngleDegrees, string layer, string color) =>
+        new(center, radius, startAngleDegrees, sweepAngleDegrees, layer, color);
+
+    public static ComponentSymbolRectanglePrimitive Rectangle(CadRectangle bounds, string layer, string color) =>
+        new(bounds, layer, color);
+
+    public static ComponentSymbolCirclePrimitive Circle(CadPoint center, long radius, string layer, string color) =>
+        new(center, radius, layer, color);
+
+    public static ComponentSymbolTextPrimitive Text(ComponentSymbolTextKind kind, string value, CadPoint position, string layer, string color) =>
+        new(kind, value, position, layer, color);
+}
+
+public sealed record ComponentSymbolLinePrimitive(CadPoint Start, CadPoint End, string Layer, string Color)
+    : ComponentSymbolPrimitive(Layer, Color);
+
+public sealed record ComponentSymbolArcPrimitive(
+    CadPoint Center,
+    long Radius,
+    int StartAngleDegrees,
+    int SweepAngleDegrees,
+    string Layer,
+    string Color)
+    : ComponentSymbolPrimitive(Layer, Color);
+
+public sealed record ComponentSymbolRectanglePrimitive(CadRectangle Bounds, string Layer, string Color)
+    : ComponentSymbolPrimitive(Layer, Color);
+
+public sealed record ComponentSymbolCirclePrimitive(CadPoint Center, long Radius, string Layer, string Color)
+    : ComponentSymbolPrimitive(Layer, Color);
+
+public sealed record ComponentSymbolTextPrimitive(
+    ComponentSymbolTextKind Kind,
+    string Value,
+    CadPoint Position,
+    string Layer,
+    string Color)
+    : ComponentSymbolPrimitive(Layer, Color);
 
 public sealed record ComponentFootprint(
     ComponentFootprintId Id,

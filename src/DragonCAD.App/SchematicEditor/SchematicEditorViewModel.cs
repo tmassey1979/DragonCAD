@@ -397,7 +397,9 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             NormalizeSymbolPreview(intent.SymbolPreview),
             intent.FootprintPreview ?? ComponentFootprintPreview.Empty,
             "",
-            0);
+            0,
+            false,
+            intent.SymbolPreview is null ? null : SchematicSymbolRenderPreview.FromComponentPreview(intent.SymbolPreview));
         Components.Add(instance);
         SelectedComponent = instance;
         SelectedWire = null;
