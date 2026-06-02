@@ -6,4 +6,6 @@ public sealed record HelpTopic(
     string Title,
     string Summary,
     string DocumentPath,
+    IReadOnlyList<string> RelatedTopicIds,
+    string WikiSlug,
     IReadOnlyList<string> Keywords);
