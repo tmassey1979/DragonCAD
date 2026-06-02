@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:app="clr-namespace:DragonCAD.App"
         xmlns:be="clr-namespace:DragonCAD.App.BoardEditor"
+        xmlns:ce="clr-namespace:DragonCAD.App.ComponentEditor"
         xmlns:cm="clr-namespace:DragonCAD.App.ComponentManager"
         xmlns:ds="clr-namespace:DragonCAD.App.Datasheets"
         xmlns:fb="clr-namespace:DragonCAD.App.Fabrication"
@@ -352,6 +353,10 @@
                                 Classes="workbench-tab"
                                 Classes.active="{Binding IsComponentManagerTabActive}"
                                 Content="Components" />
+                        <Button Command="{Binding ShowComponentEditorTabCommand}"
+                                Classes="workbench-tab"
+                                Classes.active="{Binding IsComponentEditorTabActive}"
+                                Content="Component Editor" />
                         <Button Command="{Binding ShowMarketplaceTabCommand}"
                                 Classes="workbench-tab"
                                 Classes.active="{Binding IsMarketplaceTabActive}"
@@ -459,6 +464,11 @@
                                     Padding="12,4"
                                     Background="{StaticResource DragonGreen}"
                                     Foreground="#061109" />
+                            <Button Content="Edit"
+                                    Command="{Binding OpenSelectedComponentEditorCommand}"
+                                    Padding="12,4"
+                                    Background="#2A3340"
+                                    Foreground="{StaticResource DragonText}" />
                             <Button Content="Order Draft"
                                     Command="{Binding CreateMarketplaceOrderDraftCommand}"
                                     Padding="12,4"
@@ -622,6 +632,12 @@
                                             Foreground="#061109"
                                             Content="Place" />
                                 </Grid>
+                                <Button Command="{Binding OpenSelectedComponentEditorCommand}"
+                                        Padding="12,7"
+                                        HorizontalAlignment="Left"
+                                        Background="#2A3340"
+                                        Foreground="{StaticResource DragonText}"
+                                        Content="Edit component" />
                                 <TextBlock x:Name="SelectedComponentDisplayName"
                                            Text="{Binding ComponentManager.SelectedComponent.DisplayName}"
                                            FontSize="22"
@@ -762,6 +778,217 @@
                             </StackPanel>
                             </ScrollViewer>
                         </Border>
+                    </Grid>
+                </Grid>
+
+                <Grid Grid.Row="2"
+                      Margin="18"
+                      RowDefinitions="Auto,Auto,*"
+                      IsVisible="{Binding IsComponentEditorTabActive}">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Component Editor"
+                                   FontSize="24"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource DragonText}" />
+                        <TextBlock Text="Edit symbol, footprint, package mapping, and sourcing-ready identity for the selected library component."
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource DragonMutedText}" />
+                        <TextBlock Text="{Binding WorkbenchStatusText}"
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource DragonGreen}" />
+                    </StackPanel>
+
+                    <Border Grid.Row="1"
+                            Margin="0,16,0,0"
+                            Background="{StaticResource DragonPanelBackground}"
+                            BorderBrush="{StaticResource DragonBorder}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="12">
+                        <Grid ColumnDefinitions="*,Auto"
+                              ColumnSpacing="12">
+                            <TextBlock Text="{Binding ActiveComponentEditorWorkspace.SaveReadiness.Message}"
+                                       VerticalAlignment="Center"
+                                       Foreground="{StaticResource DragonText}" />
+                            <Button Grid.Column="1"
+                                    Command="{Binding ShowComponentManagerTabCommand}"
+                                    Padding="12,6"
+                                    Background="#2A3340"
+                                    Foreground="{StaticResource DragonText}"
+                                    Content="Back to library" />
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Row="2"
+                          Margin="0,14,0,0"
+                          ColumnDefinitions="1.1*,1.4*"
+                          ColumnSpacing="14">
+                        <Border Background="{StaticResource DragonPanelBackground}"
+                                BorderBrush="{StaticResource DragonBorder}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="14">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="Identity"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource DragonText}" />
+                                <TextBlock Text="{Binding ActiveComponentEditorWorkspace.ViewModel.ComponentId}"
+                                           TextTrimming="CharacterEllipsis"
+                                           Foreground="{StaticResource DragonMutedText}" />
+                                <TextBlock Text="Display name"
+                                           Foreground="{StaticResource DragonMutedText}" />
+                                <TextBox Text="{Binding ActiveComponentEditorWorkspace.ViewModel.DisplayName, Mode=TwoWay}"
+                                         Background="#0D1218"
+                                         Foreground="{StaticResource DragonText}"
+                                         BorderBrush="{StaticResource DragonBorder}" />
+                                <TextBlock Text="Manufacturer"
+                                           Foreground="{StaticResource DragonMutedText}" />
+                                <TextBox Text="{Binding ActiveComponentEditorWorkspace.ViewModel.Manufacturer, Mode=TwoWay}"
+                                         Background="#0D1218"
+                                         Foreground="{StaticResource DragonText}"
+                                         BorderBrush="{StaticResource DragonBorder}" />
+                                <TextBlock Text="MPN"
+                                           Foreground="{StaticResource DragonMutedText}" />
+                                <TextBox Text="{Binding ActiveComponentEditorWorkspace.ViewModel.ManufacturerPartNumber, Mode=TwoWay}"
+                                         Background="#0D1218"
+                                         Foreground="{StaticResource DragonText}"
+                                         BorderBrush="{StaticResource DragonBorder}" />
+                                <TextBlock Text="Description"
+                                           Foreground="{StaticResource DragonMutedText}" />
+                                <TextBox Text="{Binding ActiveComponentEditorWorkspace.ViewModel.Description, Mode=TwoWay}"
+                                         AcceptsReturn="True"
+                                         MinHeight="76"
+                                         TextWrapping="Wrap"
+                                         Background="#0D1218"
+                                         Foreground="{StaticResource DragonText}"
+                                         BorderBrush="{StaticResource DragonBorder}" />
+                                <Border Height="1"
+                                        Background="{StaticResource DragonBorder}" />
+                                <TextBlock Text="{Binding ActiveComponentEditorWorkspace.ViewModel.IdentitySummary.ManufacturerLine}"
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource DragonText}" />
+                                <TextBlock Text="{Binding ActiveComponentEditorWorkspace.ViewModel.IdentitySummary.KindText}"
+                                           Foreground="{StaticResource DragonMutedText}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Grid Grid.Column="1"
+                              RowDefinitions="Auto,*"
+                              RowSpacing="14">
+                            <Border Background="{StaticResource DragonPanelBackground}"
+                                    BorderBrush="{StaticResource DragonBorder}"
+                                    BorderThickness="1"
+                                    CornerRadius="6"
+                                    Padding="14">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Validation"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource DragonText}" />
+                                    <ItemsControl ItemsSource="{Binding ActiveComponentEditorWorkspace.ValidationIssueDisplay}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="ce:ComponentEditorValidationIssueDisplay"
+                                                          x:DataType="ce:ComponentEditorValidationIssueDisplay">
+                                                <TextBlock Text="{Binding DisplayText}"
+                                                           Foreground="{StaticResource DragonGreen}" />
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+
+                            <Grid Grid.Row="1"
+                                  ColumnDefinitions="*,*"
+                                  RowDefinitions="*,*"
+                                  ColumnSpacing="14"
+                                  RowSpacing="14">
+                                <Border Background="{StaticResource DragonPanelBackground}"
+                                        BorderBrush="{StaticResource DragonBorder}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="12">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="Pins"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource DragonText}" />
+                                        <ItemsControl ItemsSource="{Binding ActiveComponentEditorWorkspace.ViewModel.PinSummaries}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="ce:ComponentEditorPinSummary"
+                                                              x:DataType="ce:ComponentEditorPinSummary">
+                                                    <TextBlock Text="{Binding DisplayText}"
+                                                               Foreground="{StaticResource DragonMutedText}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Column="1"
+                                        Background="{StaticResource DragonPanelBackground}"
+                                        BorderBrush="{StaticResource DragonBorder}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="12">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="Symbols"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource DragonText}" />
+                                        <ItemsControl ItemsSource="{Binding ActiveComponentEditorWorkspace.ViewModel.SymbolSummaries}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="ce:ComponentEditorAssetSummary"
+                                                              x:DataType="ce:ComponentEditorAssetSummary">
+                                                    <TextBlock Text="{Binding DisplayText}"
+                                                               Foreground="{StaticResource DragonMutedText}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Row="1"
+                                        Background="{StaticResource DragonPanelBackground}"
+                                        BorderBrush="{StaticResource DragonBorder}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="12">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="Footprints"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource DragonText}" />
+                                        <ItemsControl ItemsSource="{Binding ActiveComponentEditorWorkspace.ViewModel.FootprintSummaries}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="ce:ComponentEditorAssetSummary"
+                                                              x:DataType="ce:ComponentEditorAssetSummary">
+                                                    <TextBlock Text="{Binding DisplayText}"
+                                                               Foreground="{StaticResource DragonMutedText}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                                <Border Grid.Row="1"
+                                        Grid.Column="1"
+                                        Background="{StaticResource DragonPanelBackground}"
+                                        BorderBrush="{StaticResource DragonBorder}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="12">
+                                    <StackPanel Spacing="6">
+                                        <TextBlock Text="Packages"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource DragonText}" />
+                                        <ItemsControl ItemsSource="{Binding ActiveComponentEditorWorkspace.ViewModel.PackageSummaries}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="ce:ComponentEditorAssetSummary"
+                                                              x:DataType="ce:ComponentEditorAssetSummary">
+                                                    <TextBlock Text="{Binding DisplayText}"
+                                                               Foreground="{StaticResource DragonMutedText}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Grid>
                     </Grid>
                 </Grid>
 

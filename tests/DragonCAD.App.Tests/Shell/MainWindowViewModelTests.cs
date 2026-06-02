@@ -121,6 +121,40 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void OpenSelectedComponentEditorCommandShowsEditorWorkspaceForSelectedPart()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 20);
+        var timer = Assert.Single(viewModel.ComponentManager.Components, row => row.DisplayName == "adafruit-eagle-library/adafruit/*555");
+        viewModel.ComponentManager.SelectedComponent = timer;
+
+        viewModel.OpenSelectedComponentEditorCommand.Execute(null);
+
+        Assert.Equal("ComponentEditor", viewModel.ActiveWorkspaceTab);
+        Assert.True(viewModel.IsComponentEditorTabActive);
+        Assert.NotNull(viewModel.ActiveComponentEditorWorkspace);
+        Assert.Equal(timer.DisplayName, viewModel.ActiveComponentEditorWorkspace.ViewModel.DisplayName);
+        Assert.Equal(timer.ManufacturerPartNumber, viewModel.ActiveComponentEditorWorkspace.ViewModel.ManufacturerPartNumber);
+        Assert.Equal("No validation issues", Assert.Single(viewModel.ActiveComponentEditorWorkspace.ValidationIssueDisplay).DisplayText);
+        Assert.Equal("No component changes to save.", viewModel.ActiveComponentEditorWorkspace.SaveReadiness.Message);
+        Assert.Contains(timer.DisplayName, viewModel.WorkbenchStatusText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OpenSelectedComponentEditorCommandReportsMissingSelection()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateDesignPreview(maxBuiltInDevices: 2);
+        viewModel.ComponentManager.SelectedComponent = null;
+
+        viewModel.OpenSelectedComponentEditorCommand.Execute(null);
+
+        Assert.Null(viewModel.ActiveComponentEditorWorkspace);
+        Assert.Equal("Select a component before editing it.", viewModel.PlacementStatus);
+        Assert.Equal("ComponentManager", viewModel.ActiveWorkspaceTab);
+    }
+
+    [Fact]
     public void PlaceSelectedComponentCommandReportsMissingSelectionWithoutArmingPlacement()
     {
         MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(

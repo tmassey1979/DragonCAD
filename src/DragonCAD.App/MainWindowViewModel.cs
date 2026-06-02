@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using DragonCAD.App.BoardEditor;
 using DragonCAD.App.BuiltInLibraries;
+using DragonCAD.App.ComponentEditor;
 using DragonCAD.App.ComponentManager;
 using DragonCAD.App.Datasheets;
 using DragonCAD.App.Diagnostics;
@@ -32,6 +33,7 @@ using DragonCAD.App.Marketplace.TrustedLibrary;
 using DragonCAD.App.Placement;
 using DragonCAD.App.SchematicEditor;
 using DragonCAD.Core.Components.Catalog;
+using DragonCAD.Core.Components.Definitions;
 using DragonCAD.Core.Components.Identity;
 using DragonCAD.Core.Components.Marketplace;
 using DragonCAD.Core.Components.Marketplace.Provenance;
@@ -58,6 +60,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     private string librarySearchText = "";
     private string helpSearchText = "";
     private HelpTopic selectedHelpTopic;
+    private ComponentEditorWorkspace? activeComponentEditorWorkspace;
     private bool isLibrarySearchInProgress;
     private ComponentPlacementIntent? activePlacement;
     private string placementStatus = "Select a component, then choose Place to arm schematic placement.";
@@ -121,6 +124,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         inUseVendorCatalogFreshnessPolicy = inUseVendorCatalogFreshnessPolicyStore.Load();
         SearchLibraryCommand = new AsyncDelegateCommand(ExecuteLibrarySearchAsync, () => !IsLibrarySearchInProgress);
         PlaceSelectedComponentCommand = new DelegateCommand(PlaceSelectedComponent);
+        OpenSelectedComponentEditorCommand = new DelegateCommand(OpenSelectedComponentEditor);
         CancelPlacementCommand = new DelegateCommand(CancelPlacement);
         CancelActiveOperationCommand = new DelegateCommand(CancelActiveOperation);
         PlaceArmedComponentOnSchematicCommand = new DelegateCommand(PlaceArmedComponentOnSchematic);
@@ -158,6 +162,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         SelectBoardLayerCommand = new DelegateCommand(SelectBoardLayer);
         ToggleBoardLayerVisibilityCommand = new DelegateCommand(ToggleBoardLayerVisibility);
         ShowComponentManagerTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "ComponentManager");
+        ShowComponentEditorTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "ComponentEditor");
         ShowMarketplaceTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "Marketplace");
         ShowSchematicTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "Schematic");
         ShowPcbLayoutTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "PcbLayout");
@@ -211,6 +216,22 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public ComponentManagerViewModel ComponentManager { get; }
+
+    public ComponentEditorWorkspace? ActiveComponentEditorWorkspace
+    {
+        get => activeComponentEditorWorkspace;
+        private set
+        {
+            if (activeComponentEditorWorkspace == value)
+            {
+                return;
+            }
+
+            activeComponentEditorWorkspace = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(WorkbenchStatusText));
+        }
+    }
 
     public SchematicEditorViewModel SchematicEditor { get; } = new();
 
@@ -861,6 +882,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
     public DelegateCommand PlaceSelectedComponentCommand { get; }
 
+    public DelegateCommand OpenSelectedComponentEditorCommand { get; }
+
     public DelegateCommand CancelPlacementCommand { get; }
 
     public DelegateCommand CancelActiveOperationCommand { get; }
@@ -934,6 +957,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     public DelegateCommand ToggleBoardLayerVisibilityCommand { get; }
 
     public DelegateCommand ShowComponentManagerTabCommand { get; }
+
+    public DelegateCommand ShowComponentEditorTabCommand { get; }
 
     public DelegateCommand ShowMarketplaceTabCommand { get; }
 
@@ -1030,6 +1055,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             activeWorkspaceTab = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsComponentManagerTabActive));
+            OnPropertyChanged(nameof(IsComponentEditorTabActive));
             OnPropertyChanged(nameof(IsMarketplaceTabActive));
             OnPropertyChanged(nameof(IsSchematicTabActive));
             OnPropertyChanged(nameof(IsPcbLayoutTabActive));
@@ -1044,6 +1070,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     }
 
     public bool IsComponentManagerTabActive => ActiveWorkspaceTab == "ComponentManager";
+
+    public bool IsComponentEditorTabActive => ActiveWorkspaceTab == "ComponentEditor";
 
     public bool IsMarketplaceTabActive => ActiveWorkspaceTab == "Marketplace";
 
@@ -1100,6 +1128,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
     public string WorkbenchStatusText => ActiveWorkspaceTab switch
     {
+        "ComponentEditor" => ActiveComponentEditorWorkspace is null
+            ? "Component editor ready: select a component and choose Edit."
+            : $"Component editor ready: {ActiveComponentEditorWorkspace.ViewModel.DisplayName}.",
         "Marketplace" => "Marketplace ready: review sourcing, BOM cart, and vendor sync state.",
         "Datasheets" => "Datasheet review ready: inspect generated component evidence before promotion.",
         "Firmware" => "Firmware workspace ready: connect source, build output, and pin bindings.",
@@ -1114,6 +1145,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         ActiveWorkspaceTab = tabName?.Trim() switch
         {
             "ComponentManager" => "ComponentManager",
+            "ComponentEditor" => "ComponentEditor",
             "Marketplace" => "Marketplace",
             "Schematic" => "Schematic",
             "PcbLayout" => "PcbLayout",
@@ -2727,6 +2759,90 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             selected.FootprintPreview);
         PlacementStatus = $"Placement armed: {selected.DisplayName}";
         DragonCadLog.Info($"placement armed componentId={selected.ComponentId} displayName={selected.DisplayName}");
+    }
+
+    private void OpenSelectedComponentEditor()
+    {
+        ComponentManagerRow? selected = ComponentManager.SelectedComponent;
+        if (selected is null)
+        {
+            ActiveComponentEditorWorkspace = null;
+            PlacementStatus = "Select a component before editing it.";
+            return;
+        }
+
+        ActiveComponentEditorWorkspace = ComponentEditorWorkspace.StartEdit(CreateComponentEditorDefinition(selected));
+        ActiveWorkspaceTab = "ComponentEditor";
+        PlacementStatus = $"Editing component: {selected.DisplayName}";
+    }
+
+    private static ComponentDefinition CreateComponentEditorDefinition(ComponentManagerRow row)
+    {
+        ComponentKind kind = Enum.TryParse(row.Kind, ignoreCase: false, out ComponentKind parsedKind)
+            ? parsedKind
+            : ComponentKind.Custom;
+        ComponentId componentId = new(row.ComponentId);
+        ComponentPinId pinId = new($"{row.ComponentId}:editor-pin:1");
+        ComponentSymbolId symbolId = new($"{row.ComponentId}:editor-symbol:primary");
+        ComponentFootprintId footprintId = new(
+            string.IsNullOrWhiteSpace(row.SelectedPackageSummary.FootprintId)
+                ? $"{row.ComponentId}:editor-footprint:primary"
+                : row.SelectedPackageSummary.FootprintId);
+        ComponentPadId padId = new($"{row.ComponentId}:editor-pad:1");
+        ComponentVariantId variantId = new($"{row.ComponentId}:editor-variant:primary");
+
+        bool hasSymbol = row.SymbolCount > 0;
+        bool hasFootprint = row.FootprintCount > 0;
+        ComponentPin[] pins = hasSymbol || hasFootprint
+            ? [new ComponentPin(pinId, "PIN1", "1", ComponentPinElectricalType.Bidirectional)]
+            : [];
+        ComponentSymbol[] symbols = hasSymbol
+            ?
+            [
+                new ComponentSymbol(
+                    symbolId,
+                    "Primary Symbol",
+                    [new ComponentSymbolPin(pinId, new CadPoint(0, 0), ComponentPinOrientation.Right)],
+                    [],
+                    [])
+            ]
+            : [];
+        ComponentFootprint[] footprints = hasFootprint
+            ?
+            [
+                new ComponentFootprint(
+                    footprintId,
+                    row.ActivePackageLabel,
+                    [new ComponentFootprintPad(padId, "1", new CadPoint(0, 0), new CadVector(60_000, 80_000), ComponentPadTechnology.SurfaceMount, ComponentPadShape.Rectangle)],
+                    [],
+                    [])
+            ]
+            : [];
+        ComponentVariant[] variants = hasFootprint
+            ? [new ComponentVariant(variantId, row.ActivePackageLabel, footprintId, [])]
+            : [];
+        ComponentPinPadMapping[] mappings = hasSymbol && hasFootprint
+            ? [new ComponentPinPadMapping(variantId, pinId, padId)]
+            : [];
+
+        return new ComponentDefinition(
+            componentId,
+            row.DisplayName,
+            kind,
+            row.Manufacturer,
+            row.ManufacturerPartNumber,
+            Description: row.CapabilitySummary,
+            Attributes: [],
+            Pins: pins,
+            Gates: [],
+            Symbols: symbols,
+            Footprints: footprints,
+            Variants: variants,
+            PinPadMappings: mappings,
+            Datasheets: [],
+            Sourcing: [],
+            PackageModels3D: [],
+            Provenance: []);
     }
 
     private void PlaceArmedComponentOnSchematic()

@@ -401,6 +401,20 @@ public sealed class AppProjectRuntimeTests
     }
 
     [Fact]
+    public void MainWindowIncludesComponentEditorWorkspace()
+    {
+        string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
+
+        Assert.Contains("ShowComponentEditorTabCommand", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("OpenSelectedComponentEditorCommand", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("IsComponentEditorTabActive", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ActiveComponentEditorWorkspace.ViewModel.DisplayName", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ActiveComponentEditorWorkspace.ValidationIssueDisplay", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ActiveComponentEditorWorkspace.ViewModel.PinSummaries", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ActiveComponentEditorWorkspace.ViewModel.PackageSummaries", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowKeepsSampleLoaderOutOfDocumentTabs()
     {
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
