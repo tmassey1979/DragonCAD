@@ -120,6 +120,106 @@ public sealed class ComponentEditorWorkspaceTests
         Assert.Equal(ComponentEditorSaveReadiness.Unchanged, workspace.SaveReadiness.State);
     }
 
+    [Fact]
+    public void AddPinCommandAddsLogicalAndSymbolPinAtGridSnappedPosition()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:add-pin");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.AddSymbol("Main");
+
+        ComponentEditorCommandResult result = editor.AddPin(" 2 ", " OUT ", new CadPoint(149_999, 251_000));
+
+        Assert.Empty(result.Diagnostics);
+        ComponentPin pin = Assert.Single(editor.Pins);
+        Assert.Equal("2", pin.Number);
+        Assert.Equal("OUT", pin.Name);
+        ComponentSymbolPin symbolPin = Assert.Single(Assert.Single(editor.Symbols).Pins);
+        Assert.Equal(pin.Id, symbolPin.PinId);
+        Assert.Equal(new CadPoint(100_000, 300_000), symbolPin.Position);
+    }
+
+    [Fact]
+    public void MovePinCommandMovesSymbolPinToGridSnappedPosition()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:move-pin");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.AddSymbol("Main");
+        editor.AddPin("1", "IN", new CadPoint(0, 0));
+
+        ComponentEditorCommandResult result = editor.MovePin("1", new CadPoint(51_000, -149_999));
+
+        Assert.Empty(result.Diagnostics);
+        ComponentSymbolPin symbolPin = Assert.Single(Assert.Single(editor.Symbols).Pins);
+        Assert.Equal(new CadPoint(100_000, -100_000), symbolPin.Position);
+    }
+
+    [Fact]
+    public void DeletePinCommandRemovesSymbolPinsAndMappings()
+    {
+        ComponentDefinition original = ValidComponent("dragon:delete-pin", "Delete Pin");
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartEdit(original);
+
+        ComponentEditorCommandResult result = workspace.ViewModel.DeletePin("1");
+
+        Assert.Empty(result.Diagnostics);
+        Assert.Empty(workspace.ViewModel.Pins);
+        Assert.Empty(Assert.Single(workspace.ViewModel.Symbols).Pins);
+        Assert.Empty(workspace.ViewModel.PinPadMappings);
+    }
+
+    [Fact]
+    public void AddPadCommandAddsPadAtGridSnappedPosition()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:add-pad");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.AddFootprint("SOIC-8", []);
+
+        ComponentEditorCommandResult result = editor.AddPad("SOIC-8", " 2 ", new CadPoint(151_000, 249_999), new CadVector(60_000, 80_000));
+
+        Assert.Empty(result.Diagnostics);
+        ComponentFootprintPad pad = Assert.Single(Assert.Single(editor.Footprints).Pads);
+        Assert.Equal("2", pad.Name);
+        Assert.Equal(new CadPoint(200_000, 200_000), pad.Position);
+    }
+
+    [Fact]
+    public void RenamePadCommandPreservesExistingMapping()
+    {
+        ComponentDefinition original = ValidComponent("dragon:rename-pad", "Rename Pad");
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartEdit(original);
+
+        ComponentEditorCommandResult result = workspace.ViewModel.RenamePad("SOIC-8", "1", "VIN");
+
+        Assert.Empty(result.Diagnostics);
+        ComponentFootprintPad pad = Assert.Single(Assert.Single(workspace.ViewModel.Footprints).Pads);
+        Assert.Equal("VIN", pad.Name);
+        Assert.Single(workspace.ViewModel.PinPadMappings);
+        Assert.Empty(workspace.ValidationSummary.Issues);
+    }
+
+    [Fact]
+    public void MappingValidationReportsUnmappedPinsAndCommandFailuresAsDiagnostics()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:mapping-validation");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.AddPin("1", "IN");
+        editor.AddPin("2", "OUT");
+        editor.AddSymbol("Main");
+        editor.AddFootprint("SOIC-8", [new ComponentEditorPadDraft("1", new CadPoint(0, 0), new CadVector(60_000, 80_000))]);
+        editor.AddPackage("SOIC package", "SOIC-8");
+        editor.MapPinToPad("1", "1");
+
+        ComponentEditorCommandResult result = editor.RenamePad("SOIC-8", "missing", "VIN");
+
+        Assert.Equal(
+            [ComponentEditorCommandDiagnosticKind.NotFound],
+            result.Diagnostics.Select(diagnostic => diagnostic.Kind));
+        Assert.Equal(
+            [ComponentEditorValidationIssueKind.UnmappedPin],
+            workspace.ValidationSummary.Issues.Select(issue => issue.Kind));
+        Assert.Equal("Unmapped pin 2", Assert.Single(workspace.ValidationSummary.Issues).DisplayText);
+    }
+
     private static ComponentDefinition ValidComponent(string id, string displayName)
     {
         ComponentPinId pinId = new($"{id}:pin:1");

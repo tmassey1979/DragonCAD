@@ -121,6 +121,8 @@ public sealed record ComponentEditorSaveReadinessSummary(
 
 public sealed class ComponentEditorViewModel : INotifyPropertyChanged
 {
+    private static readonly CadGrid DefaultCommandGrid = new(new CadVector(100_000, 100_000));
+
     private readonly string componentId;
     private string displayName;
     private string manufacturer;
@@ -325,19 +327,143 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
         MapPinToPad(normalizedPinNumber, normalizedPinNumber);
     }
 
-    public void AddPin(string number, string name)
+    public ComponentEditorCommandResult AddPin(string number, string name)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(number);
-        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ComponentEditorCommandResult result = AddPin(number, name, new CadPoint(pins.Count * 100_000, 0));
+        if (result.Diagnostics.Count > 0)
+        {
+            throw new InvalidOperationException(result.DisplayText);
+        }
+
+        return result;
+    }
+
+    public ComponentEditorCommandResult AddPin(string number, string name, CadPoint symbolPosition) =>
+        AddPin(number, name, symbolPosition, DefaultCommandGrid);
+
+    public ComponentEditorCommandResult AddPin(string number, string name, CadPoint symbolPosition, CadGrid grid)
+    {
+        if (string.IsNullOrWhiteSpace(number))
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.InvalidInput, "Pin number is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.InvalidInput, "Pin name is required.");
+        }
+
+        string normalizedNumber = number.Trim();
+        string normalizedName = name.Trim();
+        if (pins.Any(pin => string.Equals(pin.Number, normalizedNumber, StringComparison.Ordinal)))
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.Duplicate, $"Pin '{normalizedNumber}' already exists.");
+        }
+
+        ComponentPin pin = new(
+            new ComponentPinId($"{componentId}:pin:{Slug(normalizedNumber)}"),
+            normalizedName,
+            normalizedNumber,
+            ComponentPinElectricalType.Bidirectional);
+        CadPoint snappedPosition = grid.Snap(symbolPosition);
         pins = pins
-            .Append(new ComponentPin(
-                new ComponentPinId($"{componentId}:pin:{Slug(number)}"),
-                name,
-                number,
-                ComponentPinElectricalType.Bidirectional))
+            .Append(pin)
+            .ToArray();
+        symbols = symbols
+            .Select(symbol => symbol with
+            {
+                Pins = symbol.Pins
+                    .Append(new ComponentSymbolPin(pin.Id, snappedPosition, ComponentPinOrientation.Right))
+                    .ToArray()
+            })
             .ToArray();
         OnPropertyChanged(nameof(Pins));
         OnPropertyChanged(nameof(PinSummaries));
+        OnPropertyChanged(nameof(Symbols));
+        OnPropertyChanged(nameof(SymbolSummaries));
+        return ComponentEditorCommandResult.Success();
+    }
+
+    public ComponentEditorCommandResult MovePin(string pinNumberOrName, CadPoint symbolPosition) =>
+        MovePin(pinNumberOrName, symbolPosition, DefaultCommandGrid);
+
+    public ComponentEditorCommandResult MovePin(string pinNumberOrName, CadPoint symbolPosition, CadGrid grid)
+    {
+        ComponentPin? pin = FindPin(pinNumberOrName);
+        if (pin is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, $"Pin '{pinNumberOrName}' was not found.");
+        }
+
+        CadPoint snappedPosition = grid.Snap(symbolPosition);
+        symbols = symbols
+            .Select(symbol => symbol with
+            {
+                Pins = symbol.Pins
+                    .Select(symbolPin => symbolPin.PinId == pin.Id ? symbolPin with { Position = snappedPosition } : symbolPin)
+                    .ToArray()
+            })
+            .ToArray();
+        OnPropertyChanged(nameof(Symbols));
+        OnPropertyChanged(nameof(SymbolSummaries));
+        return ComponentEditorCommandResult.Success();
+    }
+
+    public ComponentEditorCommandResult RenamePin(string pinNumberOrName, string newNumber, string newName)
+    {
+        ComponentPin? pin = FindPin(pinNumberOrName);
+        if (pin is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, $"Pin '{pinNumberOrName}' was not found.");
+        }
+
+        if (string.IsNullOrWhiteSpace(newNumber))
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.InvalidInput, "Pin number is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(newName))
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.InvalidInput, "Pin name is required.");
+        }
+
+        string normalizedNumber = newNumber.Trim();
+        string normalizedName = newName.Trim();
+        if (pins.Any(existing => existing.Id != pin.Id && string.Equals(existing.Number, normalizedNumber, StringComparison.Ordinal)))
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.Duplicate, $"Pin '{normalizedNumber}' already exists.");
+        }
+
+        pins = pins
+            .Select(existing => existing.Id == pin.Id ? existing with { Number = normalizedNumber, Name = normalizedName } : existing)
+            .ToArray();
+        OnPropertyChanged(nameof(Pins));
+        OnPropertyChanged(nameof(PinSummaries));
+        return ComponentEditorCommandResult.Success();
+    }
+
+    public ComponentEditorCommandResult DeletePin(string pinNumberOrName)
+    {
+        ComponentPin? pin = FindPin(pinNumberOrName);
+        if (pin is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, $"Pin '{pinNumberOrName}' was not found.");
+        }
+
+        pins = pins.Where(existing => existing.Id != pin.Id).ToArray();
+        gates = gates
+            .Select(gate => gate with { PinIds = gate.PinIds.Where(pinId => pinId != pin.Id).ToArray() })
+            .ToArray();
+        symbols = symbols
+            .Select(symbol => symbol with { Pins = symbol.Pins.Where(symbolPin => symbolPin.PinId != pin.Id).ToArray() })
+            .ToArray();
+        pinPadMappings = pinPadMappings.Where(mapping => mapping.PinId != pin.Id).ToArray();
+        OnPropertyChanged(nameof(Pins));
+        OnPropertyChanged(nameof(PinSummaries));
+        OnPropertyChanged(nameof(Symbols));
+        OnPropertyChanged(nameof(SymbolSummaries));
+        OnPropertyChanged(nameof(PinPadMappings));
+        return ComponentEditorCommandResult.Success();
     }
 
     public void AddSymbol(string name)
@@ -384,6 +510,111 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(FootprintSummaries));
     }
 
+    public ComponentEditorCommandResult AddPad(string footprintNameOrId, string name, CadPoint position, CadVector size) =>
+        AddPad(footprintNameOrId, name, position, size, DefaultCommandGrid);
+
+    public ComponentEditorCommandResult AddPad(string footprintNameOrId, string name, CadPoint position, CadVector size, CadGrid grid)
+    {
+        ComponentFootprint? footprint = FindFootprint(footprintNameOrId);
+        if (footprint is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, $"Footprint '{footprintNameOrId}' was not found.");
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.InvalidInput, "Pad name is required.");
+        }
+
+        string normalizedName = name.Trim();
+        if (footprint.Pads.Any(pad => string.Equals(pad.Name, normalizedName, StringComparison.Ordinal)))
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.Duplicate, $"Pad '{normalizedName}' already exists.");
+        }
+
+        ComponentFootprintPad pad = new(
+            new ComponentPadId($"{componentId}:pad:{Slug(normalizedName)}"),
+            normalizedName,
+            grid.Snap(position),
+            size,
+            ComponentPadTechnology.SurfaceMount,
+            ComponentPadShape.Rectangle);
+        footprints = footprints
+            .Select(existing => existing.Id == footprint.Id ? existing with { Pads = existing.Pads.Append(pad).ToArray() } : existing)
+            .ToArray();
+        OnPropertyChanged(nameof(Footprints));
+        OnPropertyChanged(nameof(FootprintSummaries));
+        return ComponentEditorCommandResult.Success();
+    }
+
+    public ComponentEditorCommandResult MovePad(string footprintNameOrId, string padName, CadPoint position) =>
+        MovePad(footprintNameOrId, padName, position, DefaultCommandGrid);
+
+    public ComponentEditorCommandResult MovePad(string footprintNameOrId, string padName, CadPoint position, CadGrid grid)
+    {
+        if (!TryFindPad(footprintNameOrId, padName, out ComponentFootprint? footprint, out ComponentFootprintPad? pad, out ComponentEditorCommandResult failure))
+        {
+            return failure;
+        }
+
+        CadPoint snappedPosition = grid.Snap(position);
+        footprints = footprints
+            .Select(existing => existing.Id == footprint.Id
+                ? existing with { Pads = existing.Pads.Select(existingPad => existingPad.Id == pad.Id ? existingPad with { Position = snappedPosition } : existingPad).ToArray() }
+                : existing)
+            .ToArray();
+        OnPropertyChanged(nameof(Footprints));
+        OnPropertyChanged(nameof(FootprintSummaries));
+        return ComponentEditorCommandResult.Success();
+    }
+
+    public ComponentEditorCommandResult RenamePad(string footprintNameOrId, string padName, string newName)
+    {
+        if (!TryFindPad(footprintNameOrId, padName, out ComponentFootprint? footprint, out ComponentFootprintPad? pad, out ComponentEditorCommandResult failure))
+        {
+            return failure;
+        }
+
+        if (string.IsNullOrWhiteSpace(newName))
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.InvalidInput, "Pad name is required.");
+        }
+
+        string normalizedName = newName.Trim();
+        if (footprint.Pads.Any(existing => existing.Id != pad.Id && string.Equals(existing.Name, normalizedName, StringComparison.Ordinal)))
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.Duplicate, $"Pad '{normalizedName}' already exists.");
+        }
+
+        footprints = footprints
+            .Select(existing => existing.Id == footprint.Id
+                ? existing with { Pads = existing.Pads.Select(existingPad => existingPad.Id == pad.Id ? existingPad with { Name = normalizedName } : existingPad).ToArray() }
+                : existing)
+            .ToArray();
+        OnPropertyChanged(nameof(Footprints));
+        OnPropertyChanged(nameof(FootprintSummaries));
+        return ComponentEditorCommandResult.Success();
+    }
+
+    public ComponentEditorCommandResult DeletePad(string footprintNameOrId, string padName)
+    {
+        if (!TryFindPad(footprintNameOrId, padName, out ComponentFootprint? footprint, out ComponentFootprintPad? pad, out ComponentEditorCommandResult failure))
+        {
+            return failure;
+        }
+
+        footprints = footprints
+            .Select(existing => existing.Id == footprint.Id
+                ? existing with { Pads = existing.Pads.Where(existingPad => existingPad.Id != pad.Id).ToArray() }
+                : existing)
+            .ToArray();
+        pinPadMappings = pinPadMappings.Where(mapping => mapping.PadId != pad.Id).ToArray();
+        OnPropertyChanged(nameof(Footprints));
+        OnPropertyChanged(nameof(FootprintSummaries));
+        OnPropertyChanged(nameof(PinPadMappings));
+        return ComponentEditorCommandResult.Success();
+    }
+
     public void AddPackage(string name, string footprintNameOrId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -402,21 +633,48 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(PackageSummaries));
     }
 
-    public void MapPinToPad(string pinNumberOrName, string padName)
+    public ComponentEditorCommandResult MapPinToPad(string pinNumberOrName, string padName)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(pinNumberOrName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(padName);
-        ComponentVariant variant = variants.First();
-        ComponentPin pin = pins.First(pin =>
-            string.Equals(pin.Number, pinNumberOrName, StringComparison.Ordinal) ||
-            string.Equals(pin.Name, pinNumberOrName, StringComparison.Ordinal));
-        ComponentFootprint footprint = footprints.First(footprint => footprint.Id == variant.FootprintId);
-        ComponentFootprintPad pad = footprint.Pads.First(pad => string.Equals(pad.Name, padName, StringComparison.Ordinal));
+        if (string.IsNullOrWhiteSpace(pinNumberOrName))
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.InvalidInput, "Pin number or name is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(padName))
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.InvalidInput, "Pad name is required.");
+        }
+
+        ComponentVariant? variant = variants.FirstOrDefault();
+        if (variant is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, "Package is required before mapping pins to pads.");
+        }
+
+        ComponentPin? pin = FindPin(pinNumberOrName);
+        if (pin is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, $"Pin '{pinNumberOrName}' was not found.");
+        }
+
+        ComponentFootprint? footprint = footprints.FirstOrDefault(footprint => footprint.Id == variant.FootprintId);
+        if (footprint is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, $"Footprint '{variant.FootprintId.Value}' was not found.");
+        }
+
+        ComponentFootprintPad? pad = footprint.Pads.FirstOrDefault(pad => string.Equals(pad.Name, padName, StringComparison.Ordinal));
+        if (pad is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, $"Pad '{padName}' was not found.");
+        }
 
         pinPadMappings = pinPadMappings
+            .Where(mapping => mapping.VariantId != variant.Id || mapping.PinId != pin.Id)
             .Append(new ComponentPinPadMapping(variant.Id, pin.Id, pad.Id))
             .ToArray();
         OnPropertyChanged(nameof(PinPadMappings));
+        return ComponentEditorCommandResult.Success();
     }
 
     public ComponentDefinition ToDefinition() =>
@@ -460,6 +718,45 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             value.Trim()
                 .ToLowerInvariant()
                 .Split([' ', '_', ':', '/', '\\', '.'], StringSplitOptions.RemoveEmptyEntries));
+
+    private ComponentPin? FindPin(string pinNumberOrName) =>
+        pins.FirstOrDefault(pin =>
+            string.Equals(pin.Number, pinNumberOrName, StringComparison.Ordinal) ||
+            string.Equals(pin.Name, pinNumberOrName, StringComparison.Ordinal) ||
+            string.Equals(pin.Id.Value, pinNumberOrName, StringComparison.Ordinal));
+
+    private ComponentFootprint? FindFootprint(string footprintNameOrId) =>
+        footprints.FirstOrDefault(footprint =>
+            string.Equals(footprint.Name, footprintNameOrId, StringComparison.Ordinal) ||
+            string.Equals(footprint.Id.Value, footprintNameOrId, StringComparison.Ordinal));
+
+    private bool TryFindPad(
+        string footprintNameOrId,
+        string padName,
+        out ComponentFootprint footprint,
+        out ComponentFootprintPad pad,
+        out ComponentEditorCommandResult failure)
+    {
+        footprint = FindFootprint(footprintNameOrId)!;
+        if (footprint is null)
+        {
+            pad = null!;
+            failure = ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, $"Footprint '{footprintNameOrId}' was not found.");
+            return false;
+        }
+
+        pad = footprint.Pads.FirstOrDefault(pad =>
+            string.Equals(pad.Name, padName, StringComparison.Ordinal) ||
+            string.Equals(pad.Id.Value, padName, StringComparison.Ordinal))!;
+        if (pad is null)
+        {
+            failure = ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, $"Pad '{padName}' was not found.");
+            return false;
+        }
+
+        failure = ComponentEditorCommandResult.Success();
+        return true;
+    }
 
     private static string BuildManufacturerLine(string manufacturer, string manufacturerPartNumber)
     {
@@ -531,6 +828,32 @@ public sealed record ComponentEditorPadDraft(
     CadPoint Position,
     CadVector Size);
 
+public sealed record ComponentEditorCommandResult(
+    IReadOnlyList<ComponentEditorCommandDiagnostic> Diagnostics)
+{
+    public bool Succeeded => Diagnostics.Count == 0;
+
+    public string DisplayText => Succeeded
+        ? "Command completed"
+        : string.Join(", ", Diagnostics.Select(diagnostic => diagnostic.Message));
+
+    public static ComponentEditorCommandResult Success() => new([]);
+
+    public static ComponentEditorCommandResult Failed(ComponentEditorCommandDiagnosticKind kind, string message) =>
+        new([new ComponentEditorCommandDiagnostic(kind, message)]);
+}
+
+public sealed record ComponentEditorCommandDiagnostic(
+    ComponentEditorCommandDiagnosticKind Kind,
+    string Message);
+
+public enum ComponentEditorCommandDiagnosticKind
+{
+    InvalidInput,
+    NotFound,
+    Duplicate
+}
+
 public sealed record ComponentEditorValidationSummary(
     IReadOnlyList<ComponentEditorValidationIssue> Issues,
     string DisplayText)
@@ -579,6 +902,22 @@ public sealed record ComponentEditorValidationSummary(
                 ComponentEditorValidationIssueKind.MissingMapping,
                 "Missing pin-pad mapping");
         }
+        else
+        {
+            HashSet<ComponentPinId> mappedPinIds = definition.PinPadMappings
+                .Select(mapping => mapping.PinId)
+                .ToHashSet();
+
+            foreach (ComponentPin pin in definition.Pins.OrderBy(pin => pin.Number, StringComparer.Ordinal))
+            {
+                if (!mappedPinIds.Contains(pin.Id))
+                {
+                    yield return new ComponentEditorValidationIssue(
+                        ComponentEditorValidationIssueKind.UnmappedPin,
+                        $"Unmapped pin {pin.Number}");
+                }
+            }
+        }
     }
 
     private static string LowercaseFirst(string value) =>
@@ -601,7 +940,8 @@ public enum ComponentEditorValidationIssueKind
     MissingSymbol,
     MissingFootprint,
     MissingPackage,
-    MissingMapping
+    MissingMapping,
+    UnmappedPin
 }
 
 internal static class ComponentEditorSnapshot
