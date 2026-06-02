@@ -1076,6 +1076,26 @@ public sealed class MainWindowViewModelTests
         Assert.True(viewModel.IsMarketplaceTabActive);
     }
 
+    [Theory]
+    [InlineData("ComponentManager", "ComponentManager")]
+    [InlineData("Marketplace", "Marketplace")]
+    [InlineData("Schematic", "Schematic")]
+    [InlineData("PcbLayout", "PcbLayout")]
+    [InlineData("Datasheets", "Datasheets")]
+    [InlineData("Fabrication", "Fabrication")]
+    public void StartupTabSelectionCanOpenEveryWorkspaceTabForReviewBuilds(string startupTab, string expectedTab)
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 1);
+
+        viewModel.ShowSchematicTabCommand.Execute(null);
+
+        viewModel.ApplyStartupTab(startupTab);
+
+        Assert.Equal(expectedTab, viewModel.ActiveWorkspaceTab);
+    }
+
     [Fact]
     public void WorkspaceTabCommandsSwitchToFabricationWithSeededManufacturingHandoffs()
     {

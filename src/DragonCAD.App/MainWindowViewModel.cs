@@ -909,6 +909,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     {
         ActiveWorkspaceTab = tabName?.Trim() switch
         {
+            "ComponentManager" => "ComponentManager",
             "Marketplace" => "Marketplace",
             "Schematic" => "Schematic",
             "PcbLayout" => "PcbLayout",
