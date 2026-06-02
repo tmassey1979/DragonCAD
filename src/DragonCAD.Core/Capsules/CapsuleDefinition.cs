@@ -1,18 +1,55 @@
 namespace DragonCAD.Core.Capsules;
 
-public sealed record CapsuleDefinition(
-    CapsuleId Id,
-    string DisplayName,
-    string Version,
-    IReadOnlyList<CapsuleParameterDefinition> Parameters,
-    IReadOnlyList<CapsuleComponentReference> ComponentRefs,
-    IReadOnlyList<CapsuleSchematicBlockReference> SchematicBlockRefs,
-    IReadOnlyList<CapsuleBoardRegionReference> BoardRegionRefs,
-    IReadOnlyList<CapsuleFirmwareTemplateReference> FirmwareTemplates,
-    IReadOnlyList<CapsuleConstraintReference> Constraints,
-    IReadOnlyList<CapsuleDocumentReference> Docs,
-    IReadOnlyList<CapsuleValidationRule> ValidationRules)
+public sealed record CapsuleDefinition
 {
+    public CapsuleDefinition(
+        CapsuleId Id,
+        string DisplayName,
+        string Version,
+        IReadOnlyList<CapsuleParameterDefinition> Parameters,
+        IReadOnlyList<CapsuleComponentReference> ComponentRefs,
+        IReadOnlyList<CapsuleSchematicBlockReference> SchematicBlockRefs,
+        IReadOnlyList<CapsuleBoardRegionReference> BoardRegionRefs,
+        IReadOnlyList<CapsuleFirmwareTemplateReference> FirmwareTemplates,
+        IReadOnlyList<CapsuleConstraintReference> Constraints,
+        IReadOnlyList<CapsuleDocumentReference> Docs,
+        IReadOnlyList<CapsuleValidationRule> ValidationRules)
+    {
+        this.Id = Id;
+        this.DisplayName = DisplayName;
+        this.Version = Version;
+        this.Parameters = Parameters.ToArray();
+        this.ComponentRefs = SortById(ComponentRefs);
+        this.SchematicBlockRefs = SortById(SchematicBlockRefs);
+        this.BoardRegionRefs = SortById(BoardRegionRefs);
+        this.FirmwareTemplates = SortById(FirmwareTemplates);
+        this.Constraints = SortById(Constraints);
+        this.Docs = SortById(Docs);
+        this.ValidationRules = SortById(ValidationRules);
+    }
+
+    public CapsuleId Id { get; init; }
+
+    public string DisplayName { get; init; }
+
+    public string Version { get; init; }
+
+    public IReadOnlyList<CapsuleParameterDefinition> Parameters { get; init; }
+
+    public IReadOnlyList<CapsuleComponentReference> ComponentRefs { get; init; }
+
+    public IReadOnlyList<CapsuleSchematicBlockReference> SchematicBlockRefs { get; init; }
+
+    public IReadOnlyList<CapsuleBoardRegionReference> BoardRegionRefs { get; init; }
+
+    public IReadOnlyList<CapsuleFirmwareTemplateReference> FirmwareTemplates { get; init; }
+
+    public IReadOnlyList<CapsuleConstraintReference> Constraints { get; init; }
+
+    public IReadOnlyList<CapsuleDocumentReference> Docs { get; init; }
+
+    public IReadOnlyList<CapsuleValidationRule> ValidationRules { get; init; }
+
     public bool Equals(CapsuleDefinition? other) =>
         other is not null &&
         CapsuleDefinitionSerializer.Serialize(this) == CapsuleDefinitionSerializer.Serialize(other);
@@ -122,6 +159,10 @@ public sealed record CapsuleDefinition(
             }
         }
     }
+
+    private static IReadOnlyList<T> SortById<T>(IReadOnlyList<T> values)
+        where T : CapsuleReference =>
+        values.OrderBy(value => value.Id, StringComparer.Ordinal).ToArray();
 }
 
 public readonly record struct CapsuleId : IComparable<CapsuleId>
