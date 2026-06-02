@@ -59,6 +59,44 @@ public sealed class BoardEditorViewModelTests
     }
 
     [Fact]
+    public void CenterAndFitBoardCommandsFrameBoardContents()
+    {
+        BoardEditorViewModel board = new();
+        board.SynchronizeFromSchematic([
+            new SchematicComponentInstance(
+                "sync-1",
+                "U1",
+                "hawkcad:first",
+                "First",
+                new CadPoint(0, 0),
+                ComponentSymbolPreview.Empty,
+                FootprintWithTwoPads()),
+            new SchematicComponentInstance(
+                "sync-2",
+                "U2",
+                "hawkcad:second",
+                "Second",
+                new CadPoint(0, 0),
+                ComponentSymbolPreview.Empty,
+                FootprintWithTwoPads())
+        ]);
+        board.PanViewportByScreenDelta(new Avalonia.Vector(50, -25), pixelsPerInternalUnit: 0.000025);
+        board.ZoomIn();
+
+        board.CenterBoardContentsInViewport();
+
+        Assert.Equal(new CadPoint(4_000_000, 0), board.ViewportOrigin);
+        Assert.Equal(1.25, board.ZoomLevel);
+        Assert.Contains("Centered board contents", board.StatusText, StringComparison.Ordinal);
+
+        board.FitBoardContentsToViewport(viewportWidthPixels: 600, viewportHeightPixels: 400, paddingPixels: 40);
+
+        Assert.Equal(new CadPoint(4_000_000, 0), board.ViewportOrigin);
+        Assert.Equal(2.08, board.ZoomLevel);
+        Assert.Contains("Fit board contents", board.StatusText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SynchronizeFromSchematicCreatesBoardComponentShellsWithMatchingSyncIds()
     {
         BoardEditorViewModel board = new();

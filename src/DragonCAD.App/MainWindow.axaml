@@ -42,6 +42,8 @@
         <KeyBinding Gesture="Escape" Command="{Binding CancelActiveOperationCommand}" />
         <KeyBinding Gesture="Ctrl+OemPlus" Command="{Binding ZoomInCommand}" />
         <KeyBinding Gesture="Ctrl+OemMinus" Command="{Binding ZoomOutCommand}" />
+        <KeyBinding Gesture="Ctrl+0" Command="{Binding FitActiveViewCommand}" />
+        <KeyBinding Gesture="Ctrl+1" Command="{Binding CenterActiveViewCommand}" />
     </Window.KeyBindings>
     <Window.Styles>
         <Style Selector="Button.workbench-tab">
@@ -160,6 +162,10 @@
                                   Command="{Binding ZoomInCommand}" />
                         <MenuItem Header="Zoom Out"
                                   Command="{Binding ZoomOutCommand}" />
+                        <MenuItem Header="Fit Active View"
+                                  Command="{Binding FitActiveViewCommand}" />
+                        <MenuItem Header="Center Active View"
+                                  Command="{Binding CenterActiveViewCommand}" />
                     </MenuItem>
                     <MenuItem Header="_Place">
                         <MenuItem Header="Place Selected Component"
@@ -433,6 +439,11 @@
                                               Command="{Binding MirrorSelectedPartCommand}" />
                                     <MenuItem Header="Delete Selection"
                                               Command="{Binding DeleteActiveSelectionCommand}" />
+                                    <Separator />
+                                    <MenuItem Header="Fit Active View"
+                                              Command="{Binding FitActiveViewCommand}" />
+                                    <MenuItem Header="Center Active View"
+                                              Command="{Binding CenterActiveViewCommand}" />
                                 </MenuItem>
                                 <MenuItem Header="_Marketplace">
                                     <MenuItem Header="Sync Vendor Catalog"
@@ -471,6 +482,20 @@
                                     Padding="12,4"
                                     Background="#2A3340"
                                     Foreground="{StaticResource DragonText}" />
+                            <Button Content="Fit"
+                                    Command="{Binding FitActiveViewCommand}"
+                                    Padding="12,4"
+                                    Background="#2A3340"
+                                    Foreground="{StaticResource DragonText}">
+                                <ToolTip.Tip>Fit the active schematic sheet or PCB contents</ToolTip.Tip>
+                            </Button>
+                            <Button Content="Center"
+                                    Command="{Binding CenterActiveViewCommand}"
+                                    Padding="12,4"
+                                    Background="#2A3340"
+                                    Foreground="{StaticResource DragonText}">
+                                <ToolTip.Tip>Center the active schematic sheet or PCB contents</ToolTip.Tip>
+                            </Button>
                             <Button Content="New Component"
                                     Command="{Binding NewComponentEditorCommand}"
                                     Padding="12,4"

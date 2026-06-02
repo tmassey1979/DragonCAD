@@ -2065,6 +2065,33 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void FitAndCenterActiveViewCommandsTargetTheActiveEditor()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 20);
+        viewModel.ComponentManager.SelectedComponent = Assert.Single(
+            viewModel.ComponentManager.Components,
+            row => row.DisplayName.Contains("RESISTOR", StringComparison.Ordinal));
+        viewModel.PlaceSelectedComponentCommand.Execute(null);
+        viewModel.HandleSchematicCanvasClick(new CadPoint(0, 0));
+        viewModel.SchematicEditor.PanViewportByScreenDelta(new Avalonia.Vector(80, 40), pixelsPerInternalUnit: 0.00002);
+
+        viewModel.CenterActiveViewCommand.Execute(null);
+
+        Assert.Equal(new CadPoint(0, 0), viewModel.SchematicEditor.ViewportOrigin);
+        Assert.Contains("Centered schematic sheet", viewModel.PlacementStatus, StringComparison.Ordinal);
+
+        viewModel.ShowPcbLayoutTabCommand.Execute(null);
+        viewModel.BoardEditor.PanViewportByScreenDelta(new Avalonia.Vector(50, -25), pixelsPerInternalUnit: 0.000025);
+
+        viewModel.FitActiveViewCommand.Execute(null);
+
+        Assert.Equal(new CadPoint(0, 0), viewModel.BoardEditor.ViewportOrigin);
+        Assert.Contains("Fit board contents", viewModel.PlacementStatus, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void BoardRouteToolCommandRoutesTraceFromBoardCanvasClicks()
     {
         MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(

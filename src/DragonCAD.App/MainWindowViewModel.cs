@@ -54,6 +54,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 {
     public const int DefaultInitialBuiltInDeviceLimit = int.MaxValue;
     private const int DefaultSearchResultLimit = 40;
+    private const double DefaultFitViewportWidthPixels = 1000;
+    private const double DefaultFitViewportHeightPixels = 700;
+    private const double DefaultFitViewportPaddingPixels = 40;
     private readonly BuiltInHawkCadLibraryService builtInLibraryService;
     private readonly HelpTopicRegistry helpTopicRegistry = HelpTopicRegistry.CreateDefault();
     private readonly string datasheetPromotionArtifactDirectory;
@@ -149,6 +152,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         LoadArduinoUnoSampleCommand = new DelegateCommand(LoadArduinoUnoSample);
         ZoomInCommand = new DelegateCommand(ZoomInActiveEditor);
         ZoomOutCommand = new DelegateCommand(ZoomOutActiveEditor);
+        CenterActiveViewCommand = new DelegateCommand(CenterActiveView);
+        FitActiveViewCommand = new DelegateCommand(FitActiveView);
         ToggleGridVisibilityCommand = new DelegateCommand(ToggleGridVisibility);
         ToggleGridStyleCommand = new DelegateCommand(ToggleGridStyle);
         IncreaseGridSpacingCommand = new DelegateCommand(() => ChangeGridSpacing(1m));
@@ -943,6 +948,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     public DelegateCommand ZoomInCommand { get; }
 
     public DelegateCommand ZoomOutCommand { get; }
+
+    public DelegateCommand CenterActiveViewCommand { get; }
+
+    public DelegateCommand FitActiveViewCommand { get; }
 
     public DelegateCommand ToggleGridVisibilityCommand { get; }
 
@@ -3403,6 +3412,38 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         }
 
         SchematicEditor.ZoomOut();
+        PlacementStatus = SchematicEditor.StatusText;
+    }
+
+    private void CenterActiveView()
+    {
+        if (IsPcbLayoutTabActive)
+        {
+            BoardEditor.CenterBoardContentsInViewport();
+            PlacementStatus = BoardEditor.StatusText;
+            return;
+        }
+
+        SchematicEditor.CenterSheetInViewport();
+        PlacementStatus = SchematicEditor.StatusText;
+    }
+
+    private void FitActiveView()
+    {
+        if (IsPcbLayoutTabActive)
+        {
+            BoardEditor.FitBoardContentsToViewport(
+                DefaultFitViewportWidthPixels,
+                DefaultFitViewportHeightPixels,
+                DefaultFitViewportPaddingPixels);
+            PlacementStatus = BoardEditor.StatusText;
+            return;
+        }
+
+        SchematicEditor.FitSheetToViewport(
+            DefaultFitViewportWidthPixels,
+            DefaultFitViewportHeightPixels,
+            DefaultFitViewportPaddingPixels);
         PlacementStatus = SchematicEditor.StatusText;
     }
 

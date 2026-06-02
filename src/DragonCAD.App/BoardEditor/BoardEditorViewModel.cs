@@ -831,6 +831,21 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         StatusText = $"Board pan {FormatMillimeters(ViewportOrigin.X)} mm, {FormatMillimeters(ViewportOrigin.Y)} mm.";
     }
 
+    public void CenterBoardContentsInViewport()
+    {
+        CadRectangle bounds = BoardContentsBounds();
+        ViewportOrigin = CenterOf(bounds);
+        StatusText = "Centered board contents.";
+    }
+
+    public void FitBoardContentsToViewport(double viewportWidthPixels, double viewportHeightPixels, double paddingPixels)
+    {
+        CadRectangle bounds = BoardContentsBounds();
+        ZoomLevel = CalculateFitZoom(bounds, viewportWidthPixels, viewportHeightPixels, paddingPixels, basePixelsPerInternalUnit: 0.000025);
+        ViewportOrigin = CenterOf(bounds);
+        StatusText = $"Fit board contents at {ZoomLevel:0.##}x.";
+    }
+
     public void ActivateSelectTool()
     {
         ActiveTool = "Select";
@@ -1186,6 +1201,37 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
                 component.Position.X + 1_500_000,
                 component.Position.Y + 1_000_000);
 
+    private CadRectangle BoardContentsBounds()
+    {
+        List<CadRectangle> rectangles = [];
+        rectangles.AddRange(Components.Select(ComponentBounds));
+        rectangles.AddRange(Traces.Where(trace => trace.RoutePoints.Count > 0).Select(trace => BoundsOfPoints(trace.RoutePoints)));
+        rectangles.AddRange(Vias.Select(via => new CadRectangle(
+            via.Position.X - (via.DiameterInternal / 2),
+            via.Position.Y - (via.DiameterInternal / 2),
+            via.Position.X + (via.DiameterInternal / 2),
+            via.Position.Y + (via.DiameterInternal / 2))));
+        rectangles.AddRange(Airwires.Select(airwire => BoundsOfPoints([airwire.StartPosition, airwire.EndPosition])));
+
+        if (rectangles.Count == 0)
+        {
+            return new CadRectangle(-10_000_000, -10_000_000, 10_000_000, 10_000_000);
+        }
+
+        return new CadRectangle(
+            rectangles.Min(rectangle => rectangle.Left),
+            rectangles.Min(rectangle => rectangle.Top),
+            rectangles.Max(rectangle => rectangle.Right),
+            rectangles.Max(rectangle => rectangle.Bottom));
+    }
+
+    private static CadRectangle BoundsOfPoints(IReadOnlyList<CadPoint> points) =>
+        new(
+            points.Min(point => point.X),
+            points.Min(point => point.Y),
+            points.Max(point => point.X),
+            points.Max(point => point.Y));
+
     private BoardPadHit? FindPadAt(CadPoint point)
     {
         for (int componentIndex = Components.Count - 1; componentIndex >= 0; componentIndex--)
@@ -1272,6 +1318,33 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
 
     private static string FormatMillimeters(long internalUnits) =>
         ((decimal)internalUnits / CadUnit.InternalUnitsPerMillimeter).ToString("0.000", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static CadPoint CenterOf(CadRectangle bounds) =>
+        new(bounds.Left + (bounds.Width / 2), bounds.Top + (bounds.Height / 2));
+
+    private static double CalculateFitZoom(
+        CadRectangle bounds,
+        double viewportWidthPixels,
+        double viewportHeightPixels,
+        double paddingPixels,
+        double basePixelsPerInternalUnit)
+    {
+        if (viewportWidthPixels <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(viewportWidthPixels), "Viewport width must be positive.");
+        }
+
+        if (viewportHeightPixels <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(viewportHeightPixels), "Viewport height must be positive.");
+        }
+
+        double availableWidth = Math.Max(1, viewportWidthPixels - (paddingPixels * 2));
+        double availableHeight = Math.Max(1, viewportHeightPixels - (paddingPixels * 2));
+        double contentWidth = Math.Max(1, bounds.Width * basePixelsPerInternalUnit);
+        double contentHeight = Math.Max(1, bounds.Height * basePixelsPerInternalUnit);
+        return Math.Clamp(Math.Round(Math.Min(availableWidth / contentWidth, availableHeight / contentHeight), 4), 0.05, 8.0);
+    }
 
     private void AddRouteLeg(List<CadPoint> route, CadPoint target)
     {

@@ -735,6 +735,19 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         StatusText = $"Schematic pan {FormatMillimeters(ViewportOrigin.X)} mm, {FormatMillimeters(ViewportOrigin.Y)} mm.";
     }
 
+    public void CenterSheetInViewport()
+    {
+        ViewportOrigin = CenterOf(SheetBounds);
+        StatusText = "Centered schematic sheet.";
+    }
+
+    public void FitSheetToViewport(double viewportWidthPixels, double viewportHeightPixels, double paddingPixels)
+    {
+        ZoomLevel = CalculateFitZoom(SheetBounds, viewportWidthPixels, viewportHeightPixels, paddingPixels, basePixelsPerInternalUnit: 0.00002);
+        ViewportOrigin = CenterOf(SheetBounds);
+        StatusText = $"Fit schematic sheet at {ZoomLevel:0.##}x.";
+    }
+
     public void ToggleGridVisibility()
     {
         IsGridVisible = !IsGridVisible;
@@ -1819,6 +1832,33 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
     private static string FormatMillimeters(long internalUnits) =>
         ((decimal)internalUnits / CadUnit.InternalUnitsPerMillimeter).ToString("0.000", System.Globalization.CultureInfo.InvariantCulture);
+
+    private static CadPoint CenterOf(CadRectangle bounds) =>
+        new(bounds.Left + (bounds.Width / 2), bounds.Top + (bounds.Height / 2));
+
+    private static double CalculateFitZoom(
+        CadRectangle bounds,
+        double viewportWidthPixels,
+        double viewportHeightPixels,
+        double paddingPixels,
+        double basePixelsPerInternalUnit)
+    {
+        if (viewportWidthPixels <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(viewportWidthPixels), "Viewport width must be positive.");
+        }
+
+        if (viewportHeightPixels <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(viewportHeightPixels), "Viewport height must be positive.");
+        }
+
+        double availableWidth = Math.Max(1, viewportWidthPixels - (paddingPixels * 2));
+        double availableHeight = Math.Max(1, viewportHeightPixels - (paddingPixels * 2));
+        double contentWidth = Math.Max(1, bounds.Width * basePixelsPerInternalUnit);
+        double contentHeight = Math.Max(1, bounds.Height * basePixelsPerInternalUnit);
+        return Math.Clamp(Math.Round(Math.Min(availableWidth / contentWidth, availableHeight / contentHeight), 4), 0.05, 8.0);
+    }
 
     private static ComponentSymbolPreview NormalizeSymbolPreview(ComponentSymbolPreview? preview)
     {

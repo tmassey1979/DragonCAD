@@ -286,6 +286,26 @@ public sealed class SchematicEditorViewModelTests
     }
 
     [Fact]
+    public void CenterAndFitSheetCommandsFrameTheSchematicSheet()
+    {
+        SchematicEditorViewModel editor = new();
+        editor.PanViewportByScreenDelta(new Avalonia.Vector(80, 40), pixelsPerInternalUnit: 0.00002);
+        editor.ZoomIn();
+
+        editor.CenterSheetInViewport();
+
+        Assert.Equal(new CadPoint(0, 0), editor.ViewportOrigin);
+        Assert.Equal(1.25, editor.ZoomLevel);
+        Assert.Contains("Centered schematic sheet", editor.StatusText, StringComparison.Ordinal);
+
+        editor.FitSheetToViewport(viewportWidthPixels: 1200, viewportHeightPixels: 800, paddingPixels: 40);
+
+        Assert.Equal(new CadPoint(0, 0), editor.ViewportOrigin);
+        Assert.Equal(0.18, editor.ZoomLevel);
+        Assert.Contains("Fit schematic sheet", editor.StatusText, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void SchematicGridSettingsControlVisibilityStyleSpacingAndSnapping()
     {
         SchematicEditorViewModel editor = new();
