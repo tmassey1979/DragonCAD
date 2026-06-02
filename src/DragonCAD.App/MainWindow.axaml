@@ -546,11 +546,13 @@
                                 BorderThickness="1"
                                 Padding="14"
                                 CornerRadius="6">
+                            <ScrollViewer x:Name="ComponentInspectorScrollViewer"
+                                          VerticalScrollBarVisibility="Auto">
                             <StackPanel Spacing="12"
                                         x:DataType="app:MainWindowViewModel">
                                 <Grid ColumnDefinitions="*,Auto"
                                       ColumnSpacing="10">
-                                    <TextBlock Text="Component Inspector"
+                                    <TextBlock Text="Inspector"
                                                FontSize="15"
                                                FontWeight="SemiBold"
                                                Foreground="{StaticResource DragonText}" />
@@ -561,11 +563,15 @@
                                             Foreground="#061109"
                                             Content="Place" />
                                 </Grid>
-                                <TextBlock Text="{Binding ComponentManager.SelectedComponent.DisplayName}"
+                                <TextBlock x:Name="SelectedComponentDisplayName"
+                                           Text="{Binding ComponentManager.SelectedComponent.DisplayName}"
                                            FontSize="22"
                                            FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis"
                                            Foreground="{StaticResource DragonText}" />
-                                <TextBlock Text="{Binding ComponentManager.SelectedComponent.ComponentId}"
+                                <TextBlock x:Name="SelectedComponentIdentifier"
+                                           Text="{Binding ComponentManager.SelectedComponent.ComponentId}"
+                                           TextTrimming="CharacterEllipsis"
                                            Foreground="{StaticResource DragonMutedText}" />
                                 <TextBlock Text="{Binding PlacementStatus}"
                                            TextWrapping="Wrap"
@@ -695,6 +701,7 @@
                                     </ListBox>
                                 </Grid>
                             </StackPanel>
+                            </ScrollViewer>
                         </Border>
                     </Grid>
                 </Grid>

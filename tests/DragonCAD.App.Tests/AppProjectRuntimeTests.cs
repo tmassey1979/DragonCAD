@@ -284,6 +284,19 @@ public sealed class AppProjectRuntimeTests
     }
 
     [Fact]
+    public void MainWindowComponentInspectorHandlesLongComponentNames()
+    {
+        string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
+
+        Assert.Contains("x:Name=\"ComponentInspectorScrollViewer\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"SelectedComponentDisplayName\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"SelectedComponentIdentifier\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("TextTrimming=\"CharacterEllipsis\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Text=\"Inspector\"", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"Component Inspector\"", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowKeepsSampleLoaderOutOfDocumentTabs()
     {
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
