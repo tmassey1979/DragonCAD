@@ -848,6 +848,21 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void AiInspectorSummaryRowsReflectCurrentProjectGraph()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 1);
+
+        viewModel.Load7805SampleCommand.Execute(null);
+
+        Assert.Contains(viewModel.AiInspectorSummaryRows, row => row.Area == "Components" && row.Value.Contains("library", StringComparison.Ordinal));
+        Assert.Contains(viewModel.AiInspectorSummaryRows, row => row.Area == "Schematic" && row.Value.Contains("3 parts", StringComparison.Ordinal));
+        Assert.Contains(viewModel.AiInspectorSummaryRows, row => row.Area == "PCB" && row.Value.Contains("3 footprints", StringComparison.Ordinal));
+        Assert.Contains(viewModel.AiInspectorSummaryRows, row => row.Area == "Signals" && row.Value.Contains("3 nets", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void WorkspaceTabCommandsSwitchToMarketplaceWithSeededVendorRows()
     {
         MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(

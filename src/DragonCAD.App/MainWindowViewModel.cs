@@ -758,6 +758,26 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             Assets: "Generated subsystem drafts require explainable review before project mutation.")
     ];
 
+    public IReadOnlyList<AiInspectorSummaryRow> AiInspectorSummaryRows =>
+    [
+        new(
+            Area: "Components",
+            Value: $"{ComponentManager.Components.Count:N0} loaded / {BuiltInLibrary.TotalDevices:N0} library devices",
+            Detail: "Component recommendations use the effective built-in and project library catalog."),
+        new(
+            Area: "Schematic",
+            Value: $"{SchematicEditor.Components.Count:N0} {Pluralize(SchematicEditor.Components.Count, "part")}, {SchematicEditor.Wires.Count:N0} {Pluralize(SchematicEditor.Wires.Count, "wire")}",
+            Detail: "The assistant can inspect placed symbols, pins, labels, and connection intent."),
+        new(
+            Area: "PCB",
+            Value: $"{BoardEditor.Components.Count:N0} {Pluralize(BoardEditor.Components.Count, "footprint")}, {BoardEditor.Airwires.Count:N0} {Pluralize(BoardEditor.Airwires.Count, "airwire")}",
+            Detail: "Board checks use synchronized footprints, route objects, vias, and layer state."),
+        new(
+            Area: "Signals",
+            Value: $"{SchematicEditor.Nets.Count:N0} {Pluralize(SchematicEditor.Nets.Count, "net")}, {BoardEditor.Traces.Count:N0} {Pluralize(BoardEditor.Traces.Count, "route")}",
+            Detail: "Net and route summaries support explainable ERC, DRC, and capsule suggestions.")
+    ];
+
     public AsyncDelegateCommand SearchLibraryCommand { get; }
 
     public DelegateCommand PlaceSelectedComponentCommand { get; }
@@ -1056,6 +1076,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             placementStatus = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(WorkbenchStatusText));
+            OnProjectGraphChanged();
         }
     }
 
@@ -3279,6 +3300,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
+    private void OnProjectGraphChanged() =>
+        OnPropertyChanged(nameof(AiInspectorSummaryRows));
+
     private static string DefaultInUseVendorCatalogSyncStatePath(string artifactDirectory) =>
         Path.Combine(artifactDirectory, "vendor-sync", "in-use-vendor-sync-state.json");
 
@@ -3696,6 +3720,11 @@ public sealed record CapsuleReadinessRow(
     string Name,
     string Status,
     string Assets);
+
+public sealed record AiInspectorSummaryRow(
+    string Area,
+    string Value,
+    string Detail);
 
 public sealed record UnifiedComponentSourceRow(
     string SourceKind,

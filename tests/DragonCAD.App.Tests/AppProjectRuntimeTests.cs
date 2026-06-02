@@ -218,6 +218,8 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("Text=\"Context Inspector\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ContextInspectorTabs\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<TabItem Header=\"AI\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding AiInspectorSummaryRows}\"", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Ready for explainable engineering workflows once schematic and board graph projections are added.", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<TabItem Header=\"Schematic\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<TabItem Header=\"PCB\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<TabItem Header=\"Grid\"", mainWindow, StringComparison.Ordinal);

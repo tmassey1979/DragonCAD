@@ -3418,9 +3418,38 @@
                             <ScrollViewer VerticalScrollBarVisibility="Auto">
                                 <StackPanel Margin="4,10"
                                             Spacing="12">
-                                    <TextBlock Text="Ready for explainable engineering workflows once schematic and board graph projections are added."
+                                    <TextBlock Text="Project graph summary"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource DragonText}" />
+                                    <TextBlock Text="AI review uses the current component catalog, schematic graph, board sync, and routing state."
                                                TextWrapping="Wrap"
                                                Foreground="{StaticResource DragonMutedText}" />
+                                    <ListBox ItemsSource="{Binding AiInspectorSummaryRows}"
+                                             Background="Transparent"
+                                             BorderThickness="0">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate DataType="app:AiInspectorSummaryRow"
+                                                          x:DataType="app:AiInspectorSummaryRow">
+                                                <Border Background="#0D1218"
+                                                        BorderBrush="{StaticResource DragonBorder}"
+                                                        BorderThickness="1"
+                                                        Padding="10"
+                                                        Margin="0,0,0,8"
+                                                        CornerRadius="4">
+                                                    <StackPanel Spacing="4">
+                                                        <TextBlock Text="{Binding Area}"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource DragonText}" />
+                                                        <TextBlock Text="{Binding Value}"
+                                                                   Foreground="{StaticResource DragonGreen}" />
+                                                        <TextBlock Text="{Binding Detail}"
+                                                                   TextWrapping="Wrap"
+                                                                   Foreground="{StaticResource DragonMutedText}" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
                                     <Border Background="#0D1218"
                                             BorderBrush="{StaticResource DragonBorder}"
                                             BorderThickness="1"
