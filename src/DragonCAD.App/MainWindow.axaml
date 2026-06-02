@@ -3165,7 +3165,7 @@
                     <Border DockPanel.Dock="Top"
                             Padding="10"
                             Background="{StaticResource DragonPanelHeader}">
-                        <TextBlock Text="AI Assistant"
+                        <TextBlock Text="Context Inspector"
                                    FontWeight="SemiBold"
                                    Foreground="{StaticResource DragonText}" />
                     </Border>

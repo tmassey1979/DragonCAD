@@ -215,6 +215,7 @@ public sealed class AppProjectRuntimeTests
     {
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
 
+        Assert.Contains("Text=\"Context Inspector\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ContextInspectorTabs\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<TabItem Header=\"AI\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<TabItem Header=\"Schematic\"", mainWindow, StringComparison.Ordinal);
