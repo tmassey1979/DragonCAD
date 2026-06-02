@@ -108,18 +108,22 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
 
     public IReadOnlyList<CadPoint> PendingTraceRoutePoints => pendingTraceRoutePoints;
 
+    public IReadOnlyList<string> RouteCornerModes { get; } = ["90", "45"];
+
     public string RouteCornerMode
     {
         get => routeCornerMode;
-        private set
+        set
         {
-            if (routeCornerMode == value)
+            string normalized = NormalizeRouteCornerMode(value);
+            if (routeCornerMode == normalized)
             {
                 return;
             }
 
-            routeCornerMode = value;
+            routeCornerMode = normalized;
             OnPropertyChanged();
+            StatusText = $"Board route corner mode {RouteCornerMode} degrees.";
         }
     }
 
@@ -798,16 +802,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
 
     public void SetRouteCornerMode(string mode)
     {
-        ArgumentNullException.ThrowIfNull(mode);
-        string normalized = mode.Trim() switch
-        {
-            "45" => "45",
-            "90" => "90",
-            _ => throw new ArgumentOutOfRangeException(nameof(mode), "Route corner mode must be 45 or 90.")
-        };
-
-        RouteCornerMode = normalized;
-        StatusText = $"Board route corner mode {RouteCornerMode} degrees.";
+        RouteCornerMode = mode;
     }
 
     public bool TraceClickAt(CadPoint point)
@@ -1237,6 +1232,17 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         }
 
         AddOrthogonalLeg(route, target);
+    }
+
+    private static string NormalizeRouteCornerMode(string mode)
+    {
+        ArgumentNullException.ThrowIfNull(mode);
+        return mode.Trim() switch
+        {
+            "45" => "45",
+            "90" => "90",
+            _ => throw new ArgumentOutOfRangeException(nameof(mode), "Route corner mode must be 45 or 90.")
+        };
     }
 
     private static void AddFortyFiveLeg(List<CadPoint> route, CadPoint target)

@@ -877,6 +877,48 @@ public sealed class MainWindowViewModelTests
         Assert.Contains(viewModel.HelpSections, section => section.Title == "Library and marketplace" && section.Body.Contains("placeable", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void HelpWorkspaceExposesDefaultRegisteredTopics()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 1);
+
+        Assert.Contains(viewModel.HelpTopicGroups, group => group.Id == "getting-started" && group.Title == "Getting started");
+        Assert.Contains(viewModel.HelpTopicGroups, group => group.Id == "editing" && group.Title == "Editing");
+        Assert.Contains(viewModel.HelpTopics, topic => topic.Id == "editing.board-basics" && topic.Title == "Board editing basics");
+        Assert.Equal("getting-started.workspace", viewModel.SelectedHelpTopic.Id);
+    }
+
+    [Fact]
+    public void HelpSearchFiltersRegisteredTopics()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 1);
+
+        viewModel.SearchHelp("gerber bom");
+
+        var topic = Assert.Single(viewModel.HelpTopics);
+        Assert.Equal("fabrication.outputs", topic.Id);
+        Assert.Equal("gerber bom", viewModel.HelpSearchText);
+    }
+
+    [Fact]
+    public void MissingHelpTopicSelectionUsesFallbackTopic()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 1);
+
+        viewModel.SelectHelpTopic("editing.missing-tool");
+
+        Assert.Equal("Help", viewModel.ActiveWorkspaceTab);
+        Assert.Equal("help.missing", viewModel.SelectedHelpTopic.Id);
+        Assert.Equal("Help topic not found", viewModel.SelectedHelpTopic.Title);
+        Assert.Contains("editing.missing-tool", viewModel.SelectedHelpTopic.Summary, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData("ComponentManager", 0)]
     [InlineData("Marketplace", 0)]

@@ -31,6 +31,13 @@ public sealed class ComponentEditorWorkspace
 
     public ComponentEditorValidationSummary ValidationSummary => ComponentEditorValidationSummary.FromDefinition(ViewModel.ToDefinition());
 
+    public IReadOnlyList<ComponentEditorValidationIssueDisplay> ValidationIssueDisplay =>
+        ValidationSummary.Issues.Count == 0
+            ? [new ComponentEditorValidationIssueDisplay(ComponentEditorValidationIssueKind.None, "No validation issues")]
+            : ValidationSummary.Issues
+                .Select(issue => new ComponentEditorValidationIssueDisplay(issue.Kind, issue.DisplayText))
+                .ToArray();
+
     public ComponentEditorSaveReadinessSummary SaveReadiness
     {
         get
@@ -160,31 +167,61 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
     public string DisplayName
     {
         get => displayName;
-        set => SetField(ref displayName, value);
+        set
+        {
+            if (SetField(ref displayName, value))
+            {
+                OnPropertyChanged(nameof(IdentitySummary));
+            }
+        }
     }
 
     public string Manufacturer
     {
         get => manufacturer;
-        set => SetField(ref manufacturer, value);
+        set
+        {
+            if (SetField(ref manufacturer, value))
+            {
+                OnPropertyChanged(nameof(IdentitySummary));
+            }
+        }
     }
 
     public string ManufacturerPartNumber
     {
         get => manufacturerPartNumber;
-        set => SetField(ref manufacturerPartNumber, value);
+        set
+        {
+            if (SetField(ref manufacturerPartNumber, value))
+            {
+                OnPropertyChanged(nameof(IdentitySummary));
+            }
+        }
     }
 
     public string Description
     {
         get => description;
-        set => SetField(ref description, value);
+        set
+        {
+            if (SetField(ref description, value))
+            {
+                OnPropertyChanged(nameof(IdentitySummary));
+            }
+        }
     }
 
     public ComponentKind Kind
     {
         get => kind;
-        set => SetField(ref kind, value);
+        set
+        {
+            if (SetField(ref kind, value))
+            {
+                OnPropertyChanged(nameof(IdentitySummary));
+            }
+        }
     }
 
     public IReadOnlyList<ComponentPin> Pins => pins;
@@ -197,10 +234,95 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
 
     public IReadOnlyList<ComponentPinPadMapping> PinPadMappings => pinPadMappings;
 
+    public ComponentEditorIdentitySummary IdentitySummary =>
+        new(
+            displayName.Length == 0 ? componentId : displayName,
+            BuildManufacturerLine(manufacturer, manufacturerPartNumber),
+            SplitPascalCase(kind.ToString()),
+            description.Length == 0 ? "No description" : description);
+
+    public IReadOnlyList<ComponentEditorPinSummary> PinSummaries => pins
+        .OrderBy(pin => pin.Number, StringComparer.Ordinal)
+        .Select(pin => new ComponentEditorPinSummary(
+            pin.Number,
+            pin.Name,
+            pin.ElectricalType.ToString(),
+            $"{pin.Number} {pin.Name} ({pin.ElectricalType})"))
+        .ToArray();
+
+    public IReadOnlyList<ComponentEditorAssetSummary> SymbolSummaries => symbols
+        .OrderBy(symbol => symbol.Name, StringComparer.Ordinal)
+        .Select(symbol => new ComponentEditorAssetSummary(
+            symbol.Id.Value,
+            symbol.Name,
+            $"{symbol.Name} - {symbol.Pins.Count} {Plural(symbol.Pins.Count, "pin", "pins")}"))
+        .ToArray();
+
+    public IReadOnlyList<ComponentEditorAssetSummary> FootprintSummaries => footprints
+        .OrderBy(footprint => footprint.Name, StringComparer.Ordinal)
+        .Select(footprint => new ComponentEditorAssetSummary(
+            footprint.Id.Value,
+            footprint.Name,
+            $"{footprint.Name} - {footprint.Pads.Count} {Plural(footprint.Pads.Count, "pad", "pads")}"))
+        .ToArray();
+
+    public IReadOnlyList<ComponentEditorAssetSummary> PackageSummaries => variants
+        .OrderBy(variant => variant.Name, StringComparer.Ordinal)
+        .Select(variant => new ComponentEditorAssetSummary(
+            variant.Id.Value,
+            variant.Name,
+            $"{variant.Name} - {FootprintNameFor(variant.FootprintId)}"))
+        .ToArray();
+
     public static ComponentEditorViewModel FromDefinition(ComponentDefinition definition)
     {
         ArgumentNullException.ThrowIfNull(definition);
         return new ComponentEditorViewModel(definition);
+    }
+
+    public void SetDisplayName(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        DisplayName = value.Trim();
+    }
+
+    public void SetManufacturer(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        Manufacturer = value.Trim();
+    }
+
+    public void SetManufacturerPartNumber(string value)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
+        ManufacturerPartNumber = value.Trim();
+    }
+
+    public void SetDescription(string value)
+    {
+        ArgumentNullException.ThrowIfNull(value);
+        Description = value.Trim();
+    }
+
+    public void SetKind(ComponentKind value) => Kind = value;
+
+    public void AddBasicPinPackageAndMapping(string pinNumber, string pinName, string packageName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pinNumber);
+        ArgumentException.ThrowIfNullOrWhiteSpace(pinName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(packageName);
+
+        string normalizedPinNumber = pinNumber.Trim();
+        string normalizedPinName = pinName.Trim();
+        string normalizedPackageName = packageName.Trim();
+
+        AddPin(normalizedPinNumber, normalizedPinName);
+        AddSymbol("Default Symbol");
+        AddFootprint(
+            normalizedPackageName,
+            [new ComponentEditorPadDraft(normalizedPinNumber, new CadPoint(0, 0), new CadVector(80_000, 80_000))]);
+        AddPackage(normalizedPackageName, normalizedPackageName);
+        MapPinToPad(normalizedPinNumber, normalizedPinNumber);
     }
 
     public void AddPin(string number, string name)
@@ -215,6 +337,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
                 ComponentPinElectricalType.Bidirectional))
             .ToArray();
         OnPropertyChanged(nameof(Pins));
+        OnPropertyChanged(nameof(PinSummaries));
     }
 
     public void AddSymbol(string name)
@@ -234,6 +357,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
 
         symbols = symbols.Append(symbol).ToArray();
         OnPropertyChanged(nameof(Symbols));
+        OnPropertyChanged(nameof(SymbolSummaries));
     }
 
     public void AddFootprint(string name, IReadOnlyList<ComponentEditorPadDraft> pads)
@@ -257,6 +381,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
 
         footprints = footprints.Append(footprint).ToArray();
         OnPropertyChanged(nameof(Footprints));
+        OnPropertyChanged(nameof(FootprintSummaries));
     }
 
     public void AddPackage(string name, string footprintNameOrId)
@@ -274,6 +399,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
                 []))
             .ToArray();
         OnPropertyChanged(nameof(Variants));
+        OnPropertyChanged(nameof(PackageSummaries));
     }
 
     public void MapPinToPad(string pinNumberOrName, string padName)
@@ -313,15 +439,16 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             packageModels3D,
             provenance);
 
-    private void SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
+    private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
         {
-            return;
+            return false;
         }
 
         field = value;
         OnPropertyChanged(propertyName);
+        return true;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
@@ -333,7 +460,71 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             value.Trim()
                 .ToLowerInvariant()
                 .Split([' ', '_', ':', '/', '\\', '.'], StringSplitOptions.RemoveEmptyEntries));
+
+    private static string BuildManufacturerLine(string manufacturer, string manufacturerPartNumber)
+    {
+        if (manufacturer.Length == 0 && manufacturerPartNumber.Length == 0)
+        {
+            return "No manufacturer";
+        }
+
+        if (manufacturer.Length == 0)
+        {
+            return manufacturerPartNumber;
+        }
+
+        if (manufacturerPartNumber.Length == 0)
+        {
+            return manufacturer;
+        }
+
+        return $"{manufacturer} - {manufacturerPartNumber}";
+    }
+
+    private string FootprintNameFor(ComponentFootprintId footprintId) =>
+        footprints.FirstOrDefault(footprint => footprint.Id == footprintId)?.Name ?? footprintId.Value;
+
+    private static string SplitPascalCase(string value)
+    {
+        if (value.Length == 0)
+        {
+            return value;
+        }
+
+        List<char> characters = [];
+        for (int i = 0; i < value.Length; i++)
+        {
+            if (i > 0 && char.IsUpper(value[i]) && !char.IsWhiteSpace(value[i - 1]))
+            {
+                characters.Add(' ');
+            }
+
+            characters.Add(value[i]);
+        }
+
+        return new string(characters.ToArray());
+    }
+
+    private static string Plural(int count, string singular, string plural) =>
+        count == 1 ? singular : plural;
 }
+
+public sealed record ComponentEditorIdentitySummary(
+    string DisplayName,
+    string ManufacturerLine,
+    string KindText,
+    string Description);
+
+public sealed record ComponentEditorPinSummary(
+    string Number,
+    string Name,
+    string ElectricalTypeText,
+    string DisplayText);
+
+public sealed record ComponentEditorAssetSummary(
+    string Id,
+    string Name,
+    string DisplayText);
 
 public sealed record ComponentEditorPadDraft(
     string Name,
@@ -400,8 +591,13 @@ public sealed record ComponentEditorValidationIssue(
     ComponentEditorValidationIssueKind Kind,
     string DisplayText);
 
+public sealed record ComponentEditorValidationIssueDisplay(
+    ComponentEditorValidationIssueKind Kind,
+    string DisplayText);
+
 public enum ComponentEditorValidationIssueKind
 {
+    None,
     MissingSymbol,
     MissingFootprint,
     MissingPackage,

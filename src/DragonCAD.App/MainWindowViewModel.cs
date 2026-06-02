@@ -12,6 +12,7 @@ using DragonCAD.App.Fabrication;
 using DragonCAD.App.Fabrication.Export;
 using DragonCAD.App.Fabrication.Handoff;
 using DragonCAD.App.Fabrication.Ordering;
+using DragonCAD.App.Help;
 using DragonCAD.App.Marketplace;
 using DragonCAD.App.Marketplace.Audit;
 using DragonCAD.App.Marketplace.Bom;
@@ -52,8 +53,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     public const int DefaultInitialBuiltInDeviceLimit = int.MaxValue;
     private const int DefaultSearchResultLimit = 40;
     private readonly BuiltInHawkCadLibraryService builtInLibraryService;
+    private readonly HelpTopicRegistry helpTopicRegistry = HelpTopicRegistry.CreateDefault();
     private readonly string datasheetPromotionArtifactDirectory;
     private string librarySearchText = "";
+    private string helpSearchText = "";
+    private HelpTopic selectedHelpTopic;
     private bool isLibrarySearchInProgress;
     private ComponentPlacementIntent? activePlacement;
     private string placementStatus = "Select a component, then choose Place to arm schematic placement.";
@@ -110,6 +114,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         this.builtInLibraryService = builtInLibraryService;
         this.datasheetPromotionArtifactDirectory = datasheetPromotionArtifactDirectory;
         this.vendorCatalogSyncSearchService = vendorCatalogSyncSearchService;
+        selectedHelpTopic = helpTopicRegistry.Topics[0];
         inUseVendorCatalogSyncStateStore = new InUseVendorCatalogSyncStateStore(DefaultInUseVendorCatalogSyncStatePath(datasheetPromotionArtifactDirectory));
         inUseVendorCatalogFreshnessPolicyStore = new InUseVendorCatalogFreshnessPolicyStore(DefaultInUseVendorCatalogFreshnessPolicyPath(datasheetPromotionArtifactDirectory));
         inUseVendorCatalogSyncStates.AddRange(inUseVendorCatalogSyncStateStore.Load());
@@ -787,6 +792,50 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             Body: "Fabrication, BOM, and marketplace order views are review-first. DragonCAD prepares deterministic local artifacts and order drafts before any provider-specific live checkout is enabled.",
             Action: "Open Fab for Gerber, drill, paste, BOM, pick-and-place, and order-readiness checks.")
     ];
+
+    public IReadOnlyList<HelpTopicGroup> HelpTopicGroups => helpTopicRegistry.Groups;
+
+    public IReadOnlyList<HelpTopic> HelpTopics => helpTopicRegistry.Search(HelpSearchText);
+
+    public HelpTopic SelectedHelpTopic
+    {
+        get => selectedHelpTopic;
+        private set
+        {
+            if (selectedHelpTopic == value)
+            {
+                return;
+            }
+
+            selectedHelpTopic = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string HelpSearchText
+    {
+        get => helpSearchText;
+        set => SearchHelp(value);
+    }
+
+    public void SelectHelpTopic(string? topicId)
+    {
+        SelectedHelpTopic = helpTopicRegistry.GetTopicOrFallback(topicId);
+        ActiveWorkspaceTab = "Help";
+    }
+
+    public void SearchHelp(string? text)
+    {
+        string normalizedText = text ?? "";
+        if (helpSearchText == normalizedText)
+        {
+            return;
+        }
+
+        helpSearchText = normalizedText;
+        OnPropertyChanged(nameof(HelpSearchText));
+        OnPropertyChanged(nameof(HelpTopics));
+    }
 
     public IReadOnlyList<AiInspectorSummaryRow> AiInspectorSummaryRows =>
     [

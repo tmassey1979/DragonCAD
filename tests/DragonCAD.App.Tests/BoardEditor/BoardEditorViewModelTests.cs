@@ -485,6 +485,7 @@ public sealed class BoardEditorViewModelTests
     {
         BoardEditorViewModel board = new();
 
+        Assert.Equal(["90", "45"], board.RouteCornerModes);
         Assert.Equal("90", board.RouteCornerMode);
 
         board.ActivateRouteTool();
@@ -499,6 +500,16 @@ public sealed class BoardEditorViewModelTests
                 new CadPoint(2_000_000, 2_000_000)
             ],
             trace.RoutePoints);
+    }
+
+    [Fact]
+    public void BoardRouteCornerModeRejectsUnsupportedValues()
+    {
+        BoardEditorViewModel board = new();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => board.RouteCornerMode = "free");
+        Assert.Throws<ArgumentNullException>(() => board.SetRouteCornerMode(null!));
+        Assert.Equal("90", board.RouteCornerMode);
     }
 
     [Fact]

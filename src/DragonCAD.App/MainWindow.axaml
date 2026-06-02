@@ -3283,6 +3283,13 @@
                                         <Button Command="{Binding PlaceBoardViaCommand}"
                                                 Padding="10,3"
                                                 Content="Via" />
+                                        <TextBlock Text="Bend"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource DragonMutedText}" />
+                                        <ComboBox x:Name="BoardRouteCornerModeSelector"
+                                                  ItemsSource="{Binding BoardEditor.RouteCornerModes}"
+                                                  SelectedItem="{Binding BoardEditor.RouteCornerMode, Mode=TwoWay}"
+                                                  Width="64" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2"
                                                 x:Name="BoardHeaderLayerControls"

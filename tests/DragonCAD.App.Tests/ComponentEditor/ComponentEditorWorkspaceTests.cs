@@ -79,6 +79,33 @@ public sealed class ComponentEditorWorkspaceTests
     }
 
     [Fact]
+    public void NewComponentCanBeAuthoredWithCommandMethodsAndReadableSummaries()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:lm7805");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+
+        editor.SetDisplayName("LM7805 5V Regulator");
+        editor.SetManufacturer("Texas Instruments");
+        editor.SetManufacturerPartNumber("LM7805CT");
+        editor.SetDescription("Fixed 5V linear regulator in a TO-220 package.");
+        editor.SetKind(ComponentKind.IntegratedCircuit);
+        editor.AddBasicPinPackageAndMapping("1", "VIN", "TO-220-3");
+
+        Assert.True(workspace.IsDirty);
+        Assert.Equal(ComponentEditorSaveReadiness.Ready, workspace.SaveReadiness.State);
+        Assert.Empty(workspace.ValidationSummary.Issues);
+        Assert.Equal("LM7805 5V Regulator", editor.IdentitySummary.DisplayName);
+        Assert.Equal("Texas Instruments - LM7805CT", editor.IdentitySummary.ManufacturerLine);
+        Assert.Equal("Integrated Circuit", editor.IdentitySummary.KindText);
+        Assert.Equal("Fixed 5V linear regulator in a TO-220 package.", editor.IdentitySummary.Description);
+        Assert.Equal(["1 VIN (Bidirectional)"], editor.PinSummaries.Select(summary => summary.DisplayText));
+        Assert.Equal(["Default Symbol - 1 pin"], editor.SymbolSummaries.Select(summary => summary.DisplayText));
+        Assert.Equal(["TO-220-3 - 1 pad"], editor.FootprintSummaries.Select(summary => summary.DisplayText));
+        Assert.Equal(["TO-220-3 - TO-220-3"], editor.PackageSummaries.Select(summary => summary.DisplayText));
+        Assert.Equal(["No validation issues"], workspace.ValidationIssueDisplay.Select(issue => issue.DisplayText));
+    }
+
+    [Fact]
     public void SaveReadinessReturnsToUnchangedWhenEditDraftMatchesOriginalAgain()
     {
         ComponentDefinition original = ValidComponent("dragon:revert-component", "Revertable Component");

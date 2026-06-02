@@ -545,6 +545,9 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("ActivateBoardRouteToolCommand", mainWindow, StringComparison.Ordinal);
         Assert.Contains("FinishBoardRouteCommand", mainWindow, StringComparison.Ordinal);
         Assert.Contains("SelectedBoardLayerName", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"BoardRouteCornerModeSelector\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding BoardEditor.RouteCornerModes}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("SelectedItem=\"{Binding BoardEditor.RouteCornerMode, Mode=TwoWay}\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("ToggleSelectedBoardLayerVisibilityCommand", mainWindow, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"BoardLayerPalette\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("ItemsSource=\"{Binding BoardLayerRows}\"", mainWindow, StringComparison.Ordinal);
