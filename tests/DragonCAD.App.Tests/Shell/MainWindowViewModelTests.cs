@@ -807,6 +807,22 @@ public sealed class MainWindowViewModelTests
         Assert.False(viewModel.IsSchematicTabActive);
     }
 
+    [Theory]
+    [InlineData("Firmware", "Firmware workspace ready")]
+    [InlineData("Capsules", "Capsule manager ready")]
+    [InlineData("Marketplace", "Marketplace ready")]
+    [InlineData("Fabrication", "Fabrication handoff ready")]
+    public void WorkbenchStatusTextReflectsActiveWorkspaceTab(string tabName, string expectedStatusPrefix)
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 1);
+
+        viewModel.ApplyStartupTab(tabName);
+
+        Assert.StartsWith(expectedStatusPrefix, viewModel.WorkbenchStatusText, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void WorkspaceTabCommandsSwitchToMarketplaceWithSeededVendorRows()
     {

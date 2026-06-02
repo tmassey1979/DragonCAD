@@ -64,9 +64,14 @@
         <Style Selector="Button.tree-nav">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Padding" Value="0" />
+            <Setter Property="Padding" Value="6,2" />
             <Setter Property="HorizontalContentAlignment" Value="Left" />
             <Setter Property="Foreground" Value="{StaticResource DragonText}" />
+        </Style>
+        <Style Selector="Button.tree-nav.active">
+            <Setter Property="Background" Value="#263241" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="FontWeight" Value="SemiBold" />
         </Style>
     </Window.Styles>
     <Grid RowDefinitions="48,*,28">
@@ -233,6 +238,7 @@
                                         <TreeViewItem.Header>
                                             <Button x:Name="ProjectExplorerSchematicsButton"
                                                     Classes="tree-nav"
+                                                    Classes.active="{Binding IsSchematicTabActive}"
                                                     Command="{Binding ShowSchematicTabCommand}"
                                                     Content="Schematics" />
                                         </TreeViewItem.Header>
@@ -241,6 +247,7 @@
                                         <TreeViewItem.Header>
                                             <Button x:Name="ProjectExplorerPcbButton"
                                                     Classes="tree-nav"
+                                                    Classes.active="{Binding IsPcbLayoutTabActive}"
                                                     Command="{Binding ShowPcbLayoutTabCommand}"
                                                     Content="PCB Layouts" />
                                         </TreeViewItem.Header>
@@ -252,6 +259,7 @@
                                         <TreeViewItem.Header>
                                             <Button x:Name="ProjectExplorerComponentsButton"
                                                     Classes="tree-nav"
+                                                    Classes.active="{Binding IsComponentManagerTabActive}"
                                                     Command="{Binding ShowComponentManagerTabCommand}"
                                                     Content="Components" />
                                         </TreeViewItem.Header>
@@ -260,6 +268,7 @@
                                         <TreeViewItem.Header>
                                             <Button x:Name="ProjectExplorerMarketplaceButton"
                                                     Classes="tree-nav"
+                                                    Classes.active="{Binding IsMarketplaceTabActive}"
                                                     Command="{Binding ShowMarketplaceTabCommand}"
                                                     Content="Library + Marketplace" />
                                         </TreeViewItem.Header>
@@ -268,6 +277,7 @@
                                         <TreeViewItem.Header>
                                             <Button x:Name="ProjectExplorerDatasheetsButton"
                                                     Classes="tree-nav"
+                                                    Classes.active="{Binding IsDatasheetsTabActive}"
                                                     Command="{Binding ShowDatasheetsTabCommand}"
                                                     Content="Datasheets" />
                                         </TreeViewItem.Header>
@@ -279,6 +289,7 @@
                                         <TreeViewItem.Header>
                                             <Button x:Name="ProjectExplorerFabricationButton"
                                                     Classes="tree-nav"
+                                                    Classes.active="{Binding IsFabricationTabActive}"
                                                     Command="{Binding ShowFabricationTabCommand}"
                                                     Content="Fabrication" />
                                         </TreeViewItem.Header>
@@ -287,6 +298,7 @@
                                         <TreeViewItem.Header>
                                             <Button x:Name="ProjectExplorerBomOrdersButton"
                                                     Classes="tree-nav"
+                                                    Classes.active="{Binding IsMarketplaceTabActive}"
                                                     Command="{Binding ShowMarketplaceTabCommand}"
                                                     Content="BOM and Orders" />
                                         </TreeViewItem.Header>
@@ -296,6 +308,7 @@
                                     <TreeViewItem.Header>
                                         <Button x:Name="ProjectExplorerFirmwareButton"
                                                 Classes="tree-nav"
+                                                Classes.active="{Binding IsFirmwareTabActive}"
                                                 Command="{Binding ShowFirmwareTabCommand}"
                                                 Content="Firmware" />
                                     </TreeViewItem.Header>
@@ -304,6 +317,7 @@
                                     <TreeViewItem.Header>
                                         <Button x:Name="ProjectExplorerCapsulesButton"
                                                 Classes="tree-nav"
+                                                Classes.active="{Binding IsCapsulesTabActive}"
                                                 Command="{Binding ShowCapsulesTabCommand}"
                                                 Content="Capsules" />
                                     </TreeViewItem.Header>
@@ -3626,8 +3640,9 @@
                 <TextBlock Text="Ready"
                            VerticalAlignment="Center"
                            Foreground="{StaticResource DragonMutedText}" />
-                <TextBlock Grid.Column="1"
-                           Text="{Binding PlacementStatus}"
+                <TextBlock x:Name="WorkbenchStatusText"
+                           Grid.Column="1"
+                           Text="{Binding WorkbenchStatusText}"
                            Margin="0,0,24,0"
                            VerticalAlignment="Center"
                            Foreground="{StaticResource DragonGreen}" />

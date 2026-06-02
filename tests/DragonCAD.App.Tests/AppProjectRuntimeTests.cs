@@ -288,6 +288,22 @@ public sealed class AppProjectRuntimeTests
     }
 
     [Fact]
+    public void MainWindowProjectExplorerLeavesTrackActiveWorkspaceTab()
+    {
+        string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
+
+        Assert.Contains("Style Selector=\"Button.tree-nav.active\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Classes.active=\"{Binding IsComponentManagerTabActive}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Classes.active=\"{Binding IsMarketplaceTabActive}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Classes.active=\"{Binding IsSchematicTabActive}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Classes.active=\"{Binding IsPcbLayoutTabActive}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Classes.active=\"{Binding IsDatasheetsTabActive}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Classes.active=\"{Binding IsFabricationTabActive}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Classes.active=\"{Binding IsFirmwareTabActive}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Classes.active=\"{Binding IsCapsulesTabActive}\"", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowExposesFirmwareAndCapsuleWorkspaceTabs()
     {
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
@@ -352,6 +368,15 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("x:Name=\"WorkbenchActionHint\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Text=\"Editor tools\"", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"{Binding PlacementStatus}\"\r\n                                   VerticalAlignment=\"Center\"\r\n                                   TextTrimming=\"CharacterEllipsis\"", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowFooterUsesWorkbenchStatusProjection()
+    {
+        string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
+
+        Assert.Contains("x:Name=\"WorkbenchStatusText\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding WorkbenchStatusText}\"", mainWindow, StringComparison.Ordinal);
     }
 
     [Fact]

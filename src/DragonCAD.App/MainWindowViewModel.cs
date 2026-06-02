@@ -898,6 +898,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             OnPropertyChanged(nameof(IsFirmwareTabActive));
             OnPropertyChanged(nameof(IsCapsulesTabActive));
             OnPropertyChanged(nameof(IsFabricationTabActive));
+            OnPropertyChanged(nameof(WorkbenchStatusText));
         }
     }
 
@@ -916,6 +917,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     public bool IsCapsulesTabActive => ActiveWorkspaceTab == "Capsules";
 
     public bool IsFabricationTabActive => ActiveWorkspaceTab == "Fabrication";
+
+    public string WorkbenchStatusText => ActiveWorkspaceTab switch
+    {
+        "Marketplace" => "Marketplace ready: review sourcing, BOM cart, and vendor sync state.",
+        "Datasheets" => "Datasheet review ready: inspect generated component evidence before promotion.",
+        "Firmware" => "Firmware workspace ready: connect source, build output, and pin bindings.",
+        "Capsules" => "Capsule manager ready: package reusable hardware subsystems for review.",
+        "Fabrication" => "Fabrication handoff ready: review Gerbers, BOM, pick-and-place, and order paths.",
+        _ => PlacementStatus
+    };
 
     public void ApplyStartupTab(string? tabName)
     {
@@ -1012,6 +1023,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
             placementStatus = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(WorkbenchStatusText));
         }
     }
 
