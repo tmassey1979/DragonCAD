@@ -481,6 +481,68 @@ public sealed class BoardEditorViewModelTests
     }
 
     [Fact]
+    public void BoardRouteCornerModeDefaultsToNinetyDegrees()
+    {
+        BoardEditorViewModel board = new();
+
+        Assert.Equal("90", board.RouteCornerMode);
+
+        board.ActivateRouteTool();
+        board.TraceClickAt(new CadPoint(0, 0));
+        board.CompleteTraceAt(new CadPoint(2_000_000, 2_000_000));
+
+        BoardTrace trace = Assert.Single(board.Traces);
+        Assert.Equal(
+            [
+                new CadPoint(0, 0),
+                new CadPoint(2_000_000, 0),
+                new CadPoint(2_000_000, 2_000_000)
+            ],
+            trace.RoutePoints);
+    }
+
+    [Fact]
+    public void BoardRouteCornerModeCanCreateFortyFiveDegreeLegs()
+    {
+        BoardEditorViewModel board = new();
+
+        board.SetRouteCornerMode("45");
+        board.ActivateRouteTool();
+        board.TraceClickAt(new CadPoint(0, 0));
+        board.CompleteTraceAt(new CadPoint(2_000_000, 2_000_000));
+
+        BoardTrace trace = Assert.Single(board.Traces);
+        Assert.Equal("45", board.RouteCornerMode);
+        Assert.Equal(
+            [
+                new CadPoint(0, 0),
+                new CadPoint(2_000_000, 2_000_000)
+            ],
+            trace.RoutePoints);
+        Assert.Equal("Routed board trace on Top.", board.StatusText);
+    }
+
+    [Fact]
+    public void BoardRouteCornerModeFallsBackToNinetyThenFortyFiveWhenDeltaIsNotSquare()
+    {
+        BoardEditorViewModel board = new();
+
+        board.SetRouteCornerMode("45");
+        board.ActivateRouteTool();
+        board.TraceClickAt(new CadPoint(0, 0));
+        board.CompleteTraceAt(new CadPoint(4_000_000, 2_000_000));
+
+        BoardTrace trace = Assert.Single(board.Traces);
+        Assert.Equal(
+            [
+                new CadPoint(0, 0),
+                new CadPoint(2_000_000, 0),
+                new CadPoint(4_000_000, 2_000_000)
+            ],
+            trace.RoutePoints);
+    }
+
+    [Fact]
     public void MoveSelectedViaToSnapsToBoardGrid()
     {
         BoardEditorViewModel board = new();

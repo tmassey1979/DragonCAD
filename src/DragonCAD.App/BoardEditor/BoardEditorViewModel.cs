@@ -28,6 +28,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     private BoardVia? hoveredVia;
     private int? hoveredTraceSegmentIndex;
     private BoardPadHit? pendingTraceStartPad;
+    private string routeCornerMode = "90";
     private readonly List<CadPoint> pendingTraceRoutePoints = [];
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -106,6 +107,21 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     }
 
     public IReadOnlyList<CadPoint> PendingTraceRoutePoints => pendingTraceRoutePoints;
+
+    public string RouteCornerMode
+    {
+        get => routeCornerMode;
+        private set
+        {
+            if (routeCornerMode == value)
+            {
+                return;
+            }
+
+            routeCornerMode = value;
+            OnPropertyChanged();
+        }
+    }
 
     public bool IsGridVisible
     {
@@ -780,6 +796,20 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         StatusText = "Board route tool active.";
     }
 
+    public void SetRouteCornerMode(string mode)
+    {
+        ArgumentNullException.ThrowIfNull(mode);
+        string normalized = mode.Trim() switch
+        {
+            "45" => "45",
+            "90" => "90",
+            _ => throw new ArgumentOutOfRangeException(nameof(mode), "Route corner mode must be 45 or 90.")
+        };
+
+        RouteCornerMode = normalized;
+        StatusText = $"Board route corner mode {RouteCornerMode} degrees.";
+    }
+
     public bool TraceClickAt(CadPoint point)
     {
         BoardPadHit? padHit = FindPadAt(point);
@@ -797,7 +827,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
             return true;
         }
 
-        AddOrthogonalLeg(pendingTraceRoutePoints, routePoint);
+        AddRouteLeg(pendingTraceRoutePoints, routePoint);
         OnPropertyChanged(nameof(PendingTraceRoutePoints));
         StatusText = padHit is null
             ? $"Added board trace segment at {FormatMillimeters(routePoint.X)} mm, {FormatMillimeters(routePoint.Y)} mm."
@@ -814,7 +844,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         }
 
         BoardPadHit? endPad = FindPadAt(point);
-        AddOrthogonalLeg(pendingTraceRoutePoints, endPad?.Position ?? placementGrid.Snap(point));
+        AddRouteLeg(pendingTraceRoutePoints, endPad?.Position ?? placementGrid.Snap(point));
         if (pendingTraceRoutePoints.Count < 2)
         {
             StatusText = "Board trace needs at least two points.";
@@ -849,7 +879,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
 
         if (PendingTraceStart is not null)
         {
-            AddOrthogonalLeg(pendingTraceRoutePoints, snappedPoint);
+            AddRouteLeg(pendingTraceRoutePoints, snappedPoint);
             OnPropertyChanged(nameof(PendingTraceRoutePoints));
         }
 
@@ -1197,6 +1227,55 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
 
     private static string FormatMillimeters(long internalUnits) =>
         ((decimal)internalUnits / CadUnit.InternalUnitsPerMillimeter).ToString("0.000", System.Globalization.CultureInfo.InvariantCulture);
+
+    private void AddRouteLeg(List<CadPoint> route, CadPoint target)
+    {
+        if (RouteCornerMode == "45")
+        {
+            AddFortyFiveLeg(route, target);
+            return;
+        }
+
+        AddOrthogonalLeg(route, target);
+    }
+
+    private static void AddFortyFiveLeg(List<CadPoint> route, CadPoint target)
+    {
+        if (route.Count == 0)
+        {
+            route.Add(target);
+            return;
+        }
+
+        CadPoint last = route[^1];
+        if (last == target)
+        {
+            return;
+        }
+
+        long dx = target.X - last.X;
+        long dy = target.Y - last.Y;
+        long absDx = Math.Abs(dx);
+        long absDy = Math.Abs(dy);
+        if (absDx == 0 || absDy == 0 || absDx == absDy)
+        {
+            route.Add(target);
+            return;
+        }
+
+        CadPoint diagonalCorner = absDx > absDy
+            ? new CadPoint(target.X - (Math.Sign(dx) * absDy), last.Y)
+            : new CadPoint(last.X, target.Y - (Math.Sign(dy) * absDx));
+        if (route[^1] != diagonalCorner)
+        {
+            route.Add(diagonalCorner);
+        }
+
+        if (route[^1] != target)
+        {
+            route.Add(target);
+        }
+    }
 
     private static void AddOrthogonalLeg(List<CadPoint> route, CadPoint target)
     {
