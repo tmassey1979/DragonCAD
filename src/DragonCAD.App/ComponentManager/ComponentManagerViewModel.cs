@@ -10,9 +10,9 @@ namespace DragonCAD.App.ComponentManager;
 public sealed class ComponentManagerViewModel : INotifyPropertyChanged
 {
     private IReadOnlyList<ComponentManagerRow> allComponents;
-    private IReadOnlyList<string> typeFilterOptions;
+    private IReadOnlyList<ComponentTypeFilterOption> typeFilterOptions;
     private string searchText = "";
-    private string selectedTypeFilter = "All";
+    private string selectedTypeFilterKind = "";
     private ComponentManagerRow? selectedComponent;
 
     private ComponentManagerViewModel(IReadOnlyList<ComponentManagerRow> components)
@@ -27,7 +27,9 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
 
     public ObservableCollection<ComponentManagerRow> Components { get; }
 
-    public IReadOnlyList<string> TypeFilterOptions => typeFilterOptions;
+    public IReadOnlyList<string> TypeFilterOptions => typeFilterOptions
+        .Select(option => option.Label)
+        .ToArray();
 
     public string SearchText
     {
@@ -47,16 +49,16 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
 
     public string SelectedTypeFilter
     {
-        get => selectedTypeFilter;
+        get => LabelForTypeFilterKind(selectedTypeFilterKind);
         set
         {
-            string nextValue = string.IsNullOrWhiteSpace(value) ? "All" : value;
-            if (selectedTypeFilter == nextValue)
+            string nextValue = ResolveTypeFilterKind(value);
+            if (selectedTypeFilterKind == nextValue)
             {
                 return;
             }
 
-            selectedTypeFilter = nextValue;
+            selectedTypeFilterKind = nextValue;
             ApplyFilter();
             OnPropertyChanged();
         }
@@ -99,9 +101,9 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
             .ThenBy(row => row.ComponentId, StringComparer.Ordinal)
             .ToArray();
         typeFilterOptions = BuildTypeFilterOptions(allComponents);
-        if (!typeFilterOptions.Contains(selectedTypeFilter, StringComparer.Ordinal))
+        if (selectedTypeFilterKind.Length > 0 && !typeFilterOptions.Any(option => option.Kind == selectedTypeFilterKind))
         {
-            selectedTypeFilter = "All";
+            selectedTypeFilterKind = "";
             OnPropertyChanged(nameof(SelectedTypeFilter));
         }
 
@@ -125,11 +127,12 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
 
     private void ApplyFilter()
     {
+        ComponentManagerRow? previousSelection = selectedComponent;
         string filter = searchText.Trim();
         IEnumerable<ComponentManagerRow> rows = allComponents;
-        if (selectedTypeFilter != "All")
+        if (selectedTypeFilterKind.Length > 0)
         {
-            rows = rows.Where(row => row.Kind == selectedTypeFilter);
+            rows = rows.Where(row => row.Kind == selectedTypeFilterKind);
         }
 
         if (filter.Length > 0)
@@ -143,16 +146,52 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
             Components.Add(row);
         }
 
-        SelectedComponent = Components.FirstOrDefault();
+        SelectedComponent = previousSelection is not null && Components.Contains(previousSelection)
+            ? previousSelection
+            : Components.FirstOrDefault();
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
-    private static IReadOnlyList<string> BuildTypeFilterOptions(IReadOnlyList<ComponentManagerRow> rows) =>
-        new[] { "All" }
-            .Concat(rows.Select(row => row.Kind).Distinct(StringComparer.Ordinal).OrderBy(kind => kind, StringComparer.Ordinal))
+    private string LabelForTypeFilterKind(string kind) =>
+        typeFilterOptions.FirstOrDefault(option => option.Kind == kind)?.Label ??
+        typeFilterOptions.First(option => option.Kind.Length == 0).Label;
+
+    private string ResolveTypeFilterKind(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "";
+        }
+
+        ComponentTypeFilterOption? option = typeFilterOptions.FirstOrDefault(option =>
+            string.Equals(option.Label, value, StringComparison.Ordinal) ||
+            string.Equals(option.Kind, value, StringComparison.Ordinal));
+        return option?.Kind ?? "";
+    }
+
+    private static IReadOnlyList<ComponentTypeFilterOption> BuildTypeFilterOptions(IReadOnlyList<ComponentManagerRow> rows) =>
+        new[] { new ComponentTypeFilterOption("", $"All components ({rows.Count})") }
+            .Concat(rows
+                .GroupBy(row => row.Kind, StringComparer.Ordinal)
+                .OrderBy(group => group.Key, StringComparer.Ordinal)
+                .Select(group => new ComponentTypeFilterOption(
+                    group.Key,
+                    $"{CategoryLabel(group.Key)} ({group.Count()})")))
             .ToArray();
+
+    private static string CategoryLabel(string kind) =>
+        kind switch
+        {
+            "Connector" => "Connectors",
+            "Custom" => "Custom",
+            "IntegratedCircuit" => "Integrated circuits",
+            "Mechanical" => "Mechanical",
+            "Module" => "Modules",
+            "Passive" => "Passives",
+            _ => $"{kind}s"
+        };
 
     private static void ReplaceRow(IReadOnlyList<ComponentManagerRow> rows, ComponentManagerRow oldRow, ComponentManagerRow newRow)
     {
@@ -287,6 +326,8 @@ public sealed record ComponentManagerRow(
         string.Equals(option.VariantId, selectedOption.VariantId, StringComparison.Ordinal) &&
         string.Equals(option.FootprintId, selectedOption.FootprintId, StringComparison.Ordinal);
 }
+
+public sealed record ComponentTypeFilterOption(string Kind, string Label);
 
 public sealed record ComponentPackageSummary(
     string FootprintId,

@@ -22,6 +22,10 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     private BoardTrace? selectedTrace;
     private BoardVia? selectedVia;
     private int? selectedTraceSegmentIndex;
+    private BoardComponentInstance? hoveredComponent;
+    private BoardTrace? hoveredTrace;
+    private BoardVia? hoveredVia;
+    private int? hoveredTraceSegmentIndex;
     private readonly List<CadPoint> pendingTraceRoutePoints = [];
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -227,6 +231,71 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         }
     }
 
+    public BoardComponentInstance? HoveredComponent
+    {
+        get => hoveredComponent;
+        private set
+        {
+            if (hoveredComponent == value)
+            {
+                return;
+            }
+
+            hoveredComponent = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public BoardTrace? HoveredTrace
+    {
+        get => hoveredTrace;
+        private set
+        {
+            if (hoveredTrace == value)
+            {
+                return;
+            }
+
+            hoveredTrace = value;
+            if (value is null)
+            {
+                HoveredTraceSegmentIndex = null;
+            }
+
+            OnPropertyChanged();
+        }
+    }
+
+    public int? HoveredTraceSegmentIndex
+    {
+        get => hoveredTraceSegmentIndex;
+        private set
+        {
+            if (hoveredTraceSegmentIndex == value)
+            {
+                return;
+            }
+
+            hoveredTraceSegmentIndex = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public BoardVia? HoveredVia
+    {
+        get => hoveredVia;
+        private set
+        {
+            if (hoveredVia == value)
+            {
+                return;
+            }
+
+            hoveredVia = value;
+            OnPropertyChanged();
+        }
+    }
+
     public string StatusText
     {
         get => statusText;
@@ -259,6 +328,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         SelectedTrace = null;
         SelectedVia = null;
         SelectedTraceSegmentIndex = null;
+        ClearHover();
         StatusText = "Board cleared.";
     }
 
@@ -347,24 +417,21 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
 
     public BoardComponentInstance? SelectComponentAt(CadPoint point)
     {
-        for (int index = Components.Count - 1; index >= 0; index--)
+        BoardComponentInstance? candidate = FindComponentAt(point);
+        if (candidate is null)
         {
-            BoardComponentInstance candidate = Components[index];
-            if (ComponentBounds(candidate).Contains(point))
-            {
-                SelectedComponent = candidate;
-                SelectedTrace = null;
-                SelectedVia = null;
-                SelectedTraceSegmentIndex = null;
-                StatusText = $"Selected board component {candidate.ReferenceDesignator}.";
-                return candidate;
-            }
+            SelectedComponent = null;
+            SelectedTraceSegmentIndex = null;
+            StatusText = "No board component selected.";
+            return null;
         }
 
-        SelectedComponent = null;
+        SelectedComponent = candidate;
+        SelectedTrace = null;
+        SelectedVia = null;
         SelectedTraceSegmentIndex = null;
-        StatusText = "No board component selected.";
-        return null;
+        StatusText = $"Selected board component {candidate.ReferenceDesignator}.";
+        return candidate;
     }
 
     public bool SelectAt(CadPoint point)
@@ -380,6 +447,53 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         }
 
         return SelectComponentAt(point) is not null;
+    }
+
+    public void UpdateHoverAt(CadPoint point)
+    {
+        if (ActiveTool == "Route")
+        {
+            ClearHover();
+            return;
+        }
+
+        BoardVia? via = FindViaAt(point, VisibleVias);
+        if (via is not null)
+        {
+            HoveredVia = via;
+            HoveredTrace = null;
+            HoveredComponent = null;
+            return;
+        }
+
+        TraceHit? traceHit = FindTraceAt(point);
+        if (traceHit is not null)
+        {
+            HoveredVia = null;
+            HoveredTrace = traceHit.Trace;
+            HoveredTraceSegmentIndex = traceHit.SegmentIndex;
+            HoveredComponent = null;
+            return;
+        }
+
+        BoardComponentInstance? component = FindComponentAt(point);
+        if (component is not null)
+        {
+            HoveredVia = null;
+            HoveredTrace = null;
+            HoveredComponent = component;
+            return;
+        }
+
+        ClearHover();
+    }
+
+    public void ClearHover()
+    {
+        HoveredComponent = null;
+        HoveredTrace = null;
+        HoveredTraceSegmentIndex = null;
+        HoveredVia = null;
     }
 
     public BoardComponentInstance MoveSelectedComponentTo(CadPoint requestedPosition)
@@ -861,13 +975,60 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
 
     private BoardTrace? SelectTraceAt(CadPoint point)
     {
+        TraceHit? traceHit = FindTraceAt(point);
+        if (traceHit is null)
+        {
+            return null;
+        }
+
+        SelectedComponent = null;
+        SelectedVia = null;
+        SelectedTrace = traceHit.Trace;
+        SelectedTraceSegmentIndex = traceHit.SegmentIndex;
+        StatusText = $"Selected board trace on {traceHit.Trace.LayerName}.";
+        return traceHit.Trace;
+    }
+
+    private BoardVia? SelectViaAt(CadPoint point)
+    {
+        BoardVia? via = FindViaAt(point, Vias);
+        if (via is null)
+        {
+            return null;
+        }
+
+        SelectedComponent = null;
+        SelectedTrace = null;
+        SelectedTraceSegmentIndex = null;
+        SelectedVia = via;
+        StatusText = $"Selected via {via.FromLayerName}->{via.ToLayerName}.";
+        return via;
+    }
+
+    private BoardComponentInstance? FindComponentAt(CadPoint point)
+    {
+        for (int index = Components.Count - 1; index >= 0; index--)
+        {
+            BoardComponentInstance candidate = Components[index];
+            if (ComponentBounds(candidate).Contains(point))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private TraceHit? FindTraceAt(CadPoint point)
+    {
         const double tolerance = 350_000;
         double nearestDistance = double.MaxValue;
         BoardTrace? nearestTrace = null;
         int? nearestSegmentIndex = null;
-        for (int traceIndex = VisibleTraces.Count - 1; traceIndex >= 0; traceIndex--)
+        IReadOnlyList<BoardTrace> visibleTraces = VisibleTraces;
+        for (int traceIndex = visibleTraces.Count - 1; traceIndex >= 0; traceIndex--)
         {
-            BoardTrace trace = VisibleTraces[traceIndex];
+            BoardTrace trace = visibleTraces[traceIndex];
             SegmentHit? hit = NearestSegmentHit(point, trace.RoutePoints);
             if (hit is not null && hit.Distance <= tolerance && hit.Distance < nearestDistance)
             {
@@ -877,33 +1038,20 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
             }
         }
 
-        if (nearestTrace is null)
-        {
-            return null;
-        }
-
-        SelectedComponent = null;
-        SelectedVia = null;
-        SelectedTrace = nearestTrace;
-        SelectedTraceSegmentIndex = nearestSegmentIndex;
-        StatusText = $"Selected board trace on {nearestTrace.LayerName}.";
-        return nearestTrace;
+        return nearestTrace is null || nearestSegmentIndex is null
+            ? null
+            : new TraceHit(nearestTrace, nearestSegmentIndex.Value);
     }
 
-    private BoardVia? SelectViaAt(CadPoint point)
+    private static BoardVia? FindViaAt(CadPoint point, IReadOnlyList<BoardVia> vias)
     {
         const long tolerance = 600_000;
-        for (int viaIndex = Vias.Count - 1; viaIndex >= 0; viaIndex--)
+        for (int viaIndex = vias.Count - 1; viaIndex >= 0; viaIndex--)
         {
-            BoardVia via = Vias[viaIndex];
+            BoardVia via = vias[viaIndex];
             if (Math.Abs(via.Position.X - point.X) <= tolerance &&
                 Math.Abs(via.Position.Y - point.Y) <= tolerance)
             {
-                SelectedComponent = null;
-                SelectedTrace = null;
-                SelectedTraceSegmentIndex = null;
-                SelectedVia = via;
-                StatusText = $"Selected via {via.FromLayerName}->{via.ToLayerName}.";
                 return via;
             }
         }
@@ -1058,4 +1206,6 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
     private sealed record SegmentHit(double Distance, int SegmentIndex);
+
+    private sealed record TraceHit(BoardTrace Trace, int SegmentIndex);
 }

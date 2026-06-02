@@ -478,6 +478,29 @@ public sealed class AppProjectRuntimeTests
     }
 
     [Fact]
+    public void BoardCanvasUsesHoverTargetsForMoveAffordance()
+    {
+        string boardEditor = ReadSourceFile("src", "DragonCAD.App", "BoardEditor", "BoardEditorViewModel.cs");
+        string boardCanvas = ReadSourceFile("src", "DragonCAD.App", "BoardEditor", "BoardCanvasControl.cs");
+
+        Assert.Contains("HoveredComponent", boardEditor, StringComparison.Ordinal);
+        Assert.Contains("HoveredTrace", boardEditor, StringComparison.Ordinal);
+        Assert.Contains("HoveredTraceSegmentIndex", boardEditor, StringComparison.Ordinal);
+        Assert.Contains("HoveredVia", boardEditor, StringComparison.Ordinal);
+        Assert.Contains("UpdateHoverAt", boardEditor, StringComparison.Ordinal);
+        Assert.Contains("ClearHover", boardEditor, StringComparison.Ordinal);
+        Assert.Contains("nameof(BoardEditorViewModel.HoveredComponent)", boardCanvas, StringComparison.Ordinal);
+        Assert.Contains("nameof(BoardEditorViewModel.HoveredTrace)", boardCanvas, StringComparison.Ordinal);
+        Assert.Contains("nameof(BoardEditorViewModel.HoveredVia)", boardCanvas, StringComparison.Ordinal);
+        Assert.Contains("Editor.UpdateHoverAt(point)", boardCanvas, StringComparison.Ordinal);
+        Assert.Contains("CursorForEditorState()", boardCanvas, StringComparison.Ordinal);
+        Assert.Contains("HoverSelectionPen", boardCanvas, StringComparison.Ordinal);
+        Assert.Contains("isHoveredTrace ? HoverTracePen", boardCanvas, StringComparison.Ordinal);
+        Assert.Contains("isHoveredVia ? HoverSelectionPen", boardCanvas, StringComparison.Ordinal);
+        Assert.Contains("isHovered ? HoverSelectionPen", boardCanvas, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowIncludesSchematicIconToolRail()
     {
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");

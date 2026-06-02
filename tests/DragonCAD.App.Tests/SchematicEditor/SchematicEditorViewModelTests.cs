@@ -555,6 +555,33 @@ public sealed class SchematicEditorViewModelTests
     }
 
     [Fact]
+    public void TraceClickAtUsesVisiblePinLeadAsHitTarget()
+    {
+        SchematicEditorViewModel editor = new();
+        editor.PlaceComponent(
+            IntentWithLongPinLead("hawkcad:first", "First", "OUT"),
+            new CadPoint(0, 0));
+
+        Assert.True(editor.TraceClickAt(new CadPoint(-1_600_000, 220_000)));
+
+        Assert.NotNull(editor.PendingWireStart);
+        Assert.Equal("OUT", editor.PendingWireStart.PinName);
+        Assert.Equal(new CadPoint(1_000_000, 0), editor.PendingWireStart.Position);
+    }
+
+    [Fact]
+    public void SelectWireAtUsesComfortableCanvasHitArea()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+
+        SchematicWire? selected = editor.SelectWireAt(new CadPoint(3_000_000, 2_650_000));
+
+        Assert.NotNull(selected);
+        Assert.Equal(selected, editor.SelectedWire);
+        Assert.Equal(3, editor.SelectedWireSegmentIndex);
+    }
+
+    [Fact]
     public void CancelPendingWireClearsRoutePreviewAndStartPin()
     {
         SchematicEditorViewModel editor = new();
@@ -883,6 +910,26 @@ public sealed class SchematicEditorViewModelTests
                     new ComponentPreviewLine(new CadPoint(-1_000_000, 1_000_000), new CadPoint(-1_000_000, -1_000_000))
                 ],
                 [new ComponentSymbolPinPreview(pinName, pinPosition, new CadPoint(0, 0), "Right")]));
+
+    private static ComponentPlacementIntent IntentWithLongPinLead(
+        string componentId,
+        string displayName,
+        string pinName) =>
+        new(
+            componentId,
+            displayName,
+            SymbolCount: 1,
+            FootprintCount: 1,
+            Source: "BuiltIn",
+            SymbolPreview: new ComponentSymbolPreview(
+                new CadRectangle(-1_000_000, -1_000_000, 1_000_000, 1_000_000),
+                [
+                    new ComponentPreviewLine(new CadPoint(-1_000_000, -1_000_000), new CadPoint(1_000_000, -1_000_000)),
+                    new ComponentPreviewLine(new CadPoint(1_000_000, -1_000_000), new CadPoint(1_000_000, 1_000_000)),
+                    new ComponentPreviewLine(new CadPoint(1_000_000, 1_000_000), new CadPoint(-1_000_000, 1_000_000)),
+                    new ComponentPreviewLine(new CadPoint(-1_000_000, 1_000_000), new CadPoint(-1_000_000, -1_000_000))
+                ],
+                [new ComponentSymbolPinPreview(pinName, new CadPoint(1_000_000, 0), new CadPoint(-2_000_000, 0), "Right")]));
 
     private static SchematicEditorViewModel CreateEditorWithRoutedWire()
     {

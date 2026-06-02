@@ -25,6 +25,8 @@ public sealed class BoardCanvasControl : Control
     private static readonly Pen SilkscreenPen = new(new SolidColorBrush(Color.FromRgb(226, 232, 240)), 1.2);
     private static readonly Pen PadPen = new(new SolidColorBrush(Color.FromRgb(239, 197, 74)), 1.0);
     private static readonly Pen SelectedComponentPen = new(new SolidColorBrush(Color.FromRgb(255, 176, 52)), 2.2);
+    private static readonly Pen HoverSelectionPen = new(new SolidColorBrush(Color.FromRgb(70, 180, 255)), 1.7);
+    private static readonly Pen HoverTracePen = new(new SolidColorBrush(Color.FromRgb(70, 180, 255)), 3.2);
     private CadVector dragOffset;
     private BoardDragMode dragMode;
 
@@ -84,13 +86,15 @@ public sealed class BoardCanvasControl : Control
         foreach (BoardTrace trace in Editor.VisibleTraces)
         {
             bool isSelectedTrace = Editor.SelectedTrace?.TraceId == trace.TraceId;
-            DrawTrace(context, viewport, center, Editor, trace, isSelectedTrace);
+            bool isHoveredTrace = Editor.HoveredTrace?.TraceId == trace.TraceId;
+            DrawTrace(context, viewport, center, Editor, trace, isSelectedTrace, isHoveredTrace);
         }
 
         DrawRoute(context, viewport, center, Editor.PendingTraceRoutePoints, PendingTracePen);
         foreach (BoardVia via in Editor.VisibleVias)
         {
-            DrawVia(context, viewport, center, Editor, via, Editor.SelectedVia?.ViaId == via.ViaId);
+            bool isHoveredVia = Editor.HoveredVia?.ViaId == via.ViaId;
+            DrawVia(context, viewport, center, Editor, via, Editor.SelectedVia?.ViaId == via.ViaId, isHoveredVia);
         }
 
         foreach (BoardAirwire airwire in Editor.Airwires)
@@ -108,7 +112,8 @@ public sealed class BoardCanvasControl : Control
                 viewport,
                 center,
                 component,
-                Editor.SelectedComponent?.SyncId == component.SyncId);
+                Editor.SelectedComponent?.SyncId == component.SyncId,
+                ReferenceEquals(component, Editor.HoveredComponent));
         }
     }
 
@@ -133,7 +138,8 @@ public sealed class BoardCanvasControl : Control
         if (!selected)
         {
             dragMode = BoardDragMode.None;
-            Cursor = null;
+            Editor.ClearHover();
+            Cursor = CursorForEditorState();
             e.Handled = true;
             return;
         }
@@ -166,13 +172,21 @@ public sealed class BoardCanvasControl : Control
     protected override void OnPointerMoved(PointerEventArgs e)
     {
         base.OnPointerMoved(e);
-        if (Editor is null || dragMode == BoardDragMode.None)
+        if (Editor is null)
         {
-            Cursor = Editor?.ActiveTool == "Route" ? new Cursor(StandardCursorType.Cross) : null;
+            Cursor = null;
             return;
         }
 
         CadPoint point = CreateViewport().ScreenToCad(e.GetPosition(this), Bounds.Center);
+        if (dragMode == BoardDragMode.None)
+        {
+            Editor.UpdateHoverAt(point);
+            Cursor = CursorForEditorState();
+            e.Handled = true;
+            return;
+        }
+
         MoveSelectionTo(point);
         Cursor = new Cursor(StandardCursorType.SizeAll);
         e.Handled = true;
@@ -193,7 +207,8 @@ public sealed class BoardCanvasControl : Control
         }
 
         dragMode = BoardDragMode.None;
-        Cursor = null;
+        Editor.ClearHover();
+        Cursor = CursorForEditorState();
         e.Pointer.Capture(null);
         e.Handled = true;
     }
@@ -265,16 +280,17 @@ public sealed class BoardCanvasControl : Control
         BoardCanvasViewport viewport,
         Point center,
         BoardComponentInstance component,
-        bool isSelected)
+        bool isSelected,
+        bool isHovered)
     {
         Point position = Translate(viewport.Map(component.Position), center);
         if (component.FootprintPreview.Lines.Count == 0 && component.FootprintPreview.Pads.Count == 0)
         {
-            DrawFallbackComponent(context, position, isSelected);
+            DrawFallbackComponent(context, position, isSelected, isHovered);
         }
         else
         {
-            DrawFootprintGeometry(context, viewport, center, component, isSelected);
+            DrawFootprintGeometry(context, viewport, center, component, isSelected, isHovered);
         }
 
         FormattedText label = new(
@@ -299,10 +315,10 @@ public sealed class BoardCanvasControl : Control
         }
     }
 
-    private static void DrawFallbackComponent(DrawingContext context, Point position, bool isSelected)
+    private static void DrawFallbackComponent(DrawingContext context, Point position, bool isSelected, bool isHovered)
     {
         Rect body = new(position.X - 28, position.Y - 18, 56, 36);
-        context.DrawRectangle(ComponentFillBrush, isSelected ? SelectedComponentPen : ComponentPen, body, radiusX: 3, radiusY: 3);
+        context.DrawRectangle(ComponentFillBrush, isSelected ? SelectedComponentPen : isHovered ? HoverSelectionPen : ComponentPen, body, radiusX: 3, radiusY: 3);
         context.DrawEllipse(PadBrush, null, new Point(body.Left + 7, position.Y), 3.5, 3.5);
         context.DrawEllipse(PadBrush, null, new Point(body.Right - 7, position.Y), 3.5, 3.5);
     }
@@ -312,7 +328,8 @@ public sealed class BoardCanvasControl : Control
         BoardCanvasViewport viewport,
         Point center,
         BoardComponentInstance component,
-        bool isSelected)
+        bool isSelected,
+        bool isHovered)
     {
         foreach (ComponentPreviewLine line in component.FootprintPreview.Lines)
         {
@@ -327,7 +344,7 @@ public sealed class BoardCanvasControl : Control
             DrawPad(context, viewport, center, component, pad);
         }
 
-        if (isSelected)
+        if (isSelected || isHovered)
         {
             CadRectangle bounds = component.FootprintPreview.Bounds;
             Point[] corners =
@@ -340,7 +357,7 @@ public sealed class BoardCanvasControl : Control
             Rect selectionBounds = new(
                 new Point(corners.Min(point => point.X), corners.Min(point => point.Y)),
                 new Point(corners.Max(point => point.X), corners.Max(point => point.Y)));
-            context.DrawRectangle(null, SelectedComponentPen, selectionBounds.Normalize());
+            context.DrawRectangle(null, isSelected ? SelectedComponentPen : isHovered ? HoverSelectionPen : ComponentPen, selectionBounds.Normalize());
         }
     }
 
@@ -370,14 +387,27 @@ public sealed class BoardCanvasControl : Control
         Point center,
         BoardEditorViewModel editor,
         BoardTrace trace,
-        bool isSelected)
+        bool isSelected,
+        bool isHoveredTrace)
     {
         IBrush layerBrush = LayerBrushFor(editor, trace.LayerName, Color.FromRgb(230, 61, 50));
         double width = Math.Max(1.5, trace.WidthInternal * 0.000025);
         Pen tracePen = isSelected
             ? new Pen(SelectedComponentPen.Brush, width + 1.2)
-            : new Pen(layerBrush, width);
+            : isHoveredTrace ? HoverTracePen : new Pen(layerBrush, width);
         DrawRoute(context, viewport, center, trace.RoutePoints, tracePen);
+        int? highlightedSegmentIndex = isSelected
+            ? editor.SelectedTraceSegmentIndex
+            : isHoveredTrace ? editor.HoveredTraceSegmentIndex : null;
+        if (highlightedSegmentIndex is { } segmentIndex &&
+            segmentIndex > 0 &&
+            segmentIndex < trace.RoutePoints.Count)
+        {
+            context.DrawLine(
+                isSelected ? SelectedComponentPen : HoverTracePen,
+                Translate(viewport.Map(trace.RoutePoints[segmentIndex - 1]), center),
+                Translate(viewport.Map(trace.RoutePoints[segmentIndex]), center));
+        }
     }
 
     private static void DrawRoute(
@@ -402,13 +432,14 @@ public sealed class BoardCanvasControl : Control
         Point center,
         BoardEditorViewModel editor,
         BoardVia via,
-        bool isSelected)
+        bool isSelected,
+        bool isHoveredVia)
     {
         Point position = Translate(viewport.Map(via.Position), center);
         double radius = Math.Max(3.5, via.DiameterInternal * 0.000025 / 2);
         double drillRadius = Math.Max(1.5, via.DrillInternal * 0.000025 / 2);
         IBrush viaBrush = LayerBrushFor(editor, via.FromLayerName, Color.FromRgb(239, 197, 74));
-        context.DrawEllipse(viaBrush, isSelected ? SelectedComponentPen : PadPen, position, radius, radius);
+        context.DrawEllipse(viaBrush, isSelected ? SelectedComponentPen : isHoveredVia ? HoverSelectionPen : PadPen, position, radius, radius);
         context.DrawEllipse(BackgroundBrush, null, position, drillRadius, drillRadius);
     }
 
@@ -467,6 +498,10 @@ public sealed class BoardCanvasControl : Control
             nameof(BoardEditorViewModel.PendingTraceStart) or
             nameof(BoardEditorViewModel.PendingTraceRoutePoints) or
             nameof(BoardEditorViewModel.ActiveTool) or
+            nameof(BoardEditorViewModel.HoveredComponent) or
+            nameof(BoardEditorViewModel.HoveredTrace) or
+            nameof(BoardEditorViewModel.HoveredTraceSegmentIndex) or
+            nameof(BoardEditorViewModel.HoveredVia) or
             nameof(BoardEditorViewModel.VisibleTraces) or
             nameof(BoardEditorViewModel.VisibleVias) or
             nameof(BoardEditorViewModel.ActiveLayerName) or
@@ -475,6 +510,23 @@ public sealed class BoardCanvasControl : Control
         {
             InvalidateVisual();
         }
+    }
+
+    private Cursor? CursorForEditorState()
+    {
+        if (Editor?.ActiveTool == "Route")
+        {
+            return new Cursor(StandardCursorType.Cross);
+        }
+
+        if (Editor?.HoveredComponent is not null ||
+            Editor?.HoveredTrace is not null ||
+            Editor?.HoveredVia is not null)
+        {
+            return new Cursor(StandardCursorType.SizeAll);
+        }
+
+        return null;
     }
 
     private enum BoardDragMode

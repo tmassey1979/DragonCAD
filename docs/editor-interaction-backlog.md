@@ -36,6 +36,92 @@ Status is based on the current app and test surface, not on long-term product in
 
 ---
 
+## Remaining Editor Usability Roadmap
+
+These stories describe the remaining user-facing flow from placing a schematic part through board layout, library sourcing, and fabrication ordering. They are documentation/status guidance only; implementation agents should still work from the detailed story sections and marketplace epic before editing app source.
+
+### USE-001 - Schematic Part Placement Flow
+
+**As a** schematic designer, **I want** to search, preview, place, and repeat-place verified components from one add-part workflow, **so that** I can build a schematic quickly without confusing catalog-only results with placeable parts.
+
+**AC:**
+- Add-part search distinguishes trusted placeable components from vendor catalog matches, imported candidates, and datasheet-generated drafts.
+- Selecting a component shows symbol, package, value, provenance, and placement readiness before the cursor is armed.
+- After placement, the same component remains armed until Escape, cancel, or a new component selection changes the active part.
+- Deterministic reference designators are assigned and visible immediately after placement.
+- Placement diagnostics explain why a component cannot be placed, including missing symbol, missing package mapping, unreviewed draft state, or catalog-only status.
+
+**Implementation Dev Notes:**
+- Coordinate with `EDIT-003`, `EDIT-004`, `EDIT-005`, `EDIT-010`, and marketplace component-browser stories.
+- Do not let marketplace rows, generated datasheet drafts, or unreviewed imported candidates bypass trusted component review.
+- The implementation should preserve schematic-to-board identity from the first placement command so later board synchronization does not depend on display text.
+
+### USE-002 - Schematic Wire Routing And Net Editing
+
+**As a** schematic designer, **I want** wires to start and finish on real pins, route predictably on the grid, and expose editable net labels and handles, **so that** connection intent is clear before I move to the board.
+
+**AC:**
+- Pin hover, pin click, grid snapping, pending wire preview, and completed net feedback are visible during routing.
+- Wires can be selected, moved by segment or vertex, deleted, and relabeled without breaking unrelated nets.
+- Net labels remain associated with the intended net after wire movement, segment edits, and component movement.
+- Routing diagnostics distinguish incomplete wires, incompatible targets, duplicate labels, and unresolved pins.
+- Completed schematic nets provide stable input to board airwire generation.
+
+**Implementation Dev Notes:**
+- Coordinate with `EDIT-001`, `EDIT-002`, Wave 4 net labels, and Wave 5 net label rendering.
+- Keep wire routing behavior inside schematic editor view-model commands and mapper tests before shell polish.
+- Do not change board routing behavior in this story; board updates should flow through explicit synchronization commands.
+
+### USE-003 - Board Synchronization And Routing Completion
+
+**As a** hardware designer, **I want** placed schematic parts and named nets to produce matching board components, airwires, and routable pads, **so that** schematic capture and PCB layout stay synchronized while I route the board.
+
+**AC:**
+- Schematic placement creates or updates the matching board component with stable identity, selected package, reference, value, rotation, and mirror state.
+- Schematic net changes create, update, or retire board airwires without duplicating connections.
+- Board routing can start from pads, route with 90-degree and 45-degree modes, insert vias, switch copper layers, and finish on compatible pads.
+- Completing a route updates the related airwire state without deleting unrelated schematic intent.
+- Package changes and component deletes have explicit synchronization diagnostics before board state changes are applied.
+
+**Implementation Dev Notes:**
+- Coordinate with `EDIT-006`, `EDIT-007`, `EDIT-012`, Wave 3 via insertion, Wave 4 trace width editing, and Wave 5 via size editing.
+- Synchronization should remain explicit and testable; avoid hidden canvas side effects.
+- Do not implement autorouting or full ERC/DRC as part of this usability pass.
+
+### USE-004 - Component Library And Marketplace Review Path
+
+**As a** DragonCAD user, **I want** one library and marketplace path for trusted parts, vendor matches, datasheet drafts, and provenance, **so that** the editor can place verified parts while sourcing and review workflows remain visible.
+
+**AC:**
+- Component search exposes trusted components, vendor matches, imported candidates, and datasheet-generated drafts with clear status badges.
+- Datasheet-generated symbols, footprints, packages, and 3D proposals stay in a review queue until promoted.
+- Canonical merge suggestions and provenance history are visible before duplicate or generated components are trusted.
+- BOM planning uses placed schematic/board components and does not invent editor-only catalog records.
+- Marketplace panels clearly distinguish offline request plans, local review artifacts, and live provider actions that are not yet implemented.
+
+**Implementation Dev Notes:**
+- Coordinate with `docs/marketplace-library-epic.md`, `docs/component-marketplace-roadmap.md`, `MKT-016` through `MKT-033`, and `EDIT-010`.
+- Do not write generated parts directly into the permanent library without an explicit reviewed promotion story.
+- Treat marketplace integration as a review-first workflow; source, merge, and order state should remain explainable from component provenance.
+
+### USE-005 - Fabrication And Ordering Handoff
+
+**As a** product builder, **I want** fabrication packages, BOM carts, and vendor handoff actions reviewed before leaving DragonCAD, **so that** prototype and production ordering can proceed without accidental checkout or incomplete manufacturing data.
+
+**AC:**
+- Fabrication readiness shows Gerber, drill, board outline, paste, BOM, pick-and-place, assembly, and manifest status.
+- OSH Park prototype and PCBCart production handoffs list required artifacts, warnings, accepted blockers, hashes, and manual next actions.
+- BOM cart rows are generated from the reviewed BOM order plan with quantities, alternates, stale-price warnings, and vendor grouping.
+- Exported purchasing and fabrication artifacts are deterministic and reviewable before any external upload or order action.
+- Live checkout, manufacturing upload, payment, shipping, and provider confirmation remain disabled unless a provider-specific story explicitly implements them.
+
+**Implementation Dev Notes:**
+- Coordinate with fabrication stories, Wave 3 BOM CSV, Wave 4 pick/place CSV, Wave 5 Gerber manifest summary, and marketplace cart/fabrication readiness stories.
+- Ordering UX must preserve the current review-only posture: local order records and handoff artifacts are not live vendor orders.
+- Keep prototype and production handoff decisions separate because OSH Park and PCBCart require different manufacturing evidence.
+
+---
+
 ## EDIT-001 - Schematic Pin-To-Wire Tool
 
 **As a** schematic designer, **I want** to start wires by clicking component pins, **so that** I can connect real symbols without hunting for exact pin endpoints.

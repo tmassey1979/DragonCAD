@@ -9,6 +9,10 @@ namespace DragonCAD.App.SchematicEditor;
 
 public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 {
+    private const long PinEndpointHitTolerance = 1_250_000;
+    private const double PinLeadHitTolerance = 350_000;
+    private const double WireSegmentHitTolerance = 700_000;
+
     private CadGrid placementGrid = new(new CadVector(CadUnit.InternalUnitsPerMillimeter, CadUnit.InternalUnitsPerMillimeter));
     private int nextComponentNumber = 1;
     private string statusText = "Schematic ready.";
@@ -762,14 +766,13 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             }
         }
 
-        const double tolerance = 350_000;
         double nearestDistance = double.MaxValue;
         SchematicWire? nearestWire = null;
         int? nearestSegmentIndex = null;
         for (int wireIndex = Wires.Count - 1; wireIndex >= 0; wireIndex--)
         {
             SchematicWire wire = Wires[wireIndex];
-            int? segmentIndex = NearestSegmentIndex(point, wire.RoutePoints, tolerance, out double distance);
+            int? segmentIndex = NearestSegmentIndex(point, wire.RoutePoints, WireSegmentHitTolerance, out double distance);
             if (segmentIndex is not null && distance < nearestDistance)
             {
                 nearestDistance = distance;
@@ -823,14 +826,13 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
     public SchematicWire? SelectWireAt(CadPoint point)
     {
-        const double tolerance = 350_000;
         double nearestDistance = double.MaxValue;
         SchematicWire? nearestWire = null;
         int? nearestSegmentIndex = null;
         for (int wireIndex = Wires.Count - 1; wireIndex >= 0; wireIndex--)
         {
             SchematicWire wire = Wires[wireIndex];
-            int? segmentIndex = NearestSegmentIndex(point, wire.RoutePoints, tolerance, out double distance);
+            int? segmentIndex = NearestSegmentIndex(point, wire.RoutePoints, WireSegmentHitTolerance, out double distance);
             if (segmentIndex is not null && distance < nearestDistance)
             {
                 nearestDistance = distance;
@@ -1098,27 +1100,30 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
     private SchematicPinEndpoint? FindPinAt(CadPoint point)
     {
-        const long tolerance = 1_250_000;
         SchematicPinEndpoint? nearest = null;
-        long nearestDistanceSquared = long.MaxValue;
+        double nearestDistance = double.MaxValue;
         for (int componentIndex = Components.Count - 1; componentIndex >= 0; componentIndex--)
         {
             SchematicComponentInstance instance = Components[componentIndex];
+            bool pointInsideComponentBody = Contains(instance, point);
             foreach (ComponentSymbolPinPreview pin in instance.SymbolPreview.Pins)
             {
                 CadPoint pinPosition = TransformLocalPoint(instance, pin.ConnectPoint);
-                if (Math.Abs(pinPosition.X - point.X) <= tolerance &&
-                    Math.Abs(pinPosition.Y - point.Y) <= tolerance)
+                CadPoint bodyPosition = TransformLocalPoint(instance, pin.BodyPoint);
+                double endpointDistance = Distance(point, pinPosition);
+                double leadDistance = pinPosition == bodyPosition
+                    ? endpointDistance
+                    : DistanceToSegment(point, pinPosition, bodyPosition);
+                if (endpointDistance <= PinEndpointHitTolerance ||
+                    (!pointInsideComponentBody && leadDistance <= PinLeadHitTolerance))
                 {
-                    long dx = pinPosition.X - point.X;
-                    long dy = pinPosition.Y - point.Y;
-                    long distanceSquared = (dx * dx) + (dy * dy);
-                    if (distanceSquared >= nearestDistanceSquared)
+                    double distance = Math.Min(endpointDistance, leadDistance);
+                    if (distance >= nearestDistance)
                     {
                         continue;
                     }
 
-                    nearestDistanceSquared = distanceSquared;
+                    nearestDistance = distance;
                     nearest = new SchematicPinEndpoint(
                         instance.InstanceId,
                         instance.ReferenceDesignator,

@@ -148,8 +148,28 @@ public sealed class ComponentManagerViewModelTests
 
         ComponentManagerViewModel viewModel = ComponentManagerViewModel.FromCatalog(catalog);
 
-        Assert.Equal(["All", "Connector", "Module", "Passive"], viewModel.TypeFilterOptions);
-        Assert.Equal("All", viewModel.SelectedTypeFilter);
+        Assert.Equal(["All components (3)", "Connectors (1)", "Modules (1)", "Passives (1)"], viewModel.TypeFilterOptions);
+        Assert.Equal("All components (3)", viewModel.SelectedTypeFilter);
+    }
+
+    [Fact]
+    public void TypeFilterOptionsShowUserFacingLabelsWithCounts()
+    {
+        ComponentCatalog catalog = new(
+            BuiltInDefinitions:
+            [
+                Component("dragon:module", "Module", ComponentKind.Module, "Dragon", "MOD"),
+                Component("dragon:connector", "Connector", ComponentKind.Connector, "Dragon", "CON"),
+                Component("dragon:passive", "Passive", ComponentKind.Passive, "Dragon", "PAS"),
+                Component("dragon:capacitor", "Capacitor", ComponentKind.Passive, "Dragon", "CAP")
+            ],
+            UserDefinitions: [],
+            ProjectDefinitions: []);
+
+        ComponentManagerViewModel viewModel = ComponentManagerViewModel.FromCatalog(catalog);
+
+        Assert.Equal(["All components (4)", "Connectors (1)", "Modules (1)", "Passives (2)"], viewModel.TypeFilterOptions);
+        Assert.Equal("All components (4)", viewModel.SelectedTypeFilter);
     }
 
     [Fact]
@@ -192,6 +212,51 @@ public sealed class ComponentManagerViewModelTests
 
         ComponentManagerRow row = Assert.Single(viewModel.Components);
         Assert.Equal("Resistor Array IC", row.DisplayName);
+    }
+
+    [Fact]
+    public void SelectedComponentStaysVisibleWhenFilterStillContainsIt()
+    {
+        ComponentCatalog catalog = new(
+            BuiltInDefinitions:
+            [
+                Component("dragon:module", "Module", ComponentKind.Module, "Dragon", "MOD"),
+                Component("dragon:connector", "Connector", ComponentKind.Connector, "Dragon", "CON"),
+                Component("dragon:resistor", "Resistor", ComponentKind.Passive, "Dragon", "RES"),
+                Component("dragon:capacitor", "Capacitor", ComponentKind.Passive, "Dragon", "CAP")
+            ],
+            UserDefinitions: [],
+            ProjectDefinitions: []);
+        ComponentManagerViewModel viewModel = ComponentManagerViewModel.FromCatalog(catalog);
+        ComponentManagerRow resistor = viewModel.Components.Single(row => row.DisplayName == "Resistor");
+        viewModel.SelectedComponent = resistor;
+
+        viewModel.SelectedTypeFilter = "Passives (2)";
+
+        Assert.Equal(resistor, viewModel.SelectedComponent);
+        Assert.Equal(["Capacitor", "Resistor"], viewModel.Components.Select(row => row.DisplayName));
+    }
+
+    [Fact]
+    public void SelectedComponentFallsBackWhenFilterExcludesIt()
+    {
+        ComponentCatalog catalog = new(
+            BuiltInDefinitions:
+            [
+                Component("dragon:module", "Module", ComponentKind.Module, "Dragon", "MOD"),
+                Component("dragon:connector", "Connector", ComponentKind.Connector, "Dragon", "CON"),
+                Component("dragon:resistor", "Resistor", ComponentKind.Passive, "Dragon", "RES")
+            ],
+            UserDefinitions: [],
+            ProjectDefinitions: []);
+        ComponentManagerViewModel viewModel = ComponentManagerViewModel.FromCatalog(catalog);
+        viewModel.SelectedComponent = viewModel.Components.Single(row => row.DisplayName == "Resistor");
+
+        viewModel.SelectedTypeFilter = "Connectors (1)";
+
+        ComponentManagerRow row = Assert.Single(viewModel.Components);
+        Assert.Equal("Connector", row.DisplayName);
+        Assert.Equal(row, viewModel.SelectedComponent);
     }
 
     [Fact]
