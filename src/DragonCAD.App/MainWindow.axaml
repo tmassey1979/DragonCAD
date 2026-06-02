@@ -44,7 +44,7 @@
     </Window.KeyBindings>
     <Window.Styles>
         <Style Selector="Button.workbench-tab">
-            <Setter Property="Padding" Value="16,8" />
+            <Setter Property="Padding" Value="12,8" />
             <Setter Property="Background" Value="#0D1218" />
             <Setter Property="BorderBrush" Value="{StaticResource DragonBorder}" />
             <Setter Property="BorderThickness" Value="1,1,1,0" />
@@ -140,6 +140,10 @@
                                   Command="{Binding ShowPcbLayoutTabCommand}" />
                         <MenuItem Header="Datasheets"
                                   Command="{Binding ShowDatasheetsTabCommand}" />
+                        <MenuItem Header="Firmware"
+                                  Command="{Binding ShowFirmwareTabCommand}" />
+                        <MenuItem Header="Capsules"
+                                  Command="{Binding ShowCapsulesTabCommand}" />
                         <MenuItem Header="Fabrication"
                                   Command="{Binding ShowFabricationTabCommand}" />
                         <Separator />
@@ -288,8 +292,22 @@
                                         </TreeViewItem.Header>
                                     </TreeViewItem>
                                 </TreeViewItem>
-                                <TreeViewItem Header="Firmware" />
-                                <TreeViewItem Header="Capsules" />
+                                <TreeViewItem>
+                                    <TreeViewItem.Header>
+                                        <Button x:Name="ProjectExplorerFirmwareButton"
+                                                Classes="tree-nav"
+                                                Command="{Binding ShowFirmwareTabCommand}"
+                                                Content="Firmware" />
+                                    </TreeViewItem.Header>
+                                </TreeViewItem>
+                                <TreeViewItem>
+                                    <TreeViewItem.Header>
+                                        <Button x:Name="ProjectExplorerCapsulesButton"
+                                                Classes="tree-nav"
+                                                Command="{Binding ShowCapsulesTabCommand}"
+                                                Content="Capsules" />
+                                    </TreeViewItem.Header>
+                                </TreeViewItem>
                             </TreeViewItem>
                         </TreeView>
                     </ScrollViewer>
@@ -309,11 +327,11 @@
                         <Button Command="{Binding ShowComponentManagerTabCommand}"
                                 Classes="workbench-tab"
                                 Classes.active="{Binding IsComponentManagerTabActive}"
-                                Content="Component Manager" />
+                                Content="Components" />
                         <Button Command="{Binding ShowMarketplaceTabCommand}"
                                 Classes="workbench-tab"
                                 Classes.active="{Binding IsMarketplaceTabActive}"
-                                Content="Library + Market" />
+                                Content="Market" />
                         <Button Command="{Binding ShowSchematicTabCommand}"
                                 Classes="workbench-tab"
                                 Classes.active="{Binding IsSchematicTabActive}"
@@ -321,15 +339,23 @@
                         <Button Command="{Binding ShowPcbLayoutTabCommand}"
                                 Classes="workbench-tab"
                                 Classes.active="{Binding IsPcbLayoutTabActive}"
-                                Content="PCB Layout" />
+                                Content="PCB" />
                         <Button Command="{Binding ShowDatasheetsTabCommand}"
                                 Classes="workbench-tab"
                                 Classes.active="{Binding IsDatasheetsTabActive}"
                                 Content="Datasheets" />
+                        <Button Command="{Binding ShowFirmwareTabCommand}"
+                                Classes="workbench-tab"
+                                Classes.active="{Binding IsFirmwareTabActive}"
+                                Content="Firmware" />
+                        <Button Command="{Binding ShowCapsulesTabCommand}"
+                                Classes="workbench-tab"
+                                Classes.active="{Binding IsCapsulesTabActive}"
+                                Content="Capsules" />
                         <Button Command="{Binding ShowFabricationTabCommand}"
                                 Classes="workbench-tab"
                                 Classes.active="{Binding IsFabricationTabActive}"
-                                Content="Fabrication" />
+                                Content="Fab" />
                     </StackPanel>
                 </Border>
 
@@ -2591,6 +2617,163 @@
                             </StackPanel>
                         </Border>
                     </Grid>
+                </Grid>
+
+                <Grid Grid.Row="2"
+                      Margin="18"
+                      RowDefinitions="Auto,Auto,*"
+                      IsVisible="{Binding IsFirmwareTabActive}">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Firmware Workspace"
+                                   FontSize="24"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource DragonText}" />
+                        <TextBlock Text="Track embedded source, build outputs, pin bindings, and board-aware firmware tasks from the same hardware IDE shell."
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource DragonMutedText}" />
+                    </StackPanel>
+                    <Grid Grid.Row="1"
+                          Margin="0,14,0,0"
+                          ColumnDefinitions="*,*,*"
+                          ColumnSpacing="12">
+                        <Border Background="{StaticResource DragonPanelBackground}"
+                                BorderBrush="{StaticResource DragonBorder}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="14">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Source Tree"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource DragonText}" />
+                                <TextBlock Text="src/main.cpp"
+                                           Foreground="{StaticResource DragonGreen}" />
+                                <TextBlock Text="src/drivers.cpp"
+                                           Foreground="{StaticResource DragonMutedText}" />
+                                <TextBlock Text="CMakeLists.txt"
+                                           Foreground="{StaticResource DragonMutedText}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="1"
+                                Background="{StaticResource DragonPanelBackground}"
+                                BorderBrush="{StaticResource DragonBorder}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="14">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Pin Bindings"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource DragonText}" />
+                                <TextBlock Text="GPIO net links will resolve from schematic symbols and board pads."
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource DragonMutedText}" />
+                                <TextBlock Text="No conflicts in current sample."
+                                           Foreground="{StaticResource DragonGreen}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="2"
+                                Background="{StaticResource DragonPanelBackground}"
+                                BorderBrush="{StaticResource DragonBorder}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="14">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="Build Output"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource DragonText}" />
+                                <TextBlock Text="Configure toolchain integration here before flashing hardware."
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource DragonMutedText}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                    <Border Grid.Row="2"
+                            Margin="0,14,0,0"
+                            Background="#0D1218"
+                            BorderBrush="{StaticResource DragonBorder}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="14">
+                        <TextBlock Text="Future editor surface: code tabs, serial console, firmware outline, and schematic pin cross-probing."
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource DragonMutedText}" />
+                    </Border>
+                </Grid>
+
+                <Grid Grid.Row="2"
+                      Margin="18"
+                      RowDefinitions="Auto,Auto,*"
+                      IsVisible="{Binding IsCapsulesTabActive}">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Capsule Manager"
+                                   FontSize="24"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource DragonText}" />
+                        <TextBlock Text="Reusable hardware subsystems package schematic blocks, PCB regions, constraints, firmware scaffolding, docs, and validation notes."
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource DragonMutedText}" />
+                    </StackPanel>
+                    <Grid Grid.Row="1"
+                          Margin="0,14,0,0"
+                          ColumnDefinitions="*,*,*"
+                          ColumnSpacing="12">
+                        <Border Background="{StaticResource DragonPanelBackground}"
+                                BorderBrush="{StaticResource DragonBorder}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="14">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="USB-C Power Delivery"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource DragonText}" />
+                                <TextBlock Text="Schematic block, connector footprint, CC resistor rules, and manufacturing notes."
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource DragonMutedText}" />
+                                <TextBlock Text="Ready for placement"
+                                           Foreground="{StaticResource DragonGreen}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="1"
+                                Background="{StaticResource DragonPanelBackground}"
+                                BorderBrush="{StaticResource DragonBorder}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="14">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="7805 Regulator Stage"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource DragonText}" />
+                                <TextBlock Text="TO-220 footprint, input/output capacitors, thermal clearance guidance, and BOM seed."
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource DragonMutedText}" />
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Column="2"
+                                Background="{StaticResource DragonPanelBackground}"
+                                BorderBrush="{StaticResource DragonBorder}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="14">
+                            <StackPanel Spacing="8">
+                                <TextBlock Text="AI Capsule Drafts"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource DragonText}" />
+                                <TextBlock Text="Draft subsystem generation remains review-first and explainable before any project mutation."
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource DragonMutedText}" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                    <Border Grid.Row="2"
+                            Margin="0,14,0,0"
+                            Background="#0D1218"
+                            BorderBrush="{StaticResource DragonBorder}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Padding="14">
+                        <TextBlock Text="Future capsule surface: parameter editor, dependency graph, generated files, validation checklist, and placement preview."
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource DragonMutedText}" />
+                    </Border>
                 </Grid>
 
                 <Grid Grid.Row="2"

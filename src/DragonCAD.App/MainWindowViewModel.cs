@@ -153,6 +153,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         ShowSchematicTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "Schematic");
         ShowPcbLayoutTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "PcbLayout");
         ShowDatasheetsTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "Datasheets");
+        ShowFirmwareTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "Firmware");
+        ShowCapsulesTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "Capsules");
         ShowFabricationTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "Fabrication");
         AddSelectedMarketplaceComponentToCartCommand = new DelegateCommand(AddSelectedMarketplaceComponentToCart);
         AddMarketplaceComponentToCartCommand = new DelegateCommand(AddMarketplaceComponentToCart);
@@ -806,6 +808,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
     public DelegateCommand ShowDatasheetsTabCommand { get; }
 
+    public DelegateCommand ShowFirmwareTabCommand { get; }
+
+    public DelegateCommand ShowCapsulesTabCommand { get; }
+
     public DelegateCommand ShowFabricationTabCommand { get; }
 
     public DelegateCommand AddSelectedMarketplaceComponentToCartCommand { get; }
@@ -889,6 +895,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             OnPropertyChanged(nameof(IsSchematicTabActive));
             OnPropertyChanged(nameof(IsPcbLayoutTabActive));
             OnPropertyChanged(nameof(IsDatasheetsTabActive));
+            OnPropertyChanged(nameof(IsFirmwareTabActive));
+            OnPropertyChanged(nameof(IsCapsulesTabActive));
             OnPropertyChanged(nameof(IsFabricationTabActive));
         }
     }
@@ -903,6 +911,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
     public bool IsDatasheetsTabActive => ActiveWorkspaceTab == "Datasheets";
 
+    public bool IsFirmwareTabActive => ActiveWorkspaceTab == "Firmware";
+
+    public bool IsCapsulesTabActive => ActiveWorkspaceTab == "Capsules";
+
     public bool IsFabricationTabActive => ActiveWorkspaceTab == "Fabrication";
 
     public void ApplyStartupTab(string? tabName)
@@ -914,6 +926,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             "Schematic" => "Schematic",
             "PcbLayout" => "PcbLayout",
             "Datasheets" => "Datasheets",
+            "Firmware" => "Firmware",
+            "Capsules" => "Capsules",
             "Fabrication" => "Fabrication",
             _ => ActiveWorkspaceTab
         };

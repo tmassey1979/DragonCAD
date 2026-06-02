@@ -782,6 +782,31 @@ public sealed class MainWindowViewModelTests
         Assert.False(viewModel.IsSchematicTabActive);
     }
 
+    [Theory]
+    [InlineData("Firmware")]
+    [InlineData("Capsules")]
+    public void WorkspaceTabCommandsSwitchToExtendedHardwareIdeTabs(string expectedTab)
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 1);
+
+        if (expectedTab == "Firmware")
+        {
+            viewModel.ShowFirmwareTabCommand.Execute(null);
+        }
+        else
+        {
+            viewModel.ShowCapsulesTabCommand.Execute(null);
+        }
+
+        Assert.Equal(expectedTab, viewModel.ActiveWorkspaceTab);
+        Assert.Equal(expectedTab == "Firmware", viewModel.IsFirmwareTabActive);
+        Assert.Equal(expectedTab == "Capsules", viewModel.IsCapsulesTabActive);
+        Assert.False(viewModel.IsComponentManagerTabActive);
+        Assert.False(viewModel.IsSchematicTabActive);
+    }
+
     [Fact]
     public void WorkspaceTabCommandsSwitchToMarketplaceWithSeededVendorRows()
     {
@@ -1082,6 +1107,8 @@ public sealed class MainWindowViewModelTests
     [InlineData("Schematic", "Schematic")]
     [InlineData("PcbLayout", "PcbLayout")]
     [InlineData("Datasheets", "Datasheets")]
+    [InlineData("Firmware", "Firmware")]
+    [InlineData("Capsules", "Capsules")]
     [InlineData("Fabrication", "Fabrication")]
     public void StartupTabSelectionCanOpenEveryWorkspaceTabForReviewBuilds(string startupTab, string expectedTab)
     {

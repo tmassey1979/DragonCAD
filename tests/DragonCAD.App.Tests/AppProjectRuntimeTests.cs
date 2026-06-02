@@ -257,8 +257,8 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("<TreeViewItem Header=\"Components\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Content=\"Library + Marketplace\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<TreeViewItem Header=\"Manufacturing\"", mainWindow, StringComparison.Ordinal);
-        Assert.Contains("<TreeViewItem Header=\"Firmware\"", mainWindow, StringComparison.Ordinal);
-        Assert.Contains("<TreeViewItem Header=\"Capsules\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Firmware\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Capsules\"", mainWindow, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -281,6 +281,33 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("Command=\"{Binding ShowFabricationTabCommand}\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ProjectExplorerBomOrdersButton\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Content=\"BOM and Orders\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ProjectExplorerFirmwareButton\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ShowFirmwareTabCommand}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ProjectExplorerCapsulesButton\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ShowCapsulesTabCommand}\"", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowExposesFirmwareAndCapsuleWorkspaceTabs()
+    {
+        string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
+
+        Assert.Contains("Content=\"Firmware\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Capsules\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("IsVisible=\"{Binding IsFirmwareTabActive}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("IsVisible=\"{Binding IsCapsulesTabActive}\"", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowKeepsWorkspaceTabsCompactForEightTabShell()
+    {
+        string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
+
+        Assert.Contains("<Setter Property=\"Padding\" Value=\"12,8\" />", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Components\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Market\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Content=\"PCB\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Fab\"", mainWindow, StringComparison.Ordinal);
     }
 
     [Fact]
