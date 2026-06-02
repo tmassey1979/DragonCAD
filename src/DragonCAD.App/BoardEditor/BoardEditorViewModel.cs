@@ -47,6 +47,13 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
             .Where(trace => Layers.Any(layer => layer.Name == trace.LayerName && layer.IsVisible))
             .ToArray();
 
+    public IReadOnlyList<BoardVia> VisibleVias =>
+        Vias
+            .Where(via =>
+                Layers.Any(layer => layer.Name == via.FromLayerName && layer.IsVisible) ||
+                Layers.Any(layer => layer.Name == via.ToLayerName && layer.IsVisible))
+            .ToArray();
+
     public string ActiveLayerName
     {
         get => activeLayerName;
@@ -712,6 +719,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
             fromLayer,
             toLayer);
         Vias.Add(via);
+        OnPropertyChanged(nameof(VisibleVias));
 
         if (PendingTraceStart is not null)
         {
@@ -769,6 +777,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         SelectedVia = null;
         SelectedComponent = null;
         OnPropertyChanged(nameof(VisibleTraces));
+        OnPropertyChanged(nameof(VisibleVias));
         StatusText = $"Inserted via into selected board trace and switched routing layer to {toLayer}.";
         return via;
     }
@@ -812,6 +821,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         {
             Vias.Remove(SelectedVia);
             SelectedVia = null;
+            OnPropertyChanged(nameof(VisibleVias));
             StatusText = "Deleted selected via.";
             return true;
         }
@@ -834,6 +844,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         BoardLayer updated = Layers[index] with { IsVisible = isVisible };
         Layers[index] = updated;
         OnPropertyChanged(nameof(VisibleTraces));
+        OnPropertyChanged(nameof(VisibleVias));
         StatusText = $"Layer {updated.Name} {(updated.IsVisible ? "visible" : "hidden")}.";
     }
 

@@ -283,6 +283,22 @@ public sealed class BoardEditorViewModelTests
     }
 
     [Fact]
+    public void LayerVisibilityFiltersRenderedVias()
+    {
+        BoardEditorViewModel board = new();
+
+        board.PlaceViaAt(new CadPoint(0, 0));
+
+        Assert.Single(board.VisibleVias);
+
+        board.SetLayerVisibility("Top", false);
+        Assert.Single(board.VisibleVias);
+
+        board.SetLayerVisibility("Bottom", false);
+        Assert.Empty(board.VisibleVias);
+    }
+
+    [Fact]
     public void PlaceViaSnapsToGridAndSwitchesActiveRoutingLayer()
     {
         BoardEditorViewModel board = new();

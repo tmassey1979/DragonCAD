@@ -466,6 +466,18 @@ public sealed class AppProjectRuntimeTests
     }
 
     [Fact]
+    public void BoardCanvasUsesLayerPaletteAndVisibilityForRenderedCopper()
+    {
+        string boardCanvas = ReadSourceFile("src", "DragonCAD.App", "BoardEditor", "BoardCanvasControl.cs");
+
+        Assert.Contains("Editor.VisibleVias", boardCanvas, StringComparison.Ordinal);
+        Assert.Contains("LayerBrushFor", boardCanvas, StringComparison.Ordinal);
+        Assert.Contains("Color.Parse(layer.ColorHex)", boardCanvas, StringComparison.Ordinal);
+        Assert.Contains("newEditor.Layers.CollectionChanged += ItemsChanged", boardCanvas, StringComparison.Ordinal);
+        Assert.DoesNotContain("private static Pen TracePenForLayer(string layerName)", boardCanvas, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowIncludesSchematicIconToolRail()
     {
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");

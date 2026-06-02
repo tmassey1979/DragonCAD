@@ -20,7 +20,6 @@ public sealed class BoardCanvasControl : Control
     private static readonly IBrush SmdPadBrush = new SolidColorBrush(Color.FromRgb(211, 95, 49));
     private static readonly Pen GridPen = new(new SolidColorBrush(Color.FromRgb(31, 37, 45)), 1);
     private static readonly Pen AirwirePen = new(new SolidColorBrush(Color.FromRgb(78, 171, 247)), 1.6);
-    private static readonly Pen TracePen = new(new SolidColorBrush(Color.FromRgb(230, 61, 50)), 3.0);
     private static readonly Pen PendingTracePen = new(new SolidColorBrush(Color.FromRgb(255, 176, 52)), 2.4);
     private static readonly Pen ComponentPen = new(new SolidColorBrush(Color.FromRgb(210, 216, 226)), 1.4);
     private static readonly Pen SilkscreenPen = new(new SolidColorBrush(Color.FromRgb(226, 232, 240)), 1.2);
@@ -51,6 +50,7 @@ public sealed class BoardCanvasControl : Control
                 oldEditor.Airwires.CollectionChanged -= ItemsChanged;
                 oldEditor.Traces.CollectionChanged -= ItemsChanged;
                 oldEditor.Vias.CollectionChanged -= ItemsChanged;
+                oldEditor.Layers.CollectionChanged -= ItemsChanged;
                 oldEditor.PropertyChanged -= EditorPropertyChanged;
             }
 
@@ -60,6 +60,7 @@ public sealed class BoardCanvasControl : Control
                 newEditor.Airwires.CollectionChanged += ItemsChanged;
                 newEditor.Traces.CollectionChanged += ItemsChanged;
                 newEditor.Vias.CollectionChanged += ItemsChanged;
+                newEditor.Layers.CollectionChanged += ItemsChanged;
                 newEditor.PropertyChanged += EditorPropertyChanged;
             }
         }
@@ -83,13 +84,13 @@ public sealed class BoardCanvasControl : Control
         foreach (BoardTrace trace in Editor.VisibleTraces)
         {
             bool isSelectedTrace = Editor.SelectedTrace?.TraceId == trace.TraceId;
-            DrawTrace(context, viewport, center, trace, isSelectedTrace);
+            DrawTrace(context, viewport, center, Editor, trace, isSelectedTrace);
         }
 
         DrawRoute(context, viewport, center, Editor.PendingTraceRoutePoints, PendingTracePen);
-        foreach (BoardVia via in Editor.Vias)
+        foreach (BoardVia via in Editor.VisibleVias)
         {
-            DrawVia(context, viewport, center, via, Editor.SelectedVia?.ViaId == via.ViaId);
+            DrawVia(context, viewport, center, Editor, via, Editor.SelectedVia?.ViaId == via.ViaId);
         }
 
         foreach (BoardAirwire airwire in Editor.Airwires)
@@ -367,14 +368,15 @@ public sealed class BoardCanvasControl : Control
         DrawingContext context,
         BoardCanvasViewport viewport,
         Point center,
+        BoardEditorViewModel editor,
         BoardTrace trace,
         bool isSelected)
     {
-        Pen basePen = TracePenForLayer(trace.LayerName);
+        IBrush layerBrush = LayerBrushFor(editor, trace.LayerName, Color.FromRgb(230, 61, 50));
         double width = Math.Max(1.5, trace.WidthInternal * 0.000025);
         Pen tracePen = isSelected
             ? new Pen(SelectedComponentPen.Brush, width + 1.2)
-            : new Pen(basePen.Brush, width);
+            : new Pen(layerBrush, width);
         DrawRoute(context, viewport, center, trace.RoutePoints, tracePen);
     }
 
@@ -398,20 +400,25 @@ public sealed class BoardCanvasControl : Control
         DrawingContext context,
         BoardCanvasViewport viewport,
         Point center,
+        BoardEditorViewModel editor,
         BoardVia via,
         bool isSelected)
     {
         Point position = Translate(viewport.Map(via.Position), center);
         double radius = Math.Max(3.5, via.DiameterInternal * 0.000025 / 2);
         double drillRadius = Math.Max(1.5, via.DrillInternal * 0.000025 / 2);
-        context.DrawEllipse(PadBrush, isSelected ? SelectedComponentPen : PadPen, position, radius, radius);
+        IBrush viaBrush = LayerBrushFor(editor, via.FromLayerName, Color.FromRgb(239, 197, 74));
+        context.DrawEllipse(viaBrush, isSelected ? SelectedComponentPen : PadPen, position, radius, radius);
         context.DrawEllipse(BackgroundBrush, null, position, drillRadius, drillRadius);
     }
 
-    private static Pen TracePenForLayer(string layerName) =>
-        layerName == "Bottom"
-            ? new Pen(new SolidColorBrush(Color.FromRgb(45, 140, 255)), 3.0)
-            : TracePen;
+    private static IBrush LayerBrushFor(BoardEditorViewModel editor, string layerName, Color fallback)
+    {
+        BoardLayer? layer = editor.Layers.FirstOrDefault(candidate => candidate.Name == layerName);
+        return layer is null
+            ? new SolidColorBrush(fallback)
+            : new SolidColorBrush(Color.Parse(layer.ColorHex));
+    }
 
     private static CadPoint TransformLocalPoint(BoardComponentInstance component, CadPoint localPoint)
     {
@@ -461,6 +468,7 @@ public sealed class BoardCanvasControl : Control
             nameof(BoardEditorViewModel.PendingTraceRoutePoints) or
             nameof(BoardEditorViewModel.ActiveTool) or
             nameof(BoardEditorViewModel.VisibleTraces) or
+            nameof(BoardEditorViewModel.VisibleVias) or
             nameof(BoardEditorViewModel.ActiveLayerName) or
             nameof(BoardEditorViewModel.SelectedTrace) or
             nameof(BoardEditorViewModel.SelectedVia))
