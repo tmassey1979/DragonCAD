@@ -61,6 +61,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     private string helpSearchText = "";
     private HelpTopic selectedHelpTopic;
     private ComponentEditorWorkspace? activeComponentEditorWorkspace;
+    private int newComponentDraftSequence;
     private bool isLibrarySearchInProgress;
     private ComponentPlacementIntent? activePlacement;
     private string placementStatus = "Select a component, then choose Place to arm schematic placement.";
@@ -125,6 +126,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         SearchLibraryCommand = new AsyncDelegateCommand(ExecuteLibrarySearchAsync, () => !IsLibrarySearchInProgress);
         PlaceSelectedComponentCommand = new DelegateCommand(PlaceSelectedComponent);
         OpenSelectedComponentEditorCommand = new DelegateCommand(OpenSelectedComponentEditor);
+        NewComponentEditorCommand = new DelegateCommand(OpenNewComponentEditor);
         CancelPlacementCommand = new DelegateCommand(CancelPlacement);
         CancelActiveOperationCommand = new DelegateCommand(CancelActiveOperation);
         PlaceArmedComponentOnSchematicCommand = new DelegateCommand(PlaceArmedComponentOnSchematic);
@@ -162,7 +164,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         SelectBoardLayerCommand = new DelegateCommand(SelectBoardLayer);
         ToggleBoardLayerVisibilityCommand = new DelegateCommand(ToggleBoardLayerVisibility);
         ShowComponentManagerTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "ComponentManager");
-        ShowComponentEditorTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "ComponentEditor");
+        ShowComponentEditorTabCommand = new DelegateCommand(ShowComponentEditorTab);
         ShowMarketplaceTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "Marketplace");
         ShowSchematicTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "Schematic");
         ShowPcbLayoutTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "PcbLayout");
@@ -884,6 +886,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
     public DelegateCommand OpenSelectedComponentEditorCommand { get; }
 
+    public DelegateCommand NewComponentEditorCommand { get; }
+
     public DelegateCommand CancelPlacementCommand { get; }
 
     public DelegateCommand CancelActiveOperationCommand { get; }
@@ -1130,6 +1134,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     {
         "ComponentEditor" => ActiveComponentEditorWorkspace is null
             ? "Component editor ready: select a component and choose Edit."
+            : ActiveComponentEditorWorkspace.SessionKind == ComponentEditorSessionKind.New
+                ? $"New component draft: {ActiveComponentEditorWorkspace.ViewModel.ComponentId}."
             : $"Component editor ready: {ActiveComponentEditorWorkspace.ViewModel.DisplayName}.",
         "Marketplace" => "Marketplace ready: review sourcing, BOM cart, and vendor sync state.",
         "Datasheets" => "Datasheet review ready: inspect generated component evidence before promotion.",
@@ -1142,10 +1148,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
     public void ApplyStartupTab(string? tabName)
     {
+        if (string.Equals(tabName?.Trim(), "ComponentEditor", StringComparison.Ordinal))
+        {
+            ShowComponentEditorTab();
+            return;
+        }
+
         ActiveWorkspaceTab = tabName?.Trim() switch
         {
             "ComponentManager" => "ComponentManager",
-            "ComponentEditor" => "ComponentEditor",
             "Marketplace" => "Marketplace",
             "Schematic" => "Schematic",
             "PcbLayout" => "PcbLayout",
@@ -2774,6 +2785,25 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         ActiveComponentEditorWorkspace = ComponentEditorWorkspace.StartEdit(CreateComponentEditorDefinition(selected));
         ActiveWorkspaceTab = "ComponentEditor";
         PlacementStatus = $"Editing component: {selected.DisplayName}";
+    }
+
+    private void ShowComponentEditorTab()
+    {
+        if (ActiveComponentEditorWorkspace is null)
+        {
+            OpenNewComponentEditor();
+            return;
+        }
+
+        ActiveWorkspaceTab = "ComponentEditor";
+    }
+
+    private void OpenNewComponentEditor()
+    {
+        newComponentDraftSequence++;
+        ActiveComponentEditorWorkspace = ComponentEditorWorkspace.StartNew($"dragon:new-component-{newComponentDraftSequence:000}");
+        ActiveWorkspaceTab = "ComponentEditor";
+        PlacementStatus = $"New component draft: {ActiveComponentEditorWorkspace.ViewModel.ComponentId}";
     }
 
     private static ComponentDefinition CreateComponentEditorDefinition(ComponentManagerRow row)

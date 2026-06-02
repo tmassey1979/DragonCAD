@@ -3,7 +3,9 @@ using System.Text;
 using System.Text.Json;
 using DragonCAD.App;
 using DragonCAD.App.BoardEditor;
+using DragonCAD.App.ComponentEditor;
 using DragonCAD.App.SchematicEditor;
+using DragonCAD.Core.Components.Definitions;
 using DragonCAD.Core.Geometry;
 
 namespace DragonCAD.App.Tests.Shell;
@@ -152,6 +154,55 @@ public sealed class MainWindowViewModelTests
         Assert.Null(viewModel.ActiveComponentEditorWorkspace);
         Assert.Equal("Select a component before editing it.", viewModel.PlacementStatus);
         Assert.Equal("ComponentManager", viewModel.ActiveWorkspaceTab);
+    }
+
+    [Fact]
+    public void NewComponentEditorCommandOpensDraftThatCanBeCompleted()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateDesignPreview(maxBuiltInDevices: 2);
+
+        viewModel.NewComponentEditorCommand.Execute(null);
+
+        Assert.Equal("ComponentEditor", viewModel.ActiveWorkspaceTab);
+        Assert.True(viewModel.IsComponentEditorTabActive);
+        Assert.NotNull(viewModel.ActiveComponentEditorWorkspace);
+        Assert.Equal(ComponentEditorSessionKind.New, viewModel.ActiveComponentEditorWorkspace.SessionKind);
+        Assert.StartsWith("dragon:new-component-", viewModel.ActiveComponentEditorWorkspace.ViewModel.ComponentId, StringComparison.Ordinal);
+        Assert.Equal("Resolve 4 validation issues before saving.", viewModel.ActiveComponentEditorWorkspace.SaveReadiness.Message);
+        Assert.Contains("New component draft", viewModel.WorkbenchStatusText, StringComparison.Ordinal);
+
+        viewModel.ActiveComponentEditorWorkspace.ViewModel.SetDisplayName("LM7805");
+        viewModel.ActiveComponentEditorWorkspace.ViewModel.SetManufacturer("Texas Instruments");
+        viewModel.ActiveComponentEditorWorkspace.ViewModel.SetManufacturerPartNumber("LM7805CT");
+        viewModel.ActiveComponentEditorWorkspace.ViewModel.SetKind(ComponentKind.IntegratedCircuit);
+        viewModel.ActiveComponentEditorWorkspace.ViewModel.AddBasicPinPackageAndMapping("1", "VIN", "TO-220-3");
+
+        Assert.Equal("Ready to save component changes.", viewModel.ActiveComponentEditorWorkspace.SaveReadiness.Message);
+    }
+
+    [Fact]
+    public void ComponentEditorTabCommandCreatesDraftWhenNoEditorIsActive()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateDesignPreview(maxBuiltInDevices: 2);
+
+        viewModel.ShowComponentEditorTabCommand.Execute(null);
+
+        Assert.Equal("ComponentEditor", viewModel.ActiveWorkspaceTab);
+        Assert.NotNull(viewModel.ActiveComponentEditorWorkspace);
+        Assert.Equal(ComponentEditorSessionKind.New, viewModel.ActiveComponentEditorWorkspace.SessionKind);
+    }
+
+    [Fact]
+    public void ApplyStartupTabCreatesComponentDraftForComponentEditor()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateDesignPreview(maxBuiltInDevices: 2);
+
+        viewModel.ApplyStartupTab("ComponentEditor");
+
+        Assert.Equal("ComponentEditor", viewModel.ActiveWorkspaceTab);
+        Assert.NotNull(viewModel.ActiveComponentEditorWorkspace);
+        Assert.Equal(ComponentEditorSessionKind.New, viewModel.ActiveComponentEditorWorkspace.SessionKind);
+        Assert.Contains("New component draft", viewModel.WorkbenchStatusText, StringComparison.Ordinal);
     }
 
     [Fact]
