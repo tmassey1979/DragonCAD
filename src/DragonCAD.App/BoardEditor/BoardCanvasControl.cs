@@ -440,8 +440,11 @@ public sealed class BoardCanvasControl : Control
     private static Point Translate(Point point, Point offset) =>
         new(point.X + offset.X, point.Y + offset.Y);
 
-    private static BoardCanvasViewport CreateViewport() =>
-        new(new CadPoint(4_000_000, 0), 0.000025);
+    private BoardCanvasViewport CreateViewport()
+    {
+        double zoom = Editor?.ZoomLevel ?? 1.0;
+        return new BoardCanvasViewport(new CadPoint(4_000_000, 0), 0.000025 * zoom);
+    }
 
     private void ItemsChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
         InvalidateVisual();
@@ -453,6 +456,7 @@ public sealed class BoardCanvasControl : Control
             nameof(BoardEditorViewModel.IsGridVisible) or
             nameof(BoardEditorViewModel.GridStyle) or
             nameof(BoardEditorViewModel.GridSpacingInternal) or
+            nameof(BoardEditorViewModel.ZoomLevel) or
             nameof(BoardEditorViewModel.PendingTraceStart) or
             nameof(BoardEditorViewModel.PendingTraceRoutePoints) or
             nameof(BoardEditorViewModel.ActiveTool) or

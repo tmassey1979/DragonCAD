@@ -8,6 +8,32 @@ namespace DragonCAD.App.Tests.BoardEditor;
 public sealed class BoardEditorViewModelTests
 {
     [Fact]
+    public void ZoomCommandsUpdateBoardZoomLevelWithinBounds()
+    {
+        BoardEditorViewModel board = new();
+
+        board.ZoomIn();
+        Assert.Equal(1.25, board.ZoomLevel);
+
+        board.ZoomOut();
+        Assert.Equal(1.0, board.ZoomLevel);
+
+        for (int index = 0; index < 20; index++)
+        {
+            board.ZoomOut();
+        }
+
+        Assert.Equal(0.25, board.ZoomLevel);
+
+        for (int index = 0; index < 40; index++)
+        {
+            board.ZoomIn();
+        }
+
+        Assert.Equal(8.0, board.ZoomLevel);
+    }
+
+    [Fact]
     public void SynchronizeFromSchematicCreatesBoardComponentShellsWithMatchingSyncIds()
     {
         BoardEditorViewModel board = new();

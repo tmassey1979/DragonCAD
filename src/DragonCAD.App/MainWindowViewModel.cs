@@ -134,8 +134,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         ActivateSelectToolCommand = new DelegateCommand(() => ActivateSchematicTool("Select"));
         ActivateWireToolCommand = new DelegateCommand(() => ActivateSchematicTool("Wire"));
         Load7805SampleCommand = new DelegateCommand(Load7805Sample);
-        ZoomInCommand = new DelegateCommand(SchematicEditor.ZoomIn);
-        ZoomOutCommand = new DelegateCommand(SchematicEditor.ZoomOut);
+        ZoomInCommand = new DelegateCommand(ZoomInActiveEditor);
+        ZoomOutCommand = new DelegateCommand(ZoomOutActiveEditor);
         ToggleGridVisibilityCommand = new DelegateCommand(ToggleGridVisibility);
         ToggleGridStyleCommand = new DelegateCommand(ToggleGridStyle);
         IncreaseGridSpacingCommand = new DelegateCommand(() => ChangeGridSpacing(1m));
@@ -2804,6 +2804,32 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         ActiveSchematicTool = "Wire";
         PlacementStatus = $"Loaded 7805 TO-220 5V regulator sample: {SchematicEditor.Components.Count} parts, {SchematicEditor.Wires.Count} wires, {SchematicEditor.Nets.Count} nets. Board sync: {BoardEditor.StatusText}";
         DragonCadLog.Info($"sample 7805 loaded components={SchematicEditor.Components.Count} wires={SchematicEditor.Wires.Count} nets={SchematicEditor.Nets.Count}");
+    }
+
+    private void ZoomInActiveEditor()
+    {
+        if (IsPcbLayoutTabActive)
+        {
+            BoardEditor.ZoomIn();
+            PlacementStatus = BoardEditor.StatusText;
+            return;
+        }
+
+        SchematicEditor.ZoomIn();
+        PlacementStatus = SchematicEditor.StatusText;
+    }
+
+    private void ZoomOutActiveEditor()
+    {
+        if (IsPcbLayoutTabActive)
+        {
+            BoardEditor.ZoomOut();
+            PlacementStatus = BoardEditor.StatusText;
+            return;
+        }
+
+        SchematicEditor.ZoomOut();
+        PlacementStatus = SchematicEditor.StatusText;
     }
 
     private void ToggleGridVisibility()

@@ -724,6 +724,22 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void ZoomCommandsChangeBoardZoomLevelWhenPcbWorkspaceIsActive()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 1);
+        viewModel.ShowPcbLayoutTabCommand.Execute(null);
+
+        viewModel.ZoomInCommand.Execute(null);
+        Assert.Equal(1.25, viewModel.BoardEditor.ZoomLevel);
+        Assert.Equal(1.0, viewModel.SchematicEditor.ZoomLevel);
+
+        viewModel.ZoomOutCommand.Execute(null);
+        Assert.Equal(1.0, viewModel.BoardEditor.ZoomLevel);
+    }
+
+    [Fact]
     public void GridCommandsUpdateSchematicAndBoardEditorSettings()
     {
         MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(

@@ -457,6 +457,15 @@ public sealed class AppProjectRuntimeTests
     }
 
     [Fact]
+    public void BoardCanvasViewportUsesBoardZoomLevel()
+    {
+        string boardCanvas = ReadSourceFile("src", "DragonCAD.App", "BoardEditor", "BoardCanvasControl.cs");
+
+        Assert.Contains("Editor?.ZoomLevel", boardCanvas, StringComparison.Ordinal);
+        Assert.Contains("nameof(BoardEditorViewModel.ZoomLevel)", boardCanvas, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowIncludesSchematicIconToolRail()
     {
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");

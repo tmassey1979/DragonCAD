@@ -15,6 +15,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     private bool isGridVisible = true;
     private string gridStyle = "Dots";
     private long gridSpacingInternal = CadUnit.InternalUnitsPerMillimeter;
+    private double zoomLevel = 1.0;
     private string activeTool = "Select";
     private string activeLayerName = "Top";
     private CadPoint? pendingTraceStart;
@@ -135,6 +136,21 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
 
             gridSpacingInternal = value;
             placementGrid = new CadGrid(new CadVector(value, value));
+            OnPropertyChanged();
+        }
+    }
+
+    public double ZoomLevel
+    {
+        get => zoomLevel;
+        private set
+        {
+            if (Math.Abs(zoomLevel - value) < 0.0001)
+            {
+                return;
+            }
+
+            zoomLevel = value;
             OnPropertyChanged();
         }
     }
@@ -610,6 +626,18 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         decimal bounded = Math.Clamp(millimeters, 0.1m, 25.4m);
         GridSpacingInternal = (long)Math.Round(bounded * CadUnit.InternalUnitsPerMillimeter, MidpointRounding.AwayFromZero);
         StatusText = $"Grid spacing set to {FormatMillimeters(GridSpacingInternal)} mm.";
+    }
+
+    public void ZoomIn()
+    {
+        ZoomLevel = Math.Min(8.0, Math.Round(ZoomLevel * 1.25, 4));
+        StatusText = $"Board zoom {ZoomLevel:0.##}x.";
+    }
+
+    public void ZoomOut()
+    {
+        ZoomLevel = Math.Max(0.25, Math.Round(ZoomLevel / 1.25, 4));
+        StatusText = $"Board zoom {ZoomLevel:0.##}x.";
     }
 
     public void ActivateSelectTool()
