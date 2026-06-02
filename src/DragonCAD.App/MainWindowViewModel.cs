@@ -726,6 +726,38 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
     public FabricationHandoffViewModel Fabrication { get; } = FabricationHandoffViewModel.CreateSample();
 
+    public IReadOnlyList<FirmwareWorkspaceRow> FirmwareWorkspaceRows { get; } =
+    [
+        new(
+            Area: "Source tree",
+            Status: "Seeded",
+            Detail: "main.cpp, drivers.cpp, and CMakeLists.txt are tracked as firmware project files."),
+        new(
+            Area: "Pin bindings",
+            Status: "Linked",
+            Detail: "Schematic pin intents are ready for GPIO and peripheral cross-probing."),
+        new(
+            Area: "Build output",
+            Status: "Pending",
+            Detail: "Toolchain setup, build logs, flash target, and serial console will be attached here.")
+    ];
+
+    public IReadOnlyList<CapsuleReadinessRow> CapsuleReadinessRows { get; } =
+    [
+        new(
+            Name: "USB-C Power Delivery",
+            Status: "Ready",
+            Assets: "Schematic block, connector footprint, CC resistor rules, and manufacturing notes."),
+        new(
+            Name: "7805 Regulator Stage",
+            Status: "Ready",
+            Assets: "TO-220 footprint, input/output capacitors, thermal clearance guidance, and BOM seed."),
+        new(
+            Name: "AI Capsule Drafts",
+            Status: "Review gated",
+            Assets: "Generated subsystem drafts require explainable review before project mutation.")
+    ];
+
     public AsyncDelegateCommand SearchLibraryCommand { get; }
 
     public DelegateCommand PlaceSelectedComponentCommand { get; }
@@ -3654,6 +3686,16 @@ public sealed record BuiltInLibraryViewModel(
     int TotalDevices,
     int LoadedDevices,
     string StatusText);
+
+public sealed record FirmwareWorkspaceRow(
+    string Area,
+    string Status,
+    string Detail);
+
+public sealed record CapsuleReadinessRow(
+    string Name,
+    string Status,
+    string Assets);
 
 public sealed record UnifiedComponentSourceRow(
     string SourceKind,

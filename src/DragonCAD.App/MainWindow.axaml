@@ -2646,60 +2646,41 @@
                                    TextWrapping="Wrap"
                                    Foreground="{StaticResource DragonMutedText}" />
                     </StackPanel>
-                    <Grid Grid.Row="1"
-                          Margin="0,14,0,0"
-                          ColumnDefinitions="*,*,*"
-                          ColumnSpacing="12">
-                        <Border Background="{StaticResource DragonPanelBackground}"
-                                BorderBrush="{StaticResource DragonBorder}"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="14">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Source Tree"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource DragonText}" />
-                                <TextBlock Text="src/main.cpp"
-                                           Foreground="{StaticResource DragonGreen}" />
-                                <TextBlock Text="src/drivers.cpp"
-                                           Foreground="{StaticResource DragonMutedText}" />
-                                <TextBlock Text="CMakeLists.txt"
-                                           Foreground="{StaticResource DragonMutedText}" />
-                            </StackPanel>
-                        </Border>
-                        <Border Grid.Column="1"
-                                Background="{StaticResource DragonPanelBackground}"
-                                BorderBrush="{StaticResource DragonBorder}"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="14">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Pin Bindings"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource DragonText}" />
-                                <TextBlock Text="GPIO net links will resolve from schematic symbols and board pads."
-                                           TextWrapping="Wrap"
-                                           Foreground="{StaticResource DragonMutedText}" />
-                                <TextBlock Text="No conflicts in current sample."
-                                           Foreground="{StaticResource DragonGreen}" />
-                            </StackPanel>
-                        </Border>
-                        <Border Grid.Column="2"
-                                Background="{StaticResource DragonPanelBackground}"
-                                BorderBrush="{StaticResource DragonBorder}"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="14">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="Build Output"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource DragonText}" />
-                                <TextBlock Text="Configure toolchain integration here before flashing hardware."
-                                           TextWrapping="Wrap"
-                                           Foreground="{StaticResource DragonMutedText}" />
-                            </StackPanel>
-                        </Border>
-                    </Grid>
+                    <ListBox Grid.Row="1"
+                             Margin="0,14,0,0"
+                             ItemsSource="{Binding FirmwareWorkspaceRows}"
+                             Background="Transparent"
+                             BorderThickness="0">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal"
+                                            Spacing="12" />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="app:FirmwareWorkspaceRow"
+                                          x:DataType="app:FirmwareWorkspaceRow">
+                                <Border Width="236"
+                                        MinHeight="126"
+                                        Background="{StaticResource DragonPanelBackground}"
+                                        BorderBrush="{StaticResource DragonBorder}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="14">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="{Binding Area}"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource DragonText}" />
+                                        <TextBlock Text="{Binding Status}"
+                                                   Foreground="{StaticResource DragonGreen}" />
+                                        <TextBlock Text="{Binding Detail}"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{StaticResource DragonMutedText}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
                     <Border Grid.Row="2"
                             Margin="0,14,0,0"
                             Background="#0D1218"
@@ -2707,9 +2688,14 @@
                             BorderThickness="1"
                             CornerRadius="6"
                             Padding="14">
-                        <TextBlock Text="Future editor surface: code tabs, serial console, firmware outline, and schematic pin cross-probing."
-                                   TextWrapping="Wrap"
-                                   Foreground="{StaticResource DragonMutedText}" />
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Firmware Integration Checklist"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource DragonText}" />
+                            <TextBlock Text="Code tabs, serial console, firmware outline, build logs, and schematic pin cross-probing are tracked as explicit workspace integration areas."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource DragonMutedText}" />
+                        </StackPanel>
                     </Border>
                 </Grid>
 
@@ -2726,57 +2712,41 @@
                                    TextWrapping="Wrap"
                                    Foreground="{StaticResource DragonMutedText}" />
                     </StackPanel>
-                    <Grid Grid.Row="1"
-                          Margin="0,14,0,0"
-                          ColumnDefinitions="*,*,*"
-                          ColumnSpacing="12">
-                        <Border Background="{StaticResource DragonPanelBackground}"
-                                BorderBrush="{StaticResource DragonBorder}"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="14">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="USB-C Power Delivery"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource DragonText}" />
-                                <TextBlock Text="Schematic block, connector footprint, CC resistor rules, and manufacturing notes."
-                                           TextWrapping="Wrap"
-                                           Foreground="{StaticResource DragonMutedText}" />
-                                <TextBlock Text="Ready for placement"
-                                           Foreground="{StaticResource DragonGreen}" />
-                            </StackPanel>
-                        </Border>
-                        <Border Grid.Column="1"
-                                Background="{StaticResource DragonPanelBackground}"
-                                BorderBrush="{StaticResource DragonBorder}"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="14">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="7805 Regulator Stage"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource DragonText}" />
-                                <TextBlock Text="TO-220 footprint, input/output capacitors, thermal clearance guidance, and BOM seed."
-                                           TextWrapping="Wrap"
-                                           Foreground="{StaticResource DragonMutedText}" />
-                            </StackPanel>
-                        </Border>
-                        <Border Grid.Column="2"
-                                Background="{StaticResource DragonPanelBackground}"
-                                BorderBrush="{StaticResource DragonBorder}"
-                                BorderThickness="1"
-                                CornerRadius="6"
-                                Padding="14">
-                            <StackPanel Spacing="8">
-                                <TextBlock Text="AI Capsule Drafts"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource DragonText}" />
-                                <TextBlock Text="Draft subsystem generation remains review-first and explainable before any project mutation."
-                                           TextWrapping="Wrap"
-                                           Foreground="{StaticResource DragonMutedText}" />
-                            </StackPanel>
-                        </Border>
-                    </Grid>
+                    <ListBox Grid.Row="1"
+                             Margin="0,14,0,0"
+                             ItemsSource="{Binding CapsuleReadinessRows}"
+                             Background="Transparent"
+                             BorderThickness="0">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal"
+                                            Spacing="12" />
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="app:CapsuleReadinessRow"
+                                          x:DataType="app:CapsuleReadinessRow">
+                                <Border Width="236"
+                                        MinHeight="126"
+                                        Background="{StaticResource DragonPanelBackground}"
+                                        BorderBrush="{StaticResource DragonBorder}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="14">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource DragonText}" />
+                                        <TextBlock Text="{Binding Status}"
+                                                   Foreground="{StaticResource DragonGreen}" />
+                                        <TextBlock Text="{Binding Assets}"
+                                                   TextWrapping="Wrap"
+                                                   Foreground="{StaticResource DragonMutedText}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
                     <Border Grid.Row="2"
                             Margin="0,14,0,0"
                             Background="#0D1218"
@@ -2784,9 +2754,14 @@
                             BorderThickness="1"
                             CornerRadius="6"
                             Padding="14">
-                        <TextBlock Text="Future capsule surface: parameter editor, dependency graph, generated files, validation checklist, and placement preview."
-                                   TextWrapping="Wrap"
-                                   Foreground="{StaticResource DragonMutedText}" />
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Capsule Integration Checklist"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource DragonText}" />
+                            <TextBlock Text="Parameter editor, dependency graph, generated files, validation checklist, and placement preview are tracked as explicit capsule readiness areas."
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource DragonMutedText}" />
+                        </StackPanel>
                     </Border>
                 </Grid>
 

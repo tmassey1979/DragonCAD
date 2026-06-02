@@ -824,6 +824,30 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void FirmwareWorkspaceExposesConcreteReadinessRows()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 1);
+
+        Assert.Contains(viewModel.FirmwareWorkspaceRows, row => row.Area == "Source tree" && row.Status == "Seeded");
+        Assert.Contains(viewModel.FirmwareWorkspaceRows, row => row.Area == "Pin bindings" && row.Status == "Linked");
+        Assert.Contains(viewModel.FirmwareWorkspaceRows, row => row.Area == "Build output" && row.Status == "Pending");
+    }
+
+    [Fact]
+    public void CapsuleManagerExposesConcreteSubsystemReadinessRows()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 1);
+
+        Assert.Contains(viewModel.CapsuleReadinessRows, row => row.Name == "USB-C Power Delivery" && row.Status == "Ready");
+        Assert.Contains(viewModel.CapsuleReadinessRows, row => row.Name == "7805 Regulator Stage" && row.Status == "Ready");
+        Assert.Contains(viewModel.CapsuleReadinessRows, row => row.Name == "AI Capsule Drafts" && row.Status == "Review gated");
+    }
+
+    [Fact]
     public void WorkspaceTabCommandsSwitchToMarketplaceWithSeededVendorRows()
     {
         MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(

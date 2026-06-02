@@ -315,6 +315,19 @@ public sealed class AppProjectRuntimeTests
     }
 
     [Fact]
+    public void MainWindowRendersFirmwareAndCapsuleRowsInsteadOfFuturePlaceholders()
+    {
+        string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
+
+        Assert.Contains("ItemsSource=\"{Binding FirmwareWorkspaceRows}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding CapsuleReadinessRows}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Width=\"236\"", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Future editor surface", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Future capsule surface", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Configure toolchain integration here before flashing hardware.", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowKeepsWorkspaceTabsCompactForEightTabShell()
     {
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
