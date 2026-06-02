@@ -228,6 +228,10 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("Command=\"{Binding ShowCapsulesTabCommand}\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"AiReviewFabricationButton\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding ShowFabricationTabCommand}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"AiPromptComposer\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding AiPromptText, Mode=TwoWay}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding SubmitAiPromptCommand}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding AiPromptResponseText}\"", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("Ready for explainable engineering workflows once schematic and board graph projections are added.", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<TabItem Header=\"Schematic\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<TabItem Header=\"PCB\"", mainWindow, StringComparison.Ordinal);

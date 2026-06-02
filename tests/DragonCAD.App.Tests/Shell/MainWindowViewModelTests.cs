@@ -863,6 +863,37 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void SubmitAiPromptCommandCreatesLocalGraphReviewResponse()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 1);
+        viewModel.Load7805SampleCommand.Execute(null);
+        viewModel.AiPromptText = "review power rail";
+
+        viewModel.SubmitAiPromptCommand.Execute(null);
+
+        Assert.Contains("review power rail", viewModel.AiPromptResponseText, StringComparison.Ordinal);
+        Assert.Contains("3 schematic parts", viewModel.AiPromptResponseText, StringComparison.Ordinal);
+        Assert.Contains("3 board footprints", viewModel.AiPromptResponseText, StringComparison.Ordinal);
+        Assert.Contains("AI request queued locally", viewModel.PlacementStatus, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SubmitAiPromptCommandRejectsEmptyPrompt()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 1);
+        viewModel.AiPromptText = " ";
+
+        viewModel.SubmitAiPromptCommand.Execute(null);
+
+        Assert.Equal("Enter an AI review prompt before submitting.", viewModel.AiPromptResponseText);
+        Assert.Contains("Enter an AI review prompt", viewModel.PlacementStatus, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void WorkspaceTabCommandsSwitchToMarketplaceWithSeededVendorRows()
     {
         MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(

@@ -3452,6 +3452,29 @@
                                                     HorizontalAlignment="Stretch" />
                                         </StackPanel>
                                     </Border>
+                                    <Border Background="#0D1218"
+                                            BorderBrush="{StaticResource DragonBorder}"
+                                            BorderThickness="1"
+                                            Padding="10"
+                                            CornerRadius="4">
+                                        <StackPanel x:Name="AiPromptComposer"
+                                                    Spacing="8">
+                                            <TextBlock Text="Prompt"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource DragonText}" />
+                                            <TextBox Text="{Binding AiPromptText, Mode=TwoWay}"
+                                                     AcceptsReturn="True"
+                                                     MinHeight="72"
+                                                     TextWrapping="Wrap"
+                                                     PlaceholderText="Ask for ERC, DRC, power rail, capsule, or sourcing review" />
+                                            <Button Command="{Binding SubmitAiPromptCommand}"
+                                                    Content="Queue local review"
+                                                    HorizontalAlignment="Stretch" />
+                                            <TextBlock Text="{Binding AiPromptResponseText}"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{StaticResource DragonMutedText}" />
+                                        </StackPanel>
+                                    </Border>
                                     <ListBox ItemsSource="{Binding AiInspectorSummaryRows}"
                                              Background="Transparent"
                                              BorderThickness="0">

@@ -95,6 +95,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     private readonly InUseVendorCatalogFreshnessPolicyStore inUseVendorCatalogFreshnessPolicyStore;
     private InUseVendorCatalogFreshnessPolicy inUseVendorCatalogFreshnessPolicy = InUseVendorCatalogFreshnessPolicy.Default;
     private string inUseVendorFreshnessValidationStatus = "Freshness policy is valid.";
+    private string aiPromptText = "";
+    private string aiPromptResponseText = "Enter a prompt to queue a local graph-aware review.";
 
     private MainWindowViewModel(
         ComponentManagerViewModel componentManager,
@@ -156,6 +158,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         ShowFirmwareTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "Firmware");
         ShowCapsulesTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "Capsules");
         ShowFabricationTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "Fabrication");
+        SubmitAiPromptCommand = new DelegateCommand(SubmitAiPrompt);
         AddSelectedMarketplaceComponentToCartCommand = new DelegateCommand(AddSelectedMarketplaceComponentToCart);
         AddMarketplaceComponentToCartCommand = new DelegateCommand(AddMarketplaceComponentToCart);
         IncrementMarketplaceCartLineCommand = new DelegateCommand(IncrementMarketplaceCartLine);
@@ -866,6 +869,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
     public DelegateCommand ShowFabricationTabCommand { get; }
 
+    public DelegateCommand SubmitAiPromptCommand { get; }
+
     public DelegateCommand AddSelectedMarketplaceComponentToCartCommand { get; }
 
     public DelegateCommand AddMarketplaceComponentToCartCommand { get; }
@@ -969,6 +974,36 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     public bool IsCapsulesTabActive => ActiveWorkspaceTab == "Capsules";
 
     public bool IsFabricationTabActive => ActiveWorkspaceTab == "Fabrication";
+
+    public string AiPromptText
+    {
+        get => aiPromptText;
+        set
+        {
+            if (aiPromptText == value)
+            {
+                return;
+            }
+
+            aiPromptText = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string AiPromptResponseText
+    {
+        get => aiPromptResponseText;
+        private set
+        {
+            if (aiPromptResponseText == value)
+            {
+                return;
+            }
+
+            aiPromptResponseText = value;
+            OnPropertyChanged();
+        }
+    }
 
     public string WorkbenchStatusText => ActiveWorkspaceTab switch
     {
@@ -1881,6 +1916,25 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             ? $"{result.ProviderName} API sync completed: {result.Summary}"
             : result.Summary;
         OnPropertyChanged(nameof(MarketplaceIntegrationStatus));
+    }
+
+    private void SubmitAiPrompt()
+    {
+        string prompt = AiPromptText.Trim();
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            AiPromptResponseText = "Enter an AI review prompt before submitting.";
+            PlacementStatus = "Enter an AI review prompt before submitting.";
+            return;
+        }
+
+        AiPromptResponseText =
+            $"Queued local AI review for \"{prompt}\" using " +
+            $"{SchematicEditor.Components.Count:N0} schematic {Pluralize(SchematicEditor.Components.Count, "part")}, " +
+            $"{SchematicEditor.Nets.Count:N0} {Pluralize(SchematicEditor.Nets.Count, "net")}, " +
+            $"{BoardEditor.Components.Count:N0} board {Pluralize(BoardEditor.Components.Count, "footprint")}, and " +
+            $"{BoardEditor.Traces.Count:N0} {Pluralize(BoardEditor.Traces.Count, "route")}.";
+        PlacementStatus = $"AI request queued locally: {prompt}";
     }
 
     private void AddSelectedMarketplaceComponentToCart()
