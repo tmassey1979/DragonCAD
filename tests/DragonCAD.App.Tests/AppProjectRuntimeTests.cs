@@ -297,6 +297,17 @@ public sealed class AppProjectRuntimeTests
     }
 
     [Fact]
+    public void MainWindowComponentManagerRowsTrimLongImportedLibraryNames()
+    {
+        string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
+
+        Assert.Contains("x:Name=\"ComponentManagerDisplayName\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ComponentManagerManufacturerPartNumber\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("MinWidth=\"0\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("TextTrimming=\"CharacterEllipsis\"", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowKeepsSampleLoaderOutOfDocumentTabs()
     {
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");

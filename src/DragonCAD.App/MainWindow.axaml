@@ -510,14 +510,19 @@
                                         <ListBox.ItemTemplate>
                                             <DataTemplate DataType="cm:ComponentManagerRow"
                                                           x:DataType="cm:ComponentManagerRow">
-                                                <Grid ColumnDefinitions="2*,*,*,Auto"
+                                                <Grid ColumnDefinitions="2.2*,0.8*,0.9*,Auto"
                                                       Margin="10,8"
                                                       ColumnSpacing="12">
-                                                    <StackPanel Spacing="2">
-                                                        <TextBlock Text="{Binding DisplayName}"
+                                                    <StackPanel Spacing="2"
+                                                                MinWidth="0">
+                                                        <TextBlock x:Name="ComponentManagerDisplayName"
+                                                                   Text="{Binding DisplayName}"
+                                                                   TextTrimming="CharacterEllipsis"
                                                                    Foreground="{StaticResource DragonText}"
                                                                    FontWeight="SemiBold" />
-                                                        <TextBlock Text="{Binding ManufacturerPartNumber}"
+                                                        <TextBlock x:Name="ComponentManagerManufacturerPartNumber"
+                                                                   Text="{Binding ManufacturerPartNumber}"
+                                                                   TextTrimming="CharacterEllipsis"
                                                                    Foreground="{StaticResource DragonMutedText}"
                                                                    FontSize="11" />
                                                     </StackPanel>
