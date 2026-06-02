@@ -524,6 +524,10 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("nameof(SchematicEditorViewModel.HoveredWire)", schematicCanvas, StringComparison.Ordinal);
         Assert.Contains("Editor?.HoveredComponent is not null", schematicCanvas, StringComparison.Ordinal);
         Assert.Contains("Editor?.HoveredWire is not null", schematicCanvas, StringComparison.Ordinal);
+        Assert.Contains("HoverSelectionPen", schematicCanvas, StringComparison.Ordinal);
+        Assert.Contains("ReferenceEquals(instance, Editor.HoveredComponent)", schematicCanvas, StringComparison.Ordinal);
+        Assert.Contains("isHoveredWire ? HoverWirePen : WirePen", schematicCanvas, StringComparison.Ordinal);
+        Assert.Contains("isHoveredWire ? Editor.HoveredWireSegmentIndex : null", schematicCanvas, StringComparison.Ordinal);
     }
 
     [Fact]

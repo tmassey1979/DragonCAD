@@ -25,7 +25,9 @@ public sealed class SchematicCanvasControl : Control
     private static readonly Pen PendingWirePen = new(new SolidColorBrush(Color.FromRgb(48, 130, 220)), 2.4);
     private static readonly Pen SheetPen = new(new SolidColorBrush(Color.FromRgb(122, 132, 145)), 1.2);
     private static readonly Pen SelectionPen = new(new SolidColorBrush(Color.FromRgb(40, 130, 255)), 1.6);
+    private static readonly Pen HoverSelectionPen = new(new SolidColorBrush(Color.FromRgb(70, 180, 255)), 1.4);
     private static readonly Pen WireSelectionPen = new(new SolidColorBrush(Color.FromRgb(255, 176, 52)), 3.0);
+    private static readonly Pen HoverWirePen = new(new SolidColorBrush(Color.FromRgb(70, 180, 255)), 3.2);
     private static readonly Pen NetLabelSelectionPen = new(new SolidColorBrush(Color.FromRgb(255, 176, 52)), 1.4);
     private static readonly IBrush HoverPinBrush = new SolidColorBrush(Color.FromRgb(255, 213, 74));
     private static readonly IBrush WireNodeBrush = new SolidColorBrush(Color.FromRgb(0, 92, 210));
@@ -90,19 +92,26 @@ public sealed class SchematicCanvasControl : Control
         DrawSheet(context, viewport, bounds.Center, Editor.SheetBounds);
         foreach (SchematicComponentInstance instance in Editor.Components)
         {
-            DrawInstance(context, viewport, bounds.Center, instance, ReferenceEquals(instance, Editor.SelectedComponent));
+            DrawInstance(
+                context,
+                viewport,
+                bounds.Center,
+                instance,
+                ReferenceEquals(instance, Editor.SelectedComponent),
+                ReferenceEquals(instance, Editor.HoveredComponent));
         }
 
         foreach (SchematicWire wire in Editor.Wires)
         {
             bool isSelectedWire = Editor.SelectedWire?.WireId == wire.WireId;
+            bool isHoveredWire = Editor.HoveredWire?.WireId == wire.WireId;
             DrawCompletedWire(
                 context,
                 viewport,
                 bounds.Center,
                 wire,
-                isSelectedWire ? WireSelectionPen : WirePen,
-                isSelectedWire ? Editor.SelectedWireSegmentIndex : null);
+                isSelectedWire ? WireSelectionPen : isHoveredWire ? HoverWirePen : WirePen,
+                isSelectedWire ? Editor.SelectedWireSegmentIndex : isHoveredWire ? Editor.HoveredWireSegmentIndex : null);
         }
 
         foreach (SchematicNetLabelRenderItem label in Editor.RenderableNetLabels)
@@ -308,11 +317,16 @@ public sealed class SchematicCanvasControl : Control
         SchematicCanvasViewport viewport,
         Point center,
         SchematicComponentInstance instance,
-        bool isSelected)
+        bool isSelected,
+        bool isHovered)
     {
         if (isSelected)
         {
-            DrawSelection(context, viewport, center, instance);
+            DrawSelection(context, viewport, center, instance, SelectionPen);
+        }
+        else if (isHovered)
+        {
+            DrawSelection(context, viewport, center, instance, HoverSelectionPen);
         }
 
         foreach (ComponentPreviewLine line in instance.SymbolPreview.Lines)
@@ -326,12 +340,12 @@ public sealed class SchematicCanvasControl : Control
         foreach (ComponentSymbolPinPreview pin in instance.SymbolPreview.Pins)
         {
             Point connectPoint = Translate(viewport.Map(new CadPoint(0, 0), SchematicEditorViewModel.TransformLocalPoint(instance, pin.ConnectPoint)), center);
-            bool isHovered = IsHoveredPin(instance, pin);
+            bool isHoveredPin = IsHoveredPin(instance, pin);
             context.DrawLine(
-                isHovered ? WireSelectionPen : PinPen,
+                isHoveredPin ? WireSelectionPen : PinPen,
                 connectPoint,
                 Translate(viewport.Map(new CadPoint(0, 0), SchematicEditorViewModel.TransformLocalPoint(instance, pin.BodyPoint)), center));
-            context.DrawEllipse(isHovered ? HoverPinBrush : null, isHovered ? WireSelectionPen : PinPen, connectPoint, isHovered ? 4.5 : 3, isHovered ? 4.5 : 3);
+            context.DrawEllipse(isHoveredPin ? HoverPinBrush : null, isHoveredPin ? WireSelectionPen : PinPen, connectPoint, isHoveredPin ? 4.5 : 3, isHoveredPin ? 4.5 : 3);
             DrawPinLabel(context, connectPoint, pin);
         }
 
@@ -378,7 +392,8 @@ public sealed class SchematicCanvasControl : Control
         DrawingContext context,
         SchematicCanvasViewport viewport,
         Point center,
-        SchematicComponentInstance instance)
+        SchematicComponentInstance instance,
+        Pen pen)
     {
         CadRectangle bounds = instance.SymbolPreview.Bounds;
         Point[] corners =
@@ -391,7 +406,7 @@ public sealed class SchematicCanvasControl : Control
         Rect selectionBounds = new(
             new Point(corners.Min(point => point.X), corners.Min(point => point.Y)),
             new Point(corners.Max(point => point.X), corners.Max(point => point.Y)));
-        context.DrawRectangle(null, SelectionPen, selectionBounds.Normalize());
+        context.DrawRectangle(null, pen, selectionBounds.Normalize());
     }
 
     private bool IsHoveredPin(SchematicComponentInstance instance, ComponentSymbolPinPreview pin) =>
