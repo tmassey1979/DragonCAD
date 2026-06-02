@@ -426,7 +426,9 @@ public sealed class AppProjectRuntimeTests
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
 
         Assert.Contains("Load7805SampleCommand", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("LoadArduinoUnoSampleCommand", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<MenuItem Header=\"Load 7805 Sample\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<MenuItem Header=\"Load Arduino Uno Sample\"", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("Content=\"Load 7805 Sample\"", mainWindow, StringComparison.Ordinal);
     }
 

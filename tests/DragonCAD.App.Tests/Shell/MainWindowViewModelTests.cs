@@ -2308,6 +2308,46 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void LoadArduinoUnoSampleCreatesSchematicAndRoutedBoard()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 1);
+
+        viewModel.LoadArduinoUnoSampleCommand.Execute(null);
+
+        Assert.Equal("Schematic", viewModel.ActiveWorkspaceTab);
+        Assert.Equal(11, viewModel.SchematicEditor.Components.Count);
+        Assert.Contains(viewModel.SchematicEditor.Components, component => component.DisplayName == "ATmega328P MCU");
+        Assert.Contains(viewModel.SchematicEditor.Components, component => component.DisplayName == "ATmega16U2 USB bridge");
+        Assert.Contains(viewModel.SchematicEditor.Components, component => component.DisplayName == "Digital headers D0-D13");
+        Assert.Equal(16, viewModel.SchematicEditor.Wires.Count);
+        Assert.True(viewModel.SchematicEditor.Nets.Count >= 10);
+        Assert.Equal(11, viewModel.BoardEditor.Components.Count);
+        Assert.True(viewModel.BoardEditor.Airwires.Count >= 10);
+        Assert.Equal(10, viewModel.BoardEditor.Traces.Count);
+        Assert.Contains(viewModel.BoardEditor.Traces, trace => trace.LayerName == "Top");
+        Assert.Contains(viewModel.BoardEditor.Traces, trace => trace.LayerName == "Bottom");
+        Assert.All(viewModel.BoardEditor.Components, component => Assert.NotEmpty(component.FootprintPreview.Pads));
+        Assert.Contains("Loaded Arduino Uno Rev3 sample", viewModel.PlacementStatus, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ApplyStartupSampleCanLoadArduinoUnoSample()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 1);
+
+        viewModel.ApplyStartupSample("ArduinoUno");
+
+        Assert.Equal("Schematic", viewModel.ActiveWorkspaceTab);
+        Assert.Equal(11, viewModel.SchematicEditor.Components.Count);
+        Assert.Equal(10, viewModel.BoardEditor.Traces.Count);
+        Assert.Contains("Loaded Arduino Uno Rev3 sample", viewModel.PlacementStatus, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void FullHawkCadCoreLibraryAssetIsAvailableForShipping()
     {
         FileInfo asset = new(MainWindowViewModel.DefaultHawkCadLibraryPath);

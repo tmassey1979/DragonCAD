@@ -115,6 +115,8 @@
                     <MenuItem Header="_File">
                         <MenuItem Header="Load 7805 Sample"
                                   Command="{Binding Load7805SampleCommand}" />
+                        <MenuItem Header="Load Arduino Uno Sample"
+                                  Command="{Binding LoadArduinoUnoSampleCommand}" />
                         <Separator />
                         <MenuItem Header="Prepare Marketplace BOM CSV"
                                   Command="{Binding PrepareMarketplaceBomCsvCommand}" />
@@ -3353,6 +3355,9 @@
                                         <Button Command="{Binding Load7805SampleCommand}"
                                                 Padding="10,3"
                                                 Content="7805" />
+                                        <Button Command="{Binding LoadArduinoUnoSampleCommand}"
+                                                Padding="10,3"
+                                                Content="Uno" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="3"
                                                 x:Name="SchematicHeaderEditCommands"

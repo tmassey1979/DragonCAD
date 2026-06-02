@@ -146,6 +146,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         ActivateSelectToolCommand = new DelegateCommand(() => ActivateSchematicTool("Select"));
         ActivateWireToolCommand = new DelegateCommand(() => ActivateSchematicTool("Wire"));
         Load7805SampleCommand = new DelegateCommand(Load7805Sample);
+        LoadArduinoUnoSampleCommand = new DelegateCommand(LoadArduinoUnoSample);
         ZoomInCommand = new DelegateCommand(ZoomInActiveEditor);
         ZoomOutCommand = new DelegateCommand(ZoomOutActiveEditor);
         ToggleGridVisibilityCommand = new DelegateCommand(ToggleGridVisibility);
@@ -937,6 +938,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
     public DelegateCommand Load7805SampleCommand { get; }
 
+    public DelegateCommand LoadArduinoUnoSampleCommand { get; }
+
     public DelegateCommand ZoomInCommand { get; }
 
     public DelegateCommand ZoomOutCommand { get; }
@@ -1180,6 +1183,20 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             "Help" => "Help",
             _ => ActiveWorkspaceTab
         };
+    }
+
+    public void ApplyStartupSample(string? sampleName)
+    {
+        switch (sampleName?.Trim())
+        {
+            case "7805":
+                Load7805Sample();
+                break;
+            case "ArduinoUno":
+            case "ArduinoUnoRev3":
+                LoadArduinoUnoSample();
+                break;
+        }
     }
 
     public bool IsSelectToolActive => ActiveSchematicTool == "Select";
@@ -3084,6 +3101,110 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         DragonCadLog.Info($"sample 7805 loaded components={SchematicEditor.Components.Count} wires={SchematicEditor.Wires.Count} nets={SchematicEditor.Nets.Count}");
     }
 
+    private void LoadArduinoUnoSample()
+    {
+        ActivePlacement = null;
+        ActiveWorkspaceTab = "Schematic";
+        SchematicEditor.Clear();
+        BoardEditor.Clear();
+
+        SchematicComponentInstance atmega328 = SchematicEditor.PlaceComponent(
+            SampleIntegratedCircuit(
+                "dragoncad:sample/arduino-uno-atmega328p",
+                "ATmega328P MCU",
+                ["RESET", "XTAL1", "XTAL2", "D0/RX", "D1/TX", "D13/SCK", "AREF", "AVCC", "VCC", "GND"],
+                10,
+                6),
+            new CadPoint(0, 0));
+        SchematicComponentInstance usbBridge = SchematicEditor.PlaceComponent(
+            SampleIntegratedCircuit(
+                "dragoncad:sample/arduino-uno-atmega16u2",
+                "ATmega16U2 USB bridge",
+                ["USB_D+", "USB_D-", "TXD", "RXD", "RESET", "VCC", "GND"],
+                7,
+                4),
+            new CadPoint(-18_000_000, -4_000_000));
+        SchematicComponentInstance usb = SchematicEditor.PlaceComponent(
+            SampleConnector("dragoncad:sample/arduino-uno-usb-b", "USB-B connector", ["VBUS", "D-", "D+", "GND"], 4),
+            new CadPoint(-32_000_000, -4_000_000));
+        SchematicComponentInstance dcJack = SchematicEditor.PlaceComponent(
+            SampleConnector("dragoncad:sample/arduino-uno-dc-jack", "Barrel jack VIN", ["VIN", "GND"], 2),
+            new CadPoint(-32_000_000, 10_000_000));
+        SchematicComponentInstance regulator = SchematicEditor.PlaceComponent(
+            Sample7805Regulator() with { ComponentId = "dragoncad:sample/arduino-uno-ncp1117", DisplayName = "NCP1117 5V regulator" },
+            new CadPoint(-18_000_000, 10_000_000));
+        SchematicComponentInstance reset = SchematicEditor.PlaceComponent(
+            SampleDiscrete("dragoncad:sample/arduino-uno-reset", "Reset tactile switch", ["RST", "GND"], 2),
+            new CadPoint(18_000_000, -8_000_000));
+        SchematicComponentInstance crystal16 = SchematicEditor.PlaceComponent(
+            SampleDiscrete("dragoncad:sample/arduino-uno-16mhz", "16 MHz crystal", ["XTAL1", "XTAL2"], 2),
+            new CadPoint(18_000_000, 4_000_000));
+        SchematicComponentInstance powerHeader = SchematicEditor.PlaceComponent(
+            SampleConnector("dragoncad:sample/arduino-uno-power-header", "Power header", ["VIN", "5V", "3V3", "GND"], 4),
+            new CadPoint(32_000_000, 10_000_000));
+        SchematicComponentInstance digitalHeader = SchematicEditor.PlaceComponent(
+            SampleConnector("dragoncad:sample/arduino-uno-digital-header", "Digital headers D0-D13", ["D0", "D1", "D13", "5V", "GND"], 5),
+            new CadPoint(32_000_000, -4_000_000));
+        SchematicComponentInstance analogHeader = SchematicEditor.PlaceComponent(
+            SampleConnector("dragoncad:sample/arduino-uno-analog-header", "Analog header A0-A5", ["A0", "A1", "A2", "A3", "A4", "A5", "5V", "GND"], 8),
+            new CadPoint(32_000_000, 20_000_000));
+        SchematicComponentInstance led = SchematicEditor.PlaceComponent(
+            SampleDiscrete("dragoncad:sample/arduino-uno-led13", "D13 LED and resistor", ["D13", "GND"], 2),
+            new CadPoint(18_000_000, -18_000_000));
+
+        Connect(usb, "D+", usbBridge, "USB_D+", [new CadPoint(-26_000_000, -7_000_000)]);
+        Connect(usb, "D-", usbBridge, "USB_D-", [new CadPoint(-26_000_000, -3_000_000)]);
+        Connect(usb, "VBUS", regulator, "IN", [new CadPoint(-28_000_000, 4_000_000)]);
+        Connect(dcJack, "VIN", regulator, "IN", [new CadPoint(-26_000_000, 8_000_000)]);
+        Connect(regulator, "OUT", atmega328, "VCC", [new CadPoint(-8_000_000, 10_000_000), new CadPoint(-8_000_000, -8_000_000)]);
+        Connect(regulator, "OUT", powerHeader, "5V", [new CadPoint(10_000_000, 12_000_000)]);
+        Connect(atmega328, "D0/RX", usbBridge, "TXD", [new CadPoint(-8_000_000, -10_000_000)]);
+        Connect(atmega328, "D1/TX", usbBridge, "RXD", [new CadPoint(-8_000_000, -12_000_000)]);
+        Connect(atmega328, "RESET", reset, "RST", [new CadPoint(10_000_000, -8_000_000)]);
+        Connect(atmega328, "XTAL1", crystal16, "XTAL1", [new CadPoint(10_000_000, 2_000_000)]);
+        Connect(atmega328, "XTAL2", crystal16, "XTAL2", [new CadPoint(10_000_000, 6_000_000)]);
+        Connect(atmega328, "D13/SCK", digitalHeader, "D13", [new CadPoint(12_000_000, -2_000_000)]);
+        Connect(atmega328, "D13/SCK", led, "D13", [new CadPoint(8_000_000, -18_000_000)]);
+        Connect(atmega328, "GND", powerHeader, "GND", [new CadPoint(8_000_000, 16_000_000)]);
+        Connect(atmega328, "VCC", digitalHeader, "5V", [new CadPoint(14_000_000, -10_000_000)]);
+        Connect(atmega328, "VCC", analogHeader, "5V", [new CadPoint(14_000_000, 20_000_000)]);
+
+        SynchronizeBoardFromSchematic();
+        RouteArduinoUnoBoardSample();
+        ActiveSchematicTool = "Wire";
+        PlacementStatus = $"Loaded Arduino Uno Rev3 sample: {SchematicEditor.Components.Count} parts, {SchematicEditor.Wires.Count} wires, {SchematicEditor.Nets.Count} nets. Board sync: {BoardEditor.StatusText}";
+        DragonCadLog.Info($"sample arduino uno loaded components={SchematicEditor.Components.Count} wires={SchematicEditor.Wires.Count} nets={SchematicEditor.Nets.Count} boardComponents={BoardEditor.Components.Count}");
+    }
+
+    private void RouteArduinoUnoBoardSample()
+    {
+        BoardEditor.SetActiveLayer("Top");
+        AddBoardSampleTrace(new CadPoint(-32_000_000, -4_000_000), new CadPoint(-18_000_000, -4_000_000), [new CadPoint(-26_000_000, -7_000_000)]);
+        AddBoardSampleTrace(new CadPoint(-32_000_000, -2_000_000), new CadPoint(-18_000_000, -2_000_000), [new CadPoint(-26_000_000, -3_000_000)]);
+        AddBoardSampleTrace(new CadPoint(-18_000_000, 10_000_000), new CadPoint(0, -2_000_000), [new CadPoint(-8_000_000, 10_000_000), new CadPoint(-8_000_000, -8_000_000)]);
+        AddBoardSampleTrace(new CadPoint(0, -4_000_000), new CadPoint(-18_000_000, -6_000_000), [new CadPoint(-8_000_000, -10_000_000)]);
+        AddBoardSampleTrace(new CadPoint(0, -2_000_000), new CadPoint(-18_000_000, -8_000_000), [new CadPoint(-8_000_000, -12_000_000)]);
+        AddBoardSampleTrace(new CadPoint(0, 0), new CadPoint(18_000_000, -8_000_000), [new CadPoint(10_000_000, -8_000_000)]);
+        AddBoardSampleTrace(new CadPoint(0, 2_000_000), new CadPoint(18_000_000, 4_000_000), [new CadPoint(10_000_000, 2_000_000)]);
+        AddBoardSampleTrace(new CadPoint(0, 4_000_000), new CadPoint(18_000_000, 6_000_000), [new CadPoint(10_000_000, 6_000_000)]);
+        BoardEditor.SetActiveLayer("Bottom");
+        AddBoardSampleTrace(new CadPoint(0, -6_000_000), new CadPoint(32_000_000, -4_000_000), [new CadPoint(12_000_000, -2_000_000)]);
+        AddBoardSampleTrace(new CadPoint(0, -6_000_000), new CadPoint(18_000_000, -18_000_000), [new CadPoint(8_000_000, -18_000_000)]);
+        BoardEditor.ActivateSelectTool();
+    }
+
+    private void AddBoardSampleTrace(CadPoint start, CadPoint end, IReadOnlyList<CadPoint> viaPoints)
+    {
+        BoardEditor.ActivateRouteTool();
+        BoardEditor.TraceClickAt(start);
+        foreach (CadPoint viaPoint in viaPoints)
+        {
+            BoardEditor.TraceClickAt(viaPoint);
+        }
+
+        BoardEditor.CompleteTraceAt(end);
+    }
+
     private void ZoomInActiveEditor()
     {
         if (IsPcbLayoutTabActive)
@@ -3223,6 +3344,158 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
                     new ComponentFootprintPadPreview("P", new CadPoint(-700_000, 0), new CadVector(800_000, 800_000), "Round", "ThroughHole"),
                     new ComponentFootprintPadPreview("N", new CadPoint(700_000, 0), new CadVector(800_000, 800_000), "Round", "ThroughHole")
                 ]));
+
+    private static ComponentPlacementIntent SampleIntegratedCircuit(
+        string componentId,
+        string displayName,
+        IReadOnlyList<string> pins,
+        int pinCount,
+        int bodyHeightGridUnits)
+    {
+        ComponentSymbolPinPreview[] symbolPins = BuildDualSideSymbolPins(pins, bodyHeightGridUnits);
+        ComponentFootprintPadPreview[] pads = BuildDualSideFootprintPads(pins, pinCount);
+        long bodyHeight = bodyHeightGridUnits * 1_000_000L;
+        return new ComponentPlacementIntent(
+            componentId,
+            displayName,
+            SymbolCount: 1,
+            FootprintCount: 1,
+            Source: "Arduino Uno Rev3 sample",
+            SymbolPreview: new ComponentSymbolPreview(
+                new CadRectangle(-4_000_000, -bodyHeight / 2, 4_000_000, bodyHeight / 2),
+                BoxLines(-3_000_000, -bodyHeight / 2, 3_000_000, bodyHeight / 2),
+                symbolPins),
+            FootprintPreview: new ComponentFootprintPreview(
+                new CadRectangle(-4_500_000, -bodyHeight / 2, 4_500_000, bodyHeight / 2),
+                BoxLines(-4_500_000, -bodyHeight / 2, 4_500_000, bodyHeight / 2),
+                pads));
+    }
+
+    private static ComponentPlacementIntent SampleConnector(
+        string componentId,
+        string displayName,
+        IReadOnlyList<string> pins,
+        int pinCount)
+    {
+        ComponentSymbolPinPreview[] symbolPins = pins
+            .Select((pin, index) => new ComponentSymbolPinPreview(
+                pin,
+                new CadPoint(-4_000_000, (index - (pins.Count - 1) / 2) * 1_250_000),
+                new CadPoint(-1_500_000, (index - (pins.Count - 1) / 2) * 1_250_000),
+                "Right"))
+            .ToArray();
+        ComponentFootprintPadPreview[] pads = pins
+            .Select((pin, index) => new ComponentFootprintPadPreview(
+                pin,
+                new CadPoint(0, (index - (pinCount - 1) / 2) * 1_270_000),
+                new CadVector(900_000, 900_000),
+                "Round",
+                "ThroughHole"))
+            .ToArray();
+        long bodyHeight = Math.Max(3, pinCount) * 1_270_000L;
+        return new ComponentPlacementIntent(
+            componentId,
+            displayName,
+            SymbolCount: 1,
+            FootprintCount: 1,
+            Source: "Arduino Uno Rev3 sample",
+            SymbolPreview: new ComponentSymbolPreview(
+                new CadRectangle(-4_000_000, -bodyHeight / 2, 2_000_000, bodyHeight / 2),
+                BoxLines(-1_500_000, -bodyHeight / 2, 2_000_000, bodyHeight / 2),
+                symbolPins),
+            FootprintPreview: new ComponentFootprintPreview(
+                new CadRectangle(-2_000_000, -bodyHeight / 2, 2_000_000, bodyHeight / 2),
+                BoxLines(-2_000_000, -bodyHeight / 2, 2_000_000, bodyHeight / 2),
+                pads));
+    }
+
+    private static ComponentPlacementIntent SampleDiscrete(
+        string componentId,
+        string displayName,
+        IReadOnlyList<string> pins,
+        int pinCount)
+    {
+        ComponentSymbolPinPreview[] symbolPins =
+        [
+            new ComponentSymbolPinPreview(pins[0], new CadPoint(-3_000_000, 0), new CadPoint(-800_000, 0), "Right"),
+            new ComponentSymbolPinPreview(pins[Math.Min(1, pins.Count - 1)], new CadPoint(3_000_000, 0), new CadPoint(800_000, 0), "Left")
+        ];
+        ComponentFootprintPadPreview[] pads = pins
+            .Take(pinCount)
+            .Select((pin, index) => new ComponentFootprintPadPreview(
+                pin,
+                new CadPoint((index - (pinCount - 1) / 2) * 1_270_000, 0),
+                new CadVector(800_000, 800_000),
+                "Round",
+                "ThroughHole"))
+            .ToArray();
+        return new ComponentPlacementIntent(
+            componentId,
+            displayName,
+            SymbolCount: 1,
+            FootprintCount: 1,
+            Source: "Arduino Uno Rev3 sample",
+            SymbolPreview: new ComponentSymbolPreview(
+                new CadRectangle(-3_000_000, -1_500_000, 3_000_000, 1_500_000),
+                [
+                    new ComponentPreviewLine(new CadPoint(-800_000, -700_000), new CadPoint(800_000, 700_000)),
+                    new ComponentPreviewLine(new CadPoint(-800_000, 700_000), new CadPoint(800_000, -700_000))
+                ],
+                symbolPins),
+            FootprintPreview: new ComponentFootprintPreview(
+                new CadRectangle(-2_000_000, -1_000_000, 2_000_000, 1_000_000),
+                BoxLines(-2_000_000, -1_000_000, 2_000_000, 1_000_000),
+                pads));
+    }
+
+    private static ComponentSymbolPinPreview[] BuildDualSideSymbolPins(IReadOnlyList<string> pins, int bodyHeightGridUnits)
+    {
+        int leftCount = (pins.Count + 1) / 2;
+        long pitch = 1_200_000;
+        long leftStart = -((leftCount - 1) * pitch) / 2;
+        long rightStart = -((pins.Count - leftCount - 1) * pitch) / 2;
+        return pins
+            .Select((pin, index) =>
+            {
+                bool left = index < leftCount;
+                long y = left ? leftStart + (index * pitch) : rightStart + ((index - leftCount) * pitch);
+                return new ComponentSymbolPinPreview(
+                    pin,
+                    new CadPoint(left ? -4_500_000 : 4_500_000, y),
+                    new CadPoint(left ? -3_000_000 : 3_000_000, y),
+                    left ? "Right" : "Left");
+            })
+            .ToArray();
+    }
+
+    private static ComponentFootprintPadPreview[] BuildDualSideFootprintPads(IReadOnlyList<string> pins, int pinCount)
+    {
+        int leftCount = (pinCount + 1) / 2;
+        long pitch = 1_270_000;
+        return pins
+            .Take(pinCount)
+            .Select((pin, index) =>
+            {
+                bool left = index < leftCount;
+                int sideIndex = left ? index : index - leftCount;
+                long y = (sideIndex - ((left ? leftCount : pinCount - leftCount) - 1) / 2) * pitch;
+                return new ComponentFootprintPadPreview(
+                    pin,
+                    new CadPoint(left ? -3_000_000 : 3_000_000, y),
+                    new CadVector(750_000, 750_000),
+                    "Round",
+                    "ThroughHole");
+            })
+            .ToArray();
+    }
+
+    private static IReadOnlyList<ComponentPreviewLine> BoxLines(long left, long top, long right, long bottom) =>
+    [
+        new ComponentPreviewLine(new CadPoint(left, top), new CadPoint(right, top)),
+        new ComponentPreviewLine(new CadPoint(right, top), new CadPoint(right, bottom)),
+        new ComponentPreviewLine(new CadPoint(right, bottom), new CadPoint(left, bottom)),
+        new ComponentPreviewLine(new CadPoint(left, bottom), new CadPoint(left, top))
+    ];
 
     public void MoveSelectedSchematicComponentByGrid(CadVector gridSteps)
     {

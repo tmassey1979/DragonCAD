@@ -9,6 +9,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         MainWindowViewModel viewModel = MainWindowViewModel.CreateDesignPreview();
         viewModel.ApplyStartupTab(Environment.GetEnvironmentVariable("DRAGONCAD_START_TAB"));
+        viewModel.ApplyStartupSample(Environment.GetEnvironmentVariable("DRAGONCAD_START_SAMPLE"));
         DataContext = viewModel;
     }
 }
