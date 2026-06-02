@@ -2317,19 +2317,29 @@ public sealed class MainWindowViewModelTests
         viewModel.LoadArduinoUnoSampleCommand.Execute(null);
 
         Assert.Equal("Schematic", viewModel.ActiveWorkspaceTab);
-        Assert.Equal(11, viewModel.SchematicEditor.Components.Count);
-        Assert.Contains(viewModel.SchematicEditor.Components, component => component.DisplayName == "ATmega328P MCU");
-        Assert.Contains(viewModel.SchematicEditor.Components, component => component.DisplayName == "ATmega16U2 USB bridge");
-        Assert.Contains(viewModel.SchematicEditor.Components, component => component.DisplayName == "Digital headers D0-D13");
-        Assert.Equal(16, viewModel.SchematicEditor.Wires.Count);
-        Assert.True(viewModel.SchematicEditor.Nets.Count >= 10);
-        Assert.Equal(11, viewModel.BoardEditor.Components.Count);
-        Assert.True(viewModel.BoardEditor.Airwires.Count >= 10);
-        Assert.Equal(10, viewModel.BoardEditor.Traces.Count);
+        Assert.Equal(21, viewModel.SchematicEditor.Components.Count);
+        AssertUnoComponentGeometry(viewModel, "ATmega328P-PU MCU", expectedPins: 28, expectedPads: 28);
+        AssertUnoComponentGeometry(viewModel, "ATmega16U2 USB bridge", expectedPins: 32, expectedPads: 32);
+        AssertUnoComponentGeometry(viewModel, "USB-B connector", expectedPins: 4, expectedPads: 4);
+        AssertUnoComponentGeometry(viewModel, "Power header", expectedPins: 8, expectedPads: 8);
+        AssertUnoComponentGeometry(viewModel, "Digital header D0-D7", expectedPins: 8, expectedPads: 8);
+        AssertUnoComponentGeometry(viewModel, "Digital header D8-D13/AREF/SDA/SCL", expectedPins: 10, expectedPads: 10);
+        AssertUnoComponentGeometry(viewModel, "Analog header A0-A5", expectedPins: 6, expectedPads: 6);
+        AssertUnoComponentGeometry(viewModel, "ATmega328P ICSP header", expectedPins: 6, expectedPads: 6);
+        AssertUnoComponentGeometry(viewModel, "ATmega16U2 ICSP header", expectedPins: 6, expectedPads: 6);
+        Assert.Contains(ComponentByName(viewModel, "ATmega328P-PU MCU").SymbolPreview.Pins, pin => pin.Name == "PC6/RESET");
+        Assert.Contains(ComponentByName(viewModel, "ATmega328P-PU MCU").SymbolPreview.Pins, pin => pin.Name == "PB5/SCK");
+        Assert.Contains(ComponentByName(viewModel, "ATmega328P-PU MCU").SymbolPreview.Pins, pin => pin.Name == "AREF");
+        Assert.Contains(ComponentByName(viewModel, "ATmega328P-PU MCU").SymbolPreview.Pins, pin => pin.Name == "AVCC");
+        Assert.Equal(41, viewModel.SchematicEditor.Wires.Count);
+        Assert.True(viewModel.SchematicEditor.Nets.Count >= 18);
+        Assert.Equal(21, viewModel.BoardEditor.Components.Count);
+        Assert.True(viewModel.BoardEditor.Airwires.Count >= 18);
+        Assert.Equal(16, viewModel.BoardEditor.Traces.Count);
         Assert.Contains(viewModel.BoardEditor.Traces, trace => trace.LayerName == "Top");
         Assert.Contains(viewModel.BoardEditor.Traces, trace => trace.LayerName == "Bottom");
         Assert.All(viewModel.BoardEditor.Components, component => Assert.NotEmpty(component.FootprintPreview.Pads));
-        Assert.Contains("Loaded Arduino Uno Rev3 sample", viewModel.PlacementStatus, StringComparison.Ordinal);
+        Assert.Contains("Loaded Arduino Uno Rev3 reference sample", viewModel.PlacementStatus, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -2342,10 +2352,24 @@ public sealed class MainWindowViewModelTests
         viewModel.ApplyStartupSample("ArduinoUno");
 
         Assert.Equal("Schematic", viewModel.ActiveWorkspaceTab);
-        Assert.Equal(11, viewModel.SchematicEditor.Components.Count);
-        Assert.Equal(10, viewModel.BoardEditor.Traces.Count);
-        Assert.Contains("Loaded Arduino Uno Rev3 sample", viewModel.PlacementStatus, StringComparison.Ordinal);
+        Assert.Equal(21, viewModel.SchematicEditor.Components.Count);
+        Assert.Equal(16, viewModel.BoardEditor.Traces.Count);
+        Assert.Contains("Loaded Arduino Uno Rev3 reference sample", viewModel.PlacementStatus, StringComparison.Ordinal);
     }
+
+    private static void AssertUnoComponentGeometry(
+        MainWindowViewModel viewModel,
+        string displayName,
+        int expectedPins,
+        int expectedPads)
+    {
+        SchematicComponentInstance component = ComponentByName(viewModel, displayName);
+        Assert.Equal(expectedPins, component.SymbolPreview.Pins.Count);
+        Assert.Equal(expectedPads, component.FootprintPreview.Pads.Count);
+    }
+
+    private static SchematicComponentInstance ComponentByName(MainWindowViewModel viewModel, string displayName) =>
+        Assert.Single(viewModel.SchematicEditor.Components, component => component.DisplayName == displayName);
 
     [Fact]
     public void FullHawkCadCoreLibraryAssetIsAvailableForShipping()

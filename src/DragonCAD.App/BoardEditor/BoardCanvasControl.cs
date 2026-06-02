@@ -213,6 +213,20 @@ public sealed class BoardCanvasControl : Control
         e.Handled = true;
     }
 
+    protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
+    {
+        base.OnPointerWheelChanged(e);
+        if (Editor is null)
+        {
+            return;
+        }
+
+        CadPoint cursorCadPoint = CreateViewport().ScreenToCad(e.GetPosition(this), Bounds.Center);
+        Editor.ZoomAt(cursorCadPoint, e.Delta.Y > 0);
+        Cursor = new Cursor(StandardCursorType.SizeNorthSouth);
+        e.Handled = true;
+    }
+
     private void MoveSelectionTo(CadPoint point)
     {
         if (Editor is null)
@@ -481,7 +495,7 @@ public sealed class BoardCanvasControl : Control
     private BoardCanvasViewport CreateViewport()
     {
         double zoom = Editor?.ZoomLevel ?? 1.0;
-        return new BoardCanvasViewport(new CadPoint(4_000_000, 0), 0.000025 * zoom);
+        return new BoardCanvasViewport(Editor?.ViewportOrigin ?? new CadPoint(4_000_000, 0), 0.000025 * zoom);
     }
 
     private void ItemsChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
@@ -495,6 +509,7 @@ public sealed class BoardCanvasControl : Control
             nameof(BoardEditorViewModel.GridStyle) or
             nameof(BoardEditorViewModel.GridSpacingInternal) or
             nameof(BoardEditorViewModel.ZoomLevel) or
+            nameof(BoardEditorViewModel.ViewportOrigin) or
             nameof(BoardEditorViewModel.PendingTraceStart) or
             nameof(BoardEditorViewModel.PendingTraceRoutePoints) or
             nameof(BoardEditorViewModel.ActiveTool) or

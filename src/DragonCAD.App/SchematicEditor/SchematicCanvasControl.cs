@@ -173,6 +173,20 @@ public sealed class SchematicCanvasControl : Control
         e.Handled = true;
     }
 
+    protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
+    {
+        base.OnPointerWheelChanged(e);
+        if (Editor is null)
+        {
+            return;
+        }
+
+        CadPoint cursorCadPoint = CreateViewport().ScreenToCad(e.GetPosition(this), Bounds.Center);
+        Editor.ZoomAt(cursorCadPoint, e.Delta.Y > 0);
+        Cursor = new Cursor(StandardCursorType.SizeNorthSouth);
+        e.Handled = true;
+    }
+
     private static void DrawGrid(
         DrawingContext context,
         Rect bounds,
@@ -433,6 +447,7 @@ public sealed class SchematicCanvasControl : Control
     private void EditorPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         if (e.PropertyName is nameof(SchematicEditorViewModel.ZoomLevel) or
+            nameof(SchematicEditorViewModel.ViewportOrigin) or
             nameof(SchematicEditorViewModel.IsGridVisible) or
             nameof(SchematicEditorViewModel.GridStyle) or
             nameof(SchematicEditorViewModel.GridSpacingInternal) or
@@ -463,7 +478,7 @@ public sealed class SchematicCanvasControl : Control
     private SchematicCanvasViewport CreateViewport()
     {
         double zoom = Editor?.ZoomLevel ?? 1.0;
-        return new SchematicCanvasViewport(new CadPoint(0, 0), pixelsPerInternalUnit: 0.00002 * zoom);
+        return new SchematicCanvasViewport(Editor?.ViewportOrigin ?? new CadPoint(0, 0), pixelsPerInternalUnit: 0.00002 * zoom);
     }
 
     private static Point Translate(Point point, Point offset) =>

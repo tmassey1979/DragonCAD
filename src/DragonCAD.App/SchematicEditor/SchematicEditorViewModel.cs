@@ -34,6 +34,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
     private CadPoint? pendingWirePreviewPoint;
     private readonly List<CadPoint> pendingWireRoutePoints = [];
     private double zoomLevel = 1.0;
+    private CadPoint viewportOrigin = new(0, 0);
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -180,6 +181,21 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             }
 
             zoomLevel = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public CadPoint ViewportOrigin
+    {
+        get => viewportOrigin;
+        private set
+        {
+            if (viewportOrigin == value)
+            {
+                return;
+            }
+
+            viewportOrigin = value;
             OnPropertyChanged();
         }
     }
@@ -673,11 +689,37 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         return updated;
     }
 
-    public void ZoomIn() =>
+    public void ZoomIn()
+    {
         ZoomLevel = Math.Min(8.0, Math.Round(ZoomLevel * 1.25, 4));
+        StatusText = $"Schematic zoom {ZoomLevel:0.##}x.";
+    }
 
-    public void ZoomOut() =>
+    public void ZoomOut()
+    {
         ZoomLevel = Math.Max(0.25, Math.Round(ZoomLevel / 1.25, 4));
+        StatusText = $"Schematic zoom {ZoomLevel:0.##}x.";
+    }
+
+    public void ZoomAt(CadPoint cursorCadPoint, bool zoomIn)
+    {
+        double oldZoom = ZoomLevel;
+        double nextZoom = zoomIn
+            ? Math.Min(8.0, Math.Round(ZoomLevel * 1.25, 4))
+            : Math.Max(0.25, Math.Round(ZoomLevel / 1.25, 4));
+        if (Math.Abs(oldZoom - nextZoom) < 0.0001)
+        {
+            StatusText = $"Schematic zoom {ZoomLevel:0.##}x.";
+            return;
+        }
+
+        double ratio = oldZoom / nextZoom;
+        ViewportOrigin = new CadPoint(
+            cursorCadPoint.X - (long)Math.Round((cursorCadPoint.X - ViewportOrigin.X) * ratio, MidpointRounding.AwayFromZero),
+            cursorCadPoint.Y - (long)Math.Round((cursorCadPoint.Y - ViewportOrigin.Y) * ratio, MidpointRounding.AwayFromZero));
+        ZoomLevel = nextZoom;
+        StatusText = $"Schematic zoom {ZoomLevel:0.##}x.";
+    }
 
     public void ToggleGridVisibility()
     {

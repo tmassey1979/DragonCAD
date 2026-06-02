@@ -3109,87 +3109,213 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         BoardEditor.Clear();
 
         SchematicComponentInstance atmega328 = SchematicEditor.PlaceComponent(
-            SampleIntegratedCircuit(
-                "dragoncad:sample/arduino-uno-atmega328p",
-                "ATmega328P MCU",
-                ["RESET", "XTAL1", "XTAL2", "D0/RX", "D1/TX", "D13/SCK", "AREF", "AVCC", "VCC", "GND"],
-                10,
-                6),
+            UnoReferenceIntegratedCircuit(
+                "ATMEGA328P_PDIP",
+                "dragoncad:reference/arduino-uno/atmega328p-pu",
+                "ATmega328P-PU MCU",
+                ArduinoUnoAtmega328Pins(),
+                bodyHeightGridUnits: 16),
             new CadPoint(0, 0));
         SchematicComponentInstance usbBridge = SchematicEditor.PlaceComponent(
-            SampleIntegratedCircuit(
-                "dragoncad:sample/arduino-uno-atmega16u2",
+            UnoReferenceIntegratedCircuit(
+                "ATMEGA16U2",
+                "dragoncad:reference/arduino-uno/atmega16u2",
                 "ATmega16U2 USB bridge",
-                ["USB_D+", "USB_D-", "TXD", "RXD", "RESET", "VCC", "GND"],
-                7,
-                4),
-            new CadPoint(-18_000_000, -4_000_000));
+                ArduinoUnoAtmega16U2Pins(),
+                bodyHeightGridUnits: 18),
+            new CadPoint(-23_000_000, -6_000_000));
         SchematicComponentInstance usb = SchematicEditor.PlaceComponent(
-            SampleConnector("dragoncad:sample/arduino-uno-usb-b", "USB-B connector", ["VBUS", "D-", "D+", "GND"], 4),
-            new CadPoint(-32_000_000, -4_000_000));
+            UnoReferenceConnector("USB-B-PTH", "dragoncad:reference/arduino-uno/usb-b", "USB-B connector", ["VBUS", "D-", "D+", "GND"]),
+            new CadPoint(-43_000_000, -7_000_000));
         SchematicComponentInstance dcJack = SchematicEditor.PlaceComponent(
-            SampleConnector("dragoncad:sample/arduino-uno-dc-jack", "Barrel jack VIN", ["VIN", "GND"], 2),
-            new CadPoint(-32_000_000, 10_000_000));
+            UnoReferenceConnector("DCJACK_2MM", "dragoncad:reference/arduino-uno/dc-jack", "Barrel jack VIN", ["VIN", "GND", "SW"]),
+            new CadPoint(-43_000_000, 18_000_000));
         SchematicComponentInstance regulator = SchematicEditor.PlaceComponent(
-            Sample7805Regulator() with { ComponentId = "dragoncad:sample/arduino-uno-ncp1117", DisplayName = "NCP1117 5V regulator" },
-            new CadPoint(-18_000_000, 10_000_000));
+            UnoReferenceRegulator("NCP1117", "dragoncad:reference/arduino-uno/ncp1117-5v", "NCP1117 5V regulator", ["IN", "GND", "OUT"]),
+            new CadPoint(-25_000_000, 18_000_000));
+        SchematicComponentInstance regulator3v3 = SchematicEditor.PlaceComponent(
+            UnoReferenceRegulator("LP2985", "dragoncad:reference/arduino-uno/lp2985-3v3", "LP2985 3.3V regulator", ["IN", "GND", "OUT", "ON/OFF", "BYPASS"]),
+            new CadPoint(-8_000_000, 18_000_000));
         SchematicComponentInstance reset = SchematicEditor.PlaceComponent(
-            SampleDiscrete("dragoncad:sample/arduino-uno-reset", "Reset tactile switch", ["RST", "GND"], 2),
-            new CadPoint(18_000_000, -8_000_000));
-        SchematicComponentInstance crystal16 = SchematicEditor.PlaceComponent(
-            SampleDiscrete("dragoncad:sample/arduino-uno-16mhz", "16 MHz crystal", ["XTAL1", "XTAL2"], 2),
-            new CadPoint(18_000_000, 4_000_000));
+            UnoReferenceDiscrete("TACTILE", "dragoncad:reference/arduino-uno/reset-switch", "Reset tactile switch", ["RST", "GND"]),
+            new CadPoint(23_000_000, -14_000_000));
+        SchematicComponentInstance crystal328 = SchematicEditor.PlaceComponent(
+            UnoReferenceDiscrete("16MHZ", "dragoncad:reference/arduino-uno/atmega328p-16mhz", "ATmega328P 16 MHz crystal", ["XTAL1", "XTAL2"]),
+            new CadPoint(23_000_000, 4_000_000));
+        SchematicComponentInstance crystal16u2 = SchematicEditor.PlaceComponent(
+            UnoReferenceDiscrete("16MHZ", "dragoncad:reference/arduino-uno/atmega16u2-16mhz", "ATmega16U2 16 MHz crystal", ["XTAL1", "XTAL2"]),
+            new CadPoint(-43_000_000, -21_000_000));
         SchematicComponentInstance powerHeader = SchematicEditor.PlaceComponent(
-            SampleConnector("dragoncad:sample/arduino-uno-power-header", "Power header", ["VIN", "5V", "3V3", "GND"], 4),
-            new CadPoint(32_000_000, 10_000_000));
-        SchematicComponentInstance digitalHeader = SchematicEditor.PlaceComponent(
-            SampleConnector("dragoncad:sample/arduino-uno-digital-header", "Digital headers D0-D13", ["D0", "D1", "D13", "5V", "GND"], 5),
-            new CadPoint(32_000_000, -4_000_000));
+            UnoReferenceConnector("ARDUINO_R3", "dragoncad:reference/arduino-uno/power-header", "Power header", ["NC", "IOREF", "RESET", "3V3", "5V", "GND1", "GND2", "VIN"]),
+            new CadPoint(42_000_000, 18_000_000));
+        SchematicComponentInstance digitalLowHeader = SchematicEditor.PlaceComponent(
+            UnoReferenceConnector("ARDUINO_R3", "dragoncad:reference/arduino-uno/digital-d0-d7", "Digital header D0-D7", ["D0/RX", "D1/TX", "D2", "D3/PWM", "D4", "D5/PWM", "D6/PWM", "D7"]),
+            new CadPoint(42_000_000, -10_000_000));
+        SchematicComponentInstance digitalHighHeader = SchematicEditor.PlaceComponent(
+            UnoReferenceConnector("ARDUINO_R3", "dragoncad:reference/arduino-uno/digital-d8-d13", "Digital header D8-D13/AREF/SDA/SCL", ["D8", "D9/PWM", "D10/SS/PWM", "D11/MOSI/PWM", "D12/MISO", "D13/SCK", "GND", "AREF", "SDA", "SCL"]),
+            new CadPoint(42_000_000, 2_000_000));
         SchematicComponentInstance analogHeader = SchematicEditor.PlaceComponent(
-            SampleConnector("dragoncad:sample/arduino-uno-analog-header", "Analog header A0-A5", ["A0", "A1", "A2", "A3", "A4", "A5", "5V", "GND"], 8),
-            new CadPoint(32_000_000, 20_000_000));
-        SchematicComponentInstance led = SchematicEditor.PlaceComponent(
-            SampleDiscrete("dragoncad:sample/arduino-uno-led13", "D13 LED and resistor", ["D13", "GND"], 2),
-            new CadPoint(18_000_000, -18_000_000));
+            UnoReferenceConnector("ARDUINO_R3", "dragoncad:reference/arduino-uno/analog-a0-a5", "Analog header A0-A5", ["A0", "A1", "A2", "A3", "A4/SDA", "A5/SCL"]),
+            new CadPoint(42_000_000, 28_000_000));
+        SchematicComponentInstance icsp328 = SchematicEditor.PlaceComponent(
+            UnoReferenceConnector("AVR ISP 6", "dragoncad:reference/arduino-uno/atmega328p-icsp", "ATmega328P ICSP header", ["MISO", "5V", "SCK", "MOSI", "RESET", "GND"]),
+            new CadPoint(18_000_000, 22_000_000));
+        SchematicComponentInstance icsp16u2 = SchematicEditor.PlaceComponent(
+            UnoReferenceConnector("AVR ISP 6", "dragoncad:reference/arduino-uno/atmega16u2-icsp", "ATmega16U2 ICSP header", ["MISO", "5V", "SCK", "MOSI", "RESET", "GND"]),
+            new CadPoint(-43_000_000, 3_000_000));
+        SchematicComponentInstance led13 = SchematicEditor.PlaceComponent(
+            UnoReferenceDiscrete("LED", "dragoncad:reference/arduino-uno/led13", "D13 LED", ["A", "K"]),
+            new CadPoint(23_000_000, -24_000_000));
+        SchematicComponentInstance ledTx = SchematicEditor.PlaceComponent(
+            UnoReferenceDiscrete("LED", "dragoncad:reference/arduino-uno/tx-led", "TX LED", ["A", "K"]),
+            new CadPoint(-8_000_000, -24_000_000));
+        SchematicComponentInstance ledRx = SchematicEditor.PlaceComponent(
+            UnoReferenceDiscrete("LED", "dragoncad:reference/arduino-uno/rx-led", "RX LED", ["A", "K"]),
+            new CadPoint(-17_000_000, -24_000_000));
+        SchematicComponentInstance resetPullup = SchematicEditor.PlaceComponent(
+            UnoReferenceDiscrete("RESISTOR", "dragoncad:reference/arduino-uno/reset-pullup", "Reset pull-up resistor", ["1", "2"]),
+            new CadPoint(23_000_000, -8_000_000));
+        SchematicComponentInstance usbDPlusResistor = SchematicEditor.PlaceComponent(
+            UnoReferenceDiscrete("RESISTOR", "dragoncad:reference/arduino-uno/usb-dplus-resistor", "USB D+ series resistor", ["1", "2"]),
+            new CadPoint(-34_000_000, -10_000_000));
+        SchematicComponentInstance usbDMinusResistor = SchematicEditor.PlaceComponent(
+            UnoReferenceDiscrete("RESISTOR", "dragoncad:reference/arduino-uno/usb-dminus-resistor", "USB D- series resistor", ["1", "2"]),
+            new CadPoint(-34_000_000, -4_000_000));
 
-        Connect(usb, "D+", usbBridge, "USB_D+", [new CadPoint(-26_000_000, -7_000_000)]);
-        Connect(usb, "D-", usbBridge, "USB_D-", [new CadPoint(-26_000_000, -3_000_000)]);
-        Connect(usb, "VBUS", regulator, "IN", [new CadPoint(-28_000_000, 4_000_000)]);
-        Connect(dcJack, "VIN", regulator, "IN", [new CadPoint(-26_000_000, 8_000_000)]);
-        Connect(regulator, "OUT", atmega328, "VCC", [new CadPoint(-8_000_000, 10_000_000), new CadPoint(-8_000_000, -8_000_000)]);
-        Connect(regulator, "OUT", powerHeader, "5V", [new CadPoint(10_000_000, 12_000_000)]);
-        Connect(atmega328, "D0/RX", usbBridge, "TXD", [new CadPoint(-8_000_000, -10_000_000)]);
-        Connect(atmega328, "D1/TX", usbBridge, "RXD", [new CadPoint(-8_000_000, -12_000_000)]);
-        Connect(atmega328, "RESET", reset, "RST", [new CadPoint(10_000_000, -8_000_000)]);
-        Connect(atmega328, "XTAL1", crystal16, "XTAL1", [new CadPoint(10_000_000, 2_000_000)]);
-        Connect(atmega328, "XTAL2", crystal16, "XTAL2", [new CadPoint(10_000_000, 6_000_000)]);
-        Connect(atmega328, "D13/SCK", digitalHeader, "D13", [new CadPoint(12_000_000, -2_000_000)]);
-        Connect(atmega328, "D13/SCK", led, "D13", [new CadPoint(8_000_000, -18_000_000)]);
-        Connect(atmega328, "GND", powerHeader, "GND", [new CadPoint(8_000_000, 16_000_000)]);
-        Connect(atmega328, "VCC", digitalHeader, "5V", [new CadPoint(14_000_000, -10_000_000)]);
-        Connect(atmega328, "VCC", analogHeader, "5V", [new CadPoint(14_000_000, 20_000_000)]);
+        Connect(usb, "VBUS", usbBridge, "VBUS", [new CadPoint(-37_000_000, -15_000_000)]);
+        Connect(usb, "D+", usbDPlusResistor, "1", [new CadPoint(-38_000_000, -10_000_000)]);
+        Connect(usbDPlusResistor, "2", usbBridge, "D+", [new CadPoint(-28_000_000, -10_000_000)]);
+        Connect(usb, "D-", usbDMinusResistor, "1", [new CadPoint(-38_000_000, -4_000_000)]);
+        Connect(usbDMinusResistor, "2", usbBridge, "D-", [new CadPoint(-28_000_000, -4_000_000)]);
+        Connect(usb, "GND", usbBridge, "GND", [new CadPoint(-37_000_000, 0)]);
+        Connect(dcJack, "VIN", regulator, "IN", [new CadPoint(-34_000_000, 14_000_000)]);
+        Connect(dcJack, "GND", regulator, "GND", [new CadPoint(-34_000_000, 22_000_000)]);
+        Connect(regulator, "OUT", regulator3v3, "IN", [new CadPoint(-16_000_000, 14_000_000)]);
+        Connect(regulator3v3, "OUT", powerHeader, "3V3", [new CadPoint(18_000_000, 18_000_000)]);
+        Connect(regulator, "OUT", atmega328, "VCC", [new CadPoint(-12_000_000, 12_000_000), new CadPoint(-12_000_000, -8_000_000)]);
+        Connect(regulator, "OUT", powerHeader, "5V", [new CadPoint(18_000_000, 14_000_000)]);
+        Connect(atmega328, "GND", powerHeader, "GND1", [new CadPoint(10_000_000, 18_000_000)]);
+        Connect(atmega328, "GND2", powerHeader, "GND2", [new CadPoint(10_000_000, 22_000_000)]);
+        Connect(atmega328, "AVCC", powerHeader, "5V", [new CadPoint(12_000_000, 12_000_000)]);
+        Connect(atmega328, "PC6/RESET", reset, "RST", [new CadPoint(12_000_000, -14_000_000)]);
+        Connect(atmega328, "PC6/RESET", resetPullup, "1", [new CadPoint(12_000_000, -8_000_000)]);
+        Connect(resetPullup, "2", powerHeader, "5V", [new CadPoint(30_000_000, -8_000_000), new CadPoint(30_000_000, 14_000_000)]);
+        Connect(atmega328, "PB6/XTAL1", crystal328, "XTAL1", [new CadPoint(12_000_000, 2_000_000)]);
+        Connect(atmega328, "PB7/XTAL2", crystal328, "XTAL2", [new CadPoint(12_000_000, 6_000_000)]);
+        Connect(usbBridge, "XTAL1", crystal16u2, "XTAL1", [new CadPoint(-35_000_000, -20_000_000)]);
+        Connect(usbBridge, "XTAL2", crystal16u2, "XTAL2", [new CadPoint(-35_000_000, -23_000_000)]);
+        Connect(atmega328, "PD0/RXD", usbBridge, "PD3/TXD", [new CadPoint(-10_000_000, -17_000_000)]);
+        Connect(atmega328, "PD1/TXD", usbBridge, "PD2/RXD", [new CadPoint(-10_000_000, -20_000_000)]);
+        Connect(atmega328, "PD0/RXD", digitalLowHeader, "D0/RX", [new CadPoint(22_000_000, -18_000_000)]);
+        Connect(atmega328, "PD1/TXD", digitalLowHeader, "D1/TX", [new CadPoint(24_000_000, -16_000_000)]);
+        Connect(atmega328, "PB5/SCK", digitalHighHeader, "D13/SCK", [new CadPoint(20_000_000, -2_000_000)]);
+        Connect(atmega328, "PB5/SCK", led13, "A", [new CadPoint(18_000_000, -24_000_000)]);
+        Connect(atmega328, "PB5/SCK", icsp328, "SCK", [new CadPoint(10_000_000, 22_000_000)]);
+        Connect(atmega328, "PB3/D11/MOSI", icsp328, "MOSI", [new CadPoint(8_000_000, 20_000_000)]);
+        Connect(atmega328, "PB4/D12/MISO", icsp328, "MISO", [new CadPoint(8_000_000, 24_000_000)]);
+        Connect(usbBridge, "PB3/MISO", icsp16u2, "MISO", [new CadPoint(-36_000_000, 1_000_000)]);
+        Connect(usbBridge, "PB2/MOSI", icsp16u2, "MOSI", [new CadPoint(-36_000_000, 5_000_000)]);
+        Connect(usbBridge, "PB1/SCK", icsp16u2, "SCK", [new CadPoint(-36_000_000, 3_000_000)]);
+        Connect(atmega328, "PC0/A0", analogHeader, "A0", [new CadPoint(20_000_000, 26_000_000)]);
+        Connect(atmega328, "PC4/A4/SDA", digitalHighHeader, "SDA", [new CadPoint(22_000_000, 8_000_000)]);
+        Connect(atmega328, "PC5/A5/SCL", digitalHighHeader, "SCL", [new CadPoint(24_000_000, 10_000_000)]);
+        Connect(usbBridge, "PD3/TXD", ledTx, "A", [new CadPoint(-9_000_000, -22_000_000)]);
+        Connect(usbBridge, "PD2/RXD", ledRx, "A", [new CadPoint(-18_000_000, -22_000_000)]);
 
         SynchronizeBoardFromSchematic();
+        PlaceArduinoUnoBoardComponents(
+            atmega328,
+            usbBridge,
+            usb,
+            dcJack,
+            regulator,
+            regulator3v3,
+            reset,
+            crystal328,
+            crystal16u2,
+            powerHeader,
+            digitalLowHeader,
+            digitalHighHeader,
+            analogHeader,
+            icsp328,
+            icsp16u2,
+            led13,
+            ledTx,
+            ledRx,
+            resetPullup,
+            usbDPlusResistor,
+            usbDMinusResistor);
         RouteArduinoUnoBoardSample();
         ActiveSchematicTool = "Wire";
-        PlacementStatus = $"Loaded Arduino Uno Rev3 sample: {SchematicEditor.Components.Count} parts, {SchematicEditor.Wires.Count} wires, {SchematicEditor.Nets.Count} nets. Board sync: {BoardEditor.StatusText}";
+        PlacementStatus = $"Loaded Arduino Uno Rev3 reference sample: {SchematicEditor.Components.Count} parts, {SchematicEditor.Wires.Count} wires, {SchematicEditor.Nets.Count} nets. Board sync: {BoardEditor.StatusText}";
         DragonCadLog.Info($"sample arduino uno loaded components={SchematicEditor.Components.Count} wires={SchematicEditor.Wires.Count} nets={SchematicEditor.Nets.Count} boardComponents={BoardEditor.Components.Count}");
+    }
+
+    private void PlaceArduinoUnoBoardComponents(params SchematicComponentInstance[] schematicComponents)
+    {
+        Dictionary<string, CadPoint> positionsByName = new(StringComparer.Ordinal)
+        {
+            ["ATmega328P-PU MCU"] = new CadPoint(2_000_000, 1_000_000),
+            ["ATmega16U2 USB bridge"] = new CadPoint(-24_000_000, -10_000_000),
+            ["USB-B connector"] = new CadPoint(-37_000_000, -8_000_000),
+            ["Barrel jack VIN"] = new CadPoint(-36_000_000, 11_000_000),
+            ["NCP1117 5V regulator"] = new CadPoint(-20_000_000, 13_000_000),
+            ["LP2985 3.3V regulator"] = new CadPoint(-9_000_000, 13_000_000),
+            ["Reset tactile switch"] = new CadPoint(23_000_000, -13_000_000),
+            ["ATmega328P 16 MHz crystal"] = new CadPoint(12_000_000, 7_000_000),
+            ["ATmega16U2 16 MHz crystal"] = new CadPoint(-29_000_000, -18_000_000),
+            ["Power header"] = new CadPoint(-5_000_000, 25_000_000),
+            ["Digital header D0-D7"] = new CadPoint(33_000_000, -11_000_000),
+            ["Digital header D8-D13/AREF/SDA/SCL"] = new CadPoint(33_000_000, 7_000_000),
+            ["Analog header A0-A5"] = new CadPoint(18_000_000, 25_000_000),
+            ["ATmega328P ICSP header"] = new CadPoint(10_000_000, 15_000_000),
+            ["ATmega16U2 ICSP header"] = new CadPoint(-24_000_000, 4_000_000),
+            ["D13 LED"] = new CadPoint(23_000_000, -22_000_000),
+            ["TX LED"] = new CadPoint(-10_000_000, -22_000_000),
+            ["RX LED"] = new CadPoint(-17_000_000, -22_000_000),
+            ["Reset pull-up resistor"] = new CadPoint(17_000_000, -12_000_000),
+            ["USB D+ series resistor"] = new CadPoint(-33_000_000, -12_000_000),
+            ["USB D- series resistor"] = new CadPoint(-33_000_000, -5_000_000)
+        };
+
+        foreach (SchematicComponentInstance schematicComponent in schematicComponents)
+        {
+            if (!positionsByName.TryGetValue(schematicComponent.DisplayName, out CadPoint position))
+            {
+                continue;
+            }
+
+            BoardComponentInstance? boardComponent = BoardEditor.Components.FirstOrDefault(component => component.SyncId == schematicComponent.InstanceId);
+            if (boardComponent is null)
+            {
+                continue;
+            }
+
+            BoardEditor.SelectComponentAt(boardComponent.Position);
+            BoardEditor.MoveSelectedComponentTo(position);
+        }
     }
 
     private void RouteArduinoUnoBoardSample()
     {
         BoardEditor.SetActiveLayer("Top");
-        AddBoardSampleTrace(new CadPoint(-32_000_000, -4_000_000), new CadPoint(-18_000_000, -4_000_000), [new CadPoint(-26_000_000, -7_000_000)]);
-        AddBoardSampleTrace(new CadPoint(-32_000_000, -2_000_000), new CadPoint(-18_000_000, -2_000_000), [new CadPoint(-26_000_000, -3_000_000)]);
-        AddBoardSampleTrace(new CadPoint(-18_000_000, 10_000_000), new CadPoint(0, -2_000_000), [new CadPoint(-8_000_000, 10_000_000), new CadPoint(-8_000_000, -8_000_000)]);
-        AddBoardSampleTrace(new CadPoint(0, -4_000_000), new CadPoint(-18_000_000, -6_000_000), [new CadPoint(-8_000_000, -10_000_000)]);
-        AddBoardSampleTrace(new CadPoint(0, -2_000_000), new CadPoint(-18_000_000, -8_000_000), [new CadPoint(-8_000_000, -12_000_000)]);
-        AddBoardSampleTrace(new CadPoint(0, 0), new CadPoint(18_000_000, -8_000_000), [new CadPoint(10_000_000, -8_000_000)]);
-        AddBoardSampleTrace(new CadPoint(0, 2_000_000), new CadPoint(18_000_000, 4_000_000), [new CadPoint(10_000_000, 2_000_000)]);
-        AddBoardSampleTrace(new CadPoint(0, 4_000_000), new CadPoint(18_000_000, 6_000_000), [new CadPoint(10_000_000, 6_000_000)]);
+        AddBoardSampleTrace(new CadPoint(-37_000_000, -8_000_000), new CadPoint(-24_000_000, -10_000_000), [new CadPoint(-33_000_000, -12_000_000)]);
+        AddBoardSampleTrace(new CadPoint(-37_000_000, -6_000_000), new CadPoint(-24_000_000, -8_000_000), [new CadPoint(-33_000_000, -5_000_000)]);
+        AddBoardSampleTrace(new CadPoint(-36_000_000, 11_000_000), new CadPoint(-20_000_000, 13_000_000), [new CadPoint(-28_000_000, 13_000_000)]);
+        AddBoardSampleTrace(new CadPoint(-20_000_000, 13_000_000), new CadPoint(2_000_000, 1_000_000), [new CadPoint(-9_000_000, 13_000_000)]);
+        AddBoardSampleTrace(new CadPoint(2_000_000, 1_000_000), new CadPoint(33_000_000, -11_000_000), [new CadPoint(18_000_000, -11_000_000)]);
+        AddBoardSampleTrace(new CadPoint(2_000_000, 1_000_000), new CadPoint(33_000_000, 7_000_000), [new CadPoint(17_000_000, 7_000_000)]);
+        AddBoardSampleTrace(new CadPoint(2_000_000, 1_000_000), new CadPoint(18_000_000, 25_000_000), [new CadPoint(15_000_000, 16_000_000)]);
+        AddBoardSampleTrace(new CadPoint(2_000_000, 1_000_000), new CadPoint(10_000_000, 15_000_000), [new CadPoint(8_000_000, 10_000_000)]);
+        AddBoardSampleTrace(new CadPoint(-24_000_000, -10_000_000), new CadPoint(-24_000_000, 4_000_000), [new CadPoint(-24_000_000, -2_000_000)]);
+        AddBoardSampleTrace(new CadPoint(2_000_000, 1_000_000), new CadPoint(12_000_000, 7_000_000), [new CadPoint(8_000_000, 5_000_000)]);
         BoardEditor.SetActiveLayer("Bottom");
-        AddBoardSampleTrace(new CadPoint(0, -6_000_000), new CadPoint(32_000_000, -4_000_000), [new CadPoint(12_000_000, -2_000_000)]);
-        AddBoardSampleTrace(new CadPoint(0, -6_000_000), new CadPoint(18_000_000, -18_000_000), [new CadPoint(8_000_000, -18_000_000)]);
+        AddBoardSampleTrace(new CadPoint(-24_000_000, -10_000_000), new CadPoint(2_000_000, 1_000_000), [new CadPoint(-10_000_000, -17_000_000)]);
+        AddBoardSampleTrace(new CadPoint(-24_000_000, -10_000_000), new CadPoint(2_000_000, 1_000_000), [new CadPoint(-10_000_000, -20_000_000)]);
+        AddBoardSampleTrace(new CadPoint(2_000_000, 1_000_000), new CadPoint(23_000_000, -13_000_000), [new CadPoint(17_000_000, -12_000_000)]);
+        AddBoardSampleTrace(new CadPoint(2_000_000, 1_000_000), new CadPoint(23_000_000, -22_000_000), [new CadPoint(16_000_000, -22_000_000)]);
+        AddBoardSampleTrace(new CadPoint(-24_000_000, -10_000_000), new CadPoint(-10_000_000, -22_000_000), [new CadPoint(-9_000_000, -18_000_000)]);
+        AddBoardSampleTrace(new CadPoint(-24_000_000, -10_000_000), new CadPoint(-17_000_000, -22_000_000), [new CadPoint(-18_000_000, -18_000_000)]);
         BoardEditor.ActivateSelectTool();
     }
 
@@ -3344,6 +3470,149 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
                     new ComponentFootprintPadPreview("P", new CadPoint(-700_000, 0), new CadVector(800_000, 800_000), "Round", "ThroughHole"),
                     new ComponentFootprintPadPreview("N", new CadPoint(700_000, 0), new CadVector(800_000, 800_000), "Round", "ThroughHole")
                 ]));
+
+    private ComponentPlacementIntent UnoReferenceIntegratedCircuit(
+        string librarySearchText,
+        string fallbackComponentId,
+        string displayName,
+        IReadOnlyList<string> pins,
+        int bodyHeightGridUnits)
+    {
+        string componentId = ResolveLibraryComponentId(librarySearchText, fallbackComponentId);
+        return SampleIntegratedCircuit(componentId, displayName, pins, pins.Count, bodyHeightGridUnits) with
+        {
+            Source = $"Arduino Uno Rev3 reference sample; normalized from HawkCAD library search '{librarySearchText}'"
+        };
+    }
+
+    private ComponentPlacementIntent UnoReferenceConnector(
+        string librarySearchText,
+        string fallbackComponentId,
+        string displayName,
+        IReadOnlyList<string> pins)
+    {
+        string componentId = ResolveLibraryComponentId(librarySearchText, fallbackComponentId);
+        return SampleConnector(componentId, displayName, pins, pins.Count) with
+        {
+            Source = $"Arduino Uno Rev3 reference sample; normalized from HawkCAD library search '{librarySearchText}'"
+        };
+    }
+
+    private ComponentPlacementIntent UnoReferenceRegulator(
+        string librarySearchText,
+        string fallbackComponentId,
+        string displayName,
+        IReadOnlyList<string> pins)
+    {
+        string componentId = ResolveLibraryComponentId(librarySearchText, fallbackComponentId);
+        return pins.Count == 3
+            ? Sample7805Regulator() with
+            {
+                ComponentId = componentId,
+                DisplayName = displayName,
+                Source = $"Arduino Uno Rev3 reference sample; normalized from HawkCAD library search '{librarySearchText}'"
+            }
+            : SampleConnector(componentId, displayName, pins, pins.Count) with
+            {
+                Source = $"Arduino Uno Rev3 reference sample; normalized from HawkCAD library search '{librarySearchText}'"
+            };
+    }
+
+    private ComponentPlacementIntent UnoReferenceDiscrete(
+        string librarySearchText,
+        string fallbackComponentId,
+        string displayName,
+        IReadOnlyList<string> pins)
+    {
+        string componentId = ResolveLibraryComponentId(librarySearchText, fallbackComponentId);
+        return SampleDiscrete(componentId, displayName, pins, pins.Count) with
+        {
+            Source = $"Arduino Uno Rev3 reference sample; normalized from HawkCAD library search '{librarySearchText}'"
+        };
+    }
+
+    private string ResolveLibraryComponentId(string searchText, string fallbackComponentId)
+    {
+        try
+        {
+            HawkCadComponentLibraryIndexEntry? match = builtInLibraryService.Index.Search(searchText, maxResults: 8)
+                .FirstOrDefault(component => component.GateCount > 0 && component.VariantCount > 0);
+            return match?.ComponentId.Value ?? fallbackComponentId;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or JsonException or ArgumentException)
+        {
+            DragonCadLog.Info($"arduino uno library lookup fallback search='{searchText}' reason={ex.GetType().Name}");
+            return fallbackComponentId;
+        }
+    }
+
+    private static IReadOnlyList<string> ArduinoUnoAtmega328Pins() =>
+    [
+        "PC6/RESET",
+        "PD0/RXD",
+        "PD1/TXD",
+        "PD2/D2",
+        "PD3/D3/PWM",
+        "PD4/D4",
+        "VCC",
+        "GND",
+        "PB6/XTAL1",
+        "PB7/XTAL2",
+        "PD5/D5/PWM",
+        "PD6/D6/PWM",
+        "PD7/D7",
+        "PB0/D8",
+        "PB1/D9/PWM",
+        "PB2/D10/SS/PWM",
+        "PB3/D11/MOSI",
+        "PB4/D12/MISO",
+        "PB5/SCK",
+        "AVCC",
+        "AREF",
+        "GND2",
+        "PC0/A0",
+        "PC1/A1",
+        "PC2/A2",
+        "PC3/A3",
+        "PC4/A4/SDA",
+        "PC5/A5/SCL"
+    ];
+
+    private static IReadOnlyList<string> ArduinoUnoAtmega16U2Pins() =>
+    [
+        "PE6/HWB",
+        "UVCC",
+        "D-",
+        "D+",
+        "UGND",
+        "UCAP",
+        "VBUS",
+        "PB0/SS",
+        "PB1/SCK",
+        "PB2/MOSI",
+        "PB3/MISO",
+        "PB4",
+        "PB5",
+        "PB6",
+        "PB7",
+        "PC7",
+        "RESET",
+        "VCC",
+        "GND",
+        "XTAL2",
+        "XTAL1",
+        "PD0",
+        "PD1",
+        "PD2/RXD",
+        "PD3/TXD",
+        "PD4",
+        "PD5",
+        "PD6",
+        "PD7",
+        "AVCC",
+        "AREF",
+        "GND2"
+    ];
 
     private static ComponentPlacementIntent SampleIntegratedCircuit(
         string componentId,

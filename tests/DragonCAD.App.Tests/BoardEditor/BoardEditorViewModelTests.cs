@@ -12,6 +12,8 @@ public sealed class BoardEditorViewModelTests
     {
         BoardEditorViewModel board = new();
 
+        Assert.Equal(new CadPoint(4_000_000, 0), board.ViewportOrigin);
+
         board.ZoomIn();
         Assert.Equal(1.25, board.ZoomLevel);
 
@@ -31,6 +33,18 @@ public sealed class BoardEditorViewModelTests
         }
 
         Assert.Equal(8.0, board.ZoomLevel);
+    }
+
+    [Fact]
+    public void ZoomAtKeepsCursorCadPointAnchored()
+    {
+        BoardEditorViewModel board = new();
+
+        board.ZoomAt(new CadPoint(12_000_000, -8_000_000), zoomIn: true);
+
+        Assert.Equal(1.25, board.ZoomLevel);
+        Assert.Equal(new CadPoint(5_600_000, -1_600_000), board.ViewportOrigin);
+        Assert.Contains("Board zoom 1.25x", board.StatusText, StringComparison.Ordinal);
     }
 
     [Fact]

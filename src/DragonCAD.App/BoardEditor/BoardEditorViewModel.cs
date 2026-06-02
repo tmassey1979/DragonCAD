@@ -17,6 +17,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     private string gridStyle = "Dots";
     private long gridSpacingInternal = CadUnit.InternalUnitsPerMillimeter;
     private double zoomLevel = 1.0;
+    private CadPoint viewportOrigin = new(4_000_000, 0);
     private string activeTool = "Select";
     private string activeLayerName = "Top";
     private CadPoint? pendingTraceStart;
@@ -184,6 +185,21 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
             }
 
             zoomLevel = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public CadPoint ViewportOrigin
+    {
+        get => viewportOrigin;
+        private set
+        {
+            if (viewportOrigin == value)
+            {
+                return;
+            }
+
+            viewportOrigin = value;
             OnPropertyChanged();
         }
     }
@@ -778,6 +794,26 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     public void ZoomOut()
     {
         ZoomLevel = Math.Max(0.25, Math.Round(ZoomLevel / 1.25, 4));
+        StatusText = $"Board zoom {ZoomLevel:0.##}x.";
+    }
+
+    public void ZoomAt(CadPoint cursorCadPoint, bool zoomIn)
+    {
+        double oldZoom = ZoomLevel;
+        double nextZoom = zoomIn
+            ? Math.Min(8.0, Math.Round(ZoomLevel * 1.25, 4))
+            : Math.Max(0.25, Math.Round(ZoomLevel / 1.25, 4));
+        if (Math.Abs(oldZoom - nextZoom) < 0.0001)
+        {
+            StatusText = $"Board zoom {ZoomLevel:0.##}x.";
+            return;
+        }
+
+        double ratio = oldZoom / nextZoom;
+        ViewportOrigin = new CadPoint(
+            cursorCadPoint.X - (long)Math.Round((cursorCadPoint.X - ViewportOrigin.X) * ratio, MidpointRounding.AwayFromZero),
+            cursorCadPoint.Y - (long)Math.Round((cursorCadPoint.Y - ViewportOrigin.Y) * ratio, MidpointRounding.AwayFromZero));
+        ZoomLevel = nextZoom;
         StatusText = $"Board zoom {ZoomLevel:0.##}x.";
     }
 

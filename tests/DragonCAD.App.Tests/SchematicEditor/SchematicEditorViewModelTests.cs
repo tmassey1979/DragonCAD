@@ -250,6 +250,7 @@ public sealed class SchematicEditorViewModelTests
 
         Assert.Equal(new CadRectangle(-140_000_000, -100_000_000, 140_000_000, 100_000_000), editor.SheetBounds);
         Assert.Equal(1.0, editor.ZoomLevel);
+        Assert.Equal(new CadPoint(0, 0), editor.ViewportOrigin);
         Assert.True(editor.IsGridVisible);
         Assert.Equal("Dots", editor.GridStyle);
         Assert.Equal(CadUnit.InternalUnitsPerMillimeter, editor.GridSpacingInternal);
@@ -259,6 +260,18 @@ public sealed class SchematicEditorViewModelTests
 
         editor.ZoomOut();
         Assert.Equal(1.0, editor.ZoomLevel);
+    }
+
+    [Fact]
+    public void ZoomAtKeepsCursorCadPointAnchored()
+    {
+        SchematicEditorViewModel editor = new();
+
+        editor.ZoomAt(new CadPoint(12_000_000, -8_000_000), zoomIn: true);
+
+        Assert.Equal(1.25, editor.ZoomLevel);
+        Assert.Equal(new CadPoint(2_400_000, -1_600_000), editor.ViewportOrigin);
+        Assert.Contains("Schematic zoom 1.25x", editor.StatusText, StringComparison.Ordinal);
     }
 
     [Fact]
