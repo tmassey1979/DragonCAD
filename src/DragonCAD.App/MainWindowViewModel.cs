@@ -955,6 +955,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             OnPropertyChanged(nameof(IsFirmwareTabActive));
             OnPropertyChanged(nameof(IsCapsulesTabActive));
             OnPropertyChanged(nameof(IsFabricationTabActive));
+            OnPropertyChanged(nameof(ContextInspectorSelectedIndex));
             OnPropertyChanged(nameof(WorkbenchStatusText));
         }
     }
@@ -974,6 +975,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     public bool IsCapsulesTabActive => ActiveWorkspaceTab == "Capsules";
 
     public bool IsFabricationTabActive => ActiveWorkspaceTab == "Fabrication";
+
+    public int ContextInspectorSelectedIndex => ActiveWorkspaceTab switch
+    {
+        "Schematic" => 1,
+        "PcbLayout" => 2,
+        _ => 0
+    };
 
     public string AiPromptText
     {

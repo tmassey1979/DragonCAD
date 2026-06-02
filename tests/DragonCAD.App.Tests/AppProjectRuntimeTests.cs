@@ -217,6 +217,7 @@ public sealed class AppProjectRuntimeTests
 
         Assert.Contains("Text=\"Context Inspector\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ContextInspectorTabs\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("SelectedIndex=\"{Binding ContextInspectorSelectedIndex}\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<TabItem Header=\"AI\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("ItemsSource=\"{Binding AiInspectorSummaryRows}\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"AiInspectorActionStrip\"", mainWindow, StringComparison.Ordinal);

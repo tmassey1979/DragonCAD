@@ -3413,6 +3413,7 @@
                     </Border>
                     <TabControl x:Name="ContextInspectorTabs"
                                 Margin="8"
+                                SelectedIndex="{Binding ContextInspectorSelectedIndex}"
                                 Background="{StaticResource DragonPanelBackground}">
                         <TabItem Header="AI">
                             <ScrollViewer VerticalScrollBarVisibility="Auto">

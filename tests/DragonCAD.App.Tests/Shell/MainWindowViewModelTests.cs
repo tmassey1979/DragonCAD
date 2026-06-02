@@ -823,6 +823,24 @@ public sealed class MainWindowViewModelTests
         Assert.StartsWith(expectedStatusPrefix, viewModel.WorkbenchStatusText, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("ComponentManager", 0)]
+    [InlineData("Marketplace", 0)]
+    [InlineData("Schematic", 1)]
+    [InlineData("PcbLayout", 2)]
+    [InlineData("Datasheets", 0)]
+    [InlineData("Fabrication", 0)]
+    public void ContextInspectorSelectedIndexTracksActiveEditorWorkspace(string tabName, int expectedIndex)
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 1);
+
+        viewModel.ApplyStartupTab(tabName);
+
+        Assert.Equal(expectedIndex, viewModel.ContextInspectorSelectedIndex);
+    }
+
     [Fact]
     public void FirmwareWorkspaceExposesConcreteReadinessRows()
     {
