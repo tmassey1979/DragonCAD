@@ -320,11 +320,91 @@ These stories describe the remaining user-facing flow from placing a schematic p
 **As a** library author, **I want** tools to draw symbols, pins, pads, outlines, and package mappings, **so that** I can create or fix components inside DragonCAD.
 
 **AC:**
-- Component editor has tool modes for symbol line, symbol pin, text, package pad, SMD pad, outline, and mapping.
-- User can create a new component with at least one symbol, footprint, and device mapping.
-- Properties panel edits pin names/numbers, pad numbers, package name, and attributes.
-- Save persists the created component in the native library format.
-- Tests cover new component creation, pin/pad mapping, property edits, and save/reload.
+- Component editor opens from the component manager with a new-component command and an edit-existing command.
+- Component editor has explicit tool modes for symbol line, symbol arc, symbol pin, symbol text, footprint through-hole pad, SMD pad, silkscreen/outline, package keepout, and pin-to-pad mapping.
+- User can create a component with at least one symbol, one package footprint, and one device/package mapping without importing an external library file.
+- Properties panel edits component name, value/default prefix, package name, pin names/numbers, pad numbers, pad shape/size, layer, rotation, and custom attributes.
+- Pin-to-pad mapping UI shows unmapped pins, unmapped pads, duplicate mappings, and mapping completeness before save.
+- Save persists the created component in the native library format and reloads it as a trusted placeable component.
+- Tests cover new component creation, drawing tool state, pin/pad mapping, validation errors, property edits, and save/reload.
+
+### Mini-Stories
+
+#### EDIT-010A - New Component Workspace
+
+**As a** library author, **I want** a dedicated component editor workspace with symbol, footprint, and mapping views, **so that** I can build a complete placeable component without leaving DragonCAD.
+
+**AC:**
+- New-component command opens a component editor tab with empty symbol, footprint, and mapping sections.
+- Edit-existing command opens a copy of a trusted library component and shows its symbol, footprint, package options, and device mapping.
+- Unsaved changes are visible in the tab title or editor state and block accidental close with a deterministic prompt.
+- Component validation reports missing symbol, missing footprint, missing package name, and incomplete mapping before save.
+- Tests cover new/edit command creation, dirty state, validation summary, and close behavior.
+
+**Implementation Dev Notes:**
+- Start with view-model state and commands before adding canvas tools.
+- Reuse the current component manager/library service contracts where possible.
+- Keep editor state serializable so save/reload tests can compare persisted output.
+- Do not add importer dependencies or marketplace review behavior in this slice.
+
+**Agent Boundary:** Component editor workspace/view-model only. Do not change schematic placement, board placement, importers, or marketplace promotion flows.
+
+#### EDIT-010B - Symbol Drawing Tools
+
+**As a** component librarian, **I want** symbol drawing tools for pins, lines, arcs, and text, **so that** schematic symbols can be created with correct electrical connection points and readable labels.
+
+**AC:**
+- Tool rail exposes symbol select, line, arc, pin, and text modes with active-tool feedback.
+- Pin tool captures pin number, name, direction/type, visible label setting, and connection endpoint.
+- Line, arc, and text tools snap to the component editor grid and support move/delete after creation.
+- Properties panel updates the selected symbol primitive without recreating the whole symbol.
+- Tests cover tool activation, primitive creation, pin endpoint geometry, property updates, and save/reload of symbol primitives.
+
+**Implementation Dev Notes:**
+- Keep symbol primitives in the native library model shape consumed by schematic rendering.
+- Prefer deterministic integer/grid geometry over free-form canvas coordinates.
+- Use existing editor hit-testing patterns where practical, but keep component-editor-specific behavior in component editor files.
+- Do not broaden schematic symbol rendering except where an existing renderer cannot display a newly persisted primitive.
+
+**Agent Boundary:** Component editor symbol tools only. Coordinate with symbol fidelity work before touching shared symbol rendering.
+
+#### EDIT-010C - Footprint Drawing Tools
+
+**As a** package author, **I want** footprint tools for through-hole pads, SMD pads, outlines, silkscreen, holes, and keepouts, **so that** PCB packages can be authored with manufacturable geometry.
+
+**AC:**
+- Tool rail exposes footprint select, through-hole pad, SMD pad, outline/line, text, hole, and keepout modes.
+- Pad tools capture pad number, shape, drill where applicable, copper size, layer, and rotation.
+- Footprint primitives snap to the component editor grid and can be moved, edited, and deleted.
+- Validation flags duplicate pad numbers, missing pad numbers, invalid drill/size combinations, and footprints with no pads.
+- Tests cover pad creation, SMD creation, outline creation, validation errors, property edits, and save/reload of footprint primitives.
+
+**Implementation Dev Notes:**
+- Preserve compatibility with board footprint preview and placement consumers.
+- Keep manufacturing-rule validation limited to obvious component-authoring errors; full DRC belongs elsewhere.
+- Avoid changing board routing semantics while adding footprint authoring.
+- Manual validation should include creating a simple resistor footprint and reopening it.
+
+**Agent Boundary:** Component editor footprint tools only. Do not change board routing, fabrication package generation, or vendor/manufacturer handoff logic.
+
+#### EDIT-010D - Pin-To-Pad Mapping And Promotion
+
+**As a** library maintainer, **I want** a clear pin-to-pad mapping editor and trusted save path, **so that** authored components can be placed in schematics and synchronized to boards safely.
+
+**AC:**
+- Mapping view lists symbol pins and footprint pads side by side with current pairings.
+- User can create, update, and remove mappings without losing symbol or footprint geometry.
+- Mapping validation flags unmapped required pins, duplicate pad assignments, missing package selection, and pin/pad number mismatches.
+- Successful save registers the component as trusted/placeable through the same library path used by add-part placement.
+- Tests cover mapping commands, validation diagnostics, trusted save registration, and schematic/board library lookup after reload.
+
+**Implementation Dev Notes:**
+- Use deterministic mapping commands rather than canvas-only gestures.
+- Keep trust/promotion local to manually authored components; do not bypass datasheet/import review queues.
+- Coordinate with cross-editor sync only through existing library lookup contracts.
+- Do not implement marketplace provenance or datasheet-generated promotion decisions in this story.
+
+**Agent Boundary:** Component editor mapping and native trusted save path only. Do not alter datasheet review, imported component promotion, or marketplace provenance workflows.
 
 **Implementation Dev Notes:**
 - Owned paths: `src/DragonCAD.App/ComponentEditor/**`, `tests/DragonCAD.App.Tests/ComponentEditor/**`.
@@ -384,11 +464,91 @@ These stories describe the remaining user-facing flow from placing a schematic p
 **As a** DragonCAD user, **I want** built-in markdown help for editor tools and commands, **so that** I can learn the available CAD workflows inside the app.
 
 **AC:**
-- Help opens as a docked document tab or panel.
-- Markdown renders as formatted content, not raw markdown text.
-- Tool help pages exist for schematic placement, wiring, PCB routing, layers, grids, and component editing.
-- The active tool can open its relevant help page.
-- Tests cover help topic lookup and markdown loading fallback.
+- Help opens as a docked document tab or side panel without launching an external browser.
+- Markdown renders as formatted content, not raw markdown text, and supports headings, lists, tables, inline code, links, and images where local assets exist.
+- Help index lists editor workflows, commands, tools, and troubleshooting topics.
+- Tool help pages exist for schematic placement, wiring, net editing, PCB routing, vias, layers, grids, component editing, marketplace-safe component placement, and sample projects.
+- The active tool can open its relevant help page from the toolbar, context menu, or keyboard shortcut.
+- Missing or malformed help topics show a friendly fallback with the requested topic ID and do not crash the app.
+- Tests cover help topic lookup, active-tool topic resolution, markdown loading, local asset resolution, and fallback behavior.
+
+### Mini-Stories
+
+#### EDIT-013A - Local Help Topic Registry
+
+**As a** DragonCAD user, **I want** a searchable local help index, **so that** I can find editor workflow guidance without leaving the app.
+
+**AC:**
+- Help registry maps stable topic IDs to local markdown files, display titles, editor area, and related tool/command IDs.
+- Help index groups topics by schematic, board, component editor, library/marketplace, project samples, and troubleshooting.
+- Search matches topic title, summary, tags, and command/tool IDs.
+- Missing topic IDs resolve to a deterministic fallback topic instead of throwing.
+- Tests cover registry loading, grouping, search, topic lookup, and missing-topic fallback.
+
+**Implementation Dev Notes:**
+- Keep the registry local-first and deterministic; no remote docs calls.
+- Topic IDs should be stable enough for toolbar/context commands to reference.
+- Store markdown docs under `docs/help/**` and load/copy them through the app help surface as the project standardizes packaging.
+- Avoid coupling the registry to current visual layout so it can serve panel, tab, or command palette entry points.
+
+**Agent Boundary:** Help topic registry and local markdown docs only. Do not wire editor toolbar commands in parallel with command-surface work unless coordinated.
+
+#### EDIT-013B - Markdown Rendering Surface
+
+**As a** DragonCAD user, **I want** markdown help to render as readable in-app content, **so that** command documentation feels like part of the CAD workspace instead of a text file dump.
+
+**AC:**
+- Help viewer renders headings, paragraphs, ordered/unordered lists, tables, inline code, fenced code, links, and local images.
+- Viewer supports scroll position, topic title, related topics, and reload after changing topics.
+- External links are visibly distinct and require an explicit launch action.
+- Local image paths are constrained to packaged/help asset roots.
+- Tests cover markdown conversion, link classification, local asset resolution, and malformed markdown fallback.
+
+**Implementation Dev Notes:**
+- Prefer a lightweight markdown renderer/control that fits Avalonia and the existing app style.
+- Do not host the primary help experience in a browser shell.
+- Treat local asset resolution as an app concern so docs can include screenshots later without arbitrary file access.
+- Keep rendering tests focused on converted structure and safety decisions, not pixel-perfect typography.
+
+**Agent Boundary:** In-app markdown viewer only. Do not modify unrelated shell navigation, editor commands, or external documentation publishing.
+
+#### EDIT-013C - Active Tool Help Commands
+
+**As an** editor user, **I want** the active CAD tool to open the matching help topic, **so that** I can recover quickly when I forget a placement, routing, grid, layer, or component-editing workflow.
+
+**AC:**
+- Active schematic, board, and component editor tools expose a help topic ID through view-model state or command metadata.
+- Help command opens the current tool topic when available and falls back to the editor overview topic when no tool is active.
+- Toolbar/context help command and keyboard shortcut call the same application command.
+- Topic opens in an existing help panel/tab when one is already present instead of creating duplicates.
+- Tests cover active-tool resolution, fallback topic selection, command binding, and duplicate-panel prevention.
+
+**Implementation Dev Notes:**
+- Keep topic resolution data-driven so new editor tools can add help without changing the help viewer.
+- Coordinate with tool icon rail/context toolbar work for command placement.
+- Do not change tool behavior to make help routing work; help should observe active command state.
+- Manual validation should open help from schematic placement, wire, board route, grid/layer, and component-editor tools.
+
+**Agent Boundary:** Help command wiring and active-tool topic resolution only. Do not implement new editor tools or change canvas interactions.
+
+#### EDIT-013D - Author Initial Editor Help Content
+
+**As a** DragonCAD learner, **I want** concise built-in help pages for the main editor workflows, **so that** I can complete common schematic, board, and component authoring tasks without guessing command behavior.
+
+**AC:**
+- Initial markdown topics cover schematic add-part/repeat placement, pin-to-wire routing, net labels, board airwires, PCB trace/via routing, layer visibility, grid/snap modes, component editor creation tools, and sample projects.
+- Each topic names prerequisites, primary steps, common mistakes, and related topics.
+- Help content distinguishes trusted placeable components from vendor catalog rows, imported candidates, and datasheet-generated drafts.
+- Markdown files avoid unsupported claims about live ordering, AI generation, or external vendor checkout.
+- Docs can be read directly as markdown and through the in-app help viewer.
+
+**Implementation Dev Notes:**
+- Keep topics short and task-focused; deep architecture belongs in backlog or design docs.
+- Use relative links between local help topics where possible.
+- Include component editor help after `EDIT-010` tool names stabilize, or mark labels generically enough to survive UI polish.
+- Validate by reading markdown directly and through the help viewer once rendering exists.
+
+**Agent Boundary:** Local help markdown content only. Do not alter application code unless paired with help viewer implementation in a coordinated slice.
 
 **Implementation Dev Notes:**
 - Owned paths: `src/DragonCAD.App/Help/**`, `docs/help/**`, `tests/DragonCAD.App.Tests/Help/**`.

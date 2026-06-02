@@ -22,6 +22,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
     private SchematicComponentInstance? selectedComponent;
     private SchematicWire? selectedWire;
     private int? selectedWireSegmentIndex;
+    private int? selectedWireVertexIndex;
     private SchematicPinEndpoint? pendingWireStart;
     private SchematicPinEndpoint? hoveredPin;
     private SchematicComponentInstance? hoveredComponent;
@@ -43,6 +44,26 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
     public ObservableCollection<SchematicNetLabel> NetLabels { get; } = [];
 
     public ObservableCollection<SchematicNet> Nets { get; } = [];
+
+    public IEnumerable<SchematicWireVertexHandle> SelectedWireVertexHandles
+    {
+        get
+        {
+            if (SelectedWire is null)
+            {
+                yield break;
+            }
+
+            for (int index = 1; index < SelectedWire.RoutePoints.Count - 1; index++)
+            {
+                yield return new SchematicWireVertexHandle(
+                    SelectedWire.WireId,
+                    index,
+                    SelectedWire.RoutePoints[index],
+                    index == SelectedWireVertexIndex);
+            }
+        }
+    }
 
     public IEnumerable<SchematicNetLabelRenderItem> RenderableNetLabels =>
         NetLabels.Select(label => new SchematicNetLabelRenderItem(
@@ -190,6 +211,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
             selectedWire = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectedWireVertexHandles));
         }
     }
 
@@ -205,6 +227,22 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
             selectedWireSegmentIndex = value;
             OnPropertyChanged();
+        }
+    }
+
+    public int? SelectedWireVertexIndex
+    {
+        get => selectedWireVertexIndex;
+        private set
+        {
+            if (selectedWireVertexIndex == value)
+            {
+                return;
+            }
+
+            selectedWireVertexIndex = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectedWireVertexHandles));
         }
     }
 
@@ -346,6 +384,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         Components.Add(instance);
         SelectedComponent = instance;
         SelectedWire = null;
+        SelectedWireVertexIndex = null;
         SelectedNetLabel = null;
         StatusText = $"Placed {referenceDesignator}: {intent.DisplayName}";
         return instance;
@@ -366,6 +405,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         SelectedComponent = null;
         SelectedWire = null;
         SelectedWireSegmentIndex = null;
+        SelectedWireVertexIndex = null;
         nextComponentNumber = 1;
         StatusText = "Schematic cleared.";
     }
@@ -380,6 +420,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
                 SelectedComponent = candidate;
                 SelectedWire = null;
                 SelectedWireSegmentIndex = null;
+                SelectedWireVertexIndex = null;
                 SelectedPinEndpoint = null;
                 SelectedNetLabel = null;
                 StatusText = $"Selected {candidate.ReferenceDesignator}: {candidate.DisplayName}";
@@ -390,6 +431,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         SelectedComponent = null;
         SelectedPinEndpoint = null;
         SelectedNetLabel = null;
+        SelectedWireVertexIndex = null;
         SelectWireAt(point);
         return null;
     }
@@ -405,6 +447,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         SelectedComponent = null;
         SelectedWire = null;
         SelectedWireSegmentIndex = null;
+        SelectedWireVertexIndex = null;
         SelectedNetLabel = null;
         StatusText = $"Selected pin {SelectedPinEndpoint.ReferenceDesignator}.{SelectedPinEndpoint.PinName}";
         return SelectedPinEndpoint;
@@ -427,6 +470,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         SelectedComponent = null;
         SelectedWire = null;
         SelectedWireSegmentIndex = null;
+        SelectedWireVertexIndex = null;
         SelectedPinEndpoint = null;
         StatusText = $"Placed net label {label.NetName} at {FormatMillimeters(label.Position.X)} mm, {FormatMillimeters(label.Position.Y)} mm.";
         return label;
@@ -468,6 +512,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         SelectedComponent = null;
         SelectedWire = null;
         SelectedWireSegmentIndex = null;
+        SelectedWireVertexIndex = null;
         SelectedPinEndpoint = null;
         StatusText = $"Selected net label {nearest.NetName}.";
         return nearest;
@@ -587,6 +632,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         SelectedComponent = duplicate;
         SelectedWire = null;
         SelectedWireSegmentIndex = null;
+        SelectedWireVertexIndex = null;
         StatusText = $"Duplicated {source.ReferenceDesignator} as {duplicate.ReferenceDesignator}.";
         return duplicate;
     }
@@ -846,6 +892,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             SelectedComponent = null;
             SelectedWire = nearestWire;
             SelectedWireSegmentIndex = nearestSegmentIndex;
+            SelectedWireVertexIndex = null;
             SelectedPinEndpoint = null;
             SelectedNetLabel = null;
             StatusText = $"Selected wire {nearestWire.NetName}.";
@@ -854,8 +901,49 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
         SelectedWire = null;
         SelectedWireSegmentIndex = null;
+        SelectedWireVertexIndex = null;
         SelectNetLabelAt(point);
         return null;
+    }
+
+    public SchematicWireVertexHandle? SelectWireVertexAt(CadPoint point)
+    {
+        double nearestDistance = double.MaxValue;
+        SchematicWire? nearestWire = null;
+        int? nearestVertexIndex = null;
+        for (int wireIndex = Wires.Count - 1; wireIndex >= 0; wireIndex--)
+        {
+            SchematicWire wire = Wires[wireIndex];
+            for (int vertexIndex = 1; vertexIndex < wire.RoutePoints.Count - 1; vertexIndex++)
+            {
+                double distance = Distance(point, wire.RoutePoints[vertexIndex]);
+                if (distance <= WireSegmentHitTolerance && distance < nearestDistance)
+                {
+                    nearestDistance = distance;
+                    nearestWire = wire;
+                    nearestVertexIndex = vertexIndex;
+                }
+            }
+        }
+
+        if (nearestWire is null || nearestVertexIndex is null)
+        {
+            SelectedWireVertexIndex = null;
+            return null;
+        }
+
+        SelectedComponent = null;
+        SelectedWire = nearestWire;
+        SelectedWireSegmentIndex = null;
+        SelectedWireVertexIndex = nearestVertexIndex;
+        SelectedPinEndpoint = null;
+        SelectedNetLabel = null;
+        StatusText = $"Selected wire vertex {nearestVertexIndex} on {nearestWire.NetName}.";
+        return new SchematicWireVertexHandle(
+            nearestWire.WireId,
+            nearestVertexIndex.Value,
+            nearestWire.RoutePoints[nearestVertexIndex.Value],
+            true);
     }
 
     public SchematicWire MoveSelectedWireSegmentTo(CadPoint requestedPosition)
@@ -899,7 +987,48 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         SchematicWire moved = SelectedWire with { RoutePoints = routePoints };
         Wires[wireIndex] = moved;
         SelectedWire = moved;
+        SelectedWireVertexIndex = null;
         StatusText = $"Moved wire segment {segmentIndex} on {moved.NetName}.";
+        return moved;
+    }
+
+    public SchematicWire MoveSelectedWireVertexTo(CadPoint requestedPosition)
+    {
+        if (SelectedWire is null || SelectedWireVertexIndex is null)
+        {
+            throw new InvalidOperationException("No schematic wire vertex is selected.");
+        }
+
+        int wireIndex = Wires.IndexOf(SelectedWire);
+        if (wireIndex < 0)
+        {
+            throw new InvalidOperationException("The selected schematic wire is no longer in the document.");
+        }
+
+        int vertexIndex = SelectedWireVertexIndex.Value;
+        if (vertexIndex <= 0 || vertexIndex >= SelectedWire.RoutePoints.Count - 1)
+        {
+            throw new InvalidOperationException("Only interior schematic wire vertices can be moved.");
+        }
+
+        List<CadPoint> routePoints = [..SelectedWire.RoutePoints];
+        CadPoint previous = routePoints[vertexIndex - 1];
+        CadPoint current = routePoints[vertexIndex];
+        CadPoint next = routePoints[vertexIndex + 1];
+        CadPoint snapped = placementGrid.Snap(requestedPosition);
+
+        routePoints[vertexIndex] = snapped;
+        routePoints[vertexIndex - 1] = previous.X == current.X
+            ? new CadPoint(snapped.X, previous.Y)
+            : new CadPoint(previous.X, snapped.Y);
+        routePoints[vertexIndex + 1] = next.X == current.X
+            ? new CadPoint(snapped.X, next.Y)
+            : new CadPoint(next.X, snapped.Y);
+
+        SchematicWire moved = SelectedWire with { RoutePoints = routePoints };
+        Wires[wireIndex] = moved;
+        SelectedWire = moved;
+        StatusText = $"Moved wire vertex {vertexIndex} on {moved.NetName}.";
         return moved;
     }
 
@@ -949,6 +1078,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         Wires[wireIndex] = updated;
         SelectedWire = updated;
         SelectedWireSegmentIndex = NearestSegmentIndex(snapped, updated.RoutePoints, 0, out _) ?? segmentIndex;
+        SelectedWireVertexIndex = null;
         StatusText = $"Inserted wire vertex on {updated.NetName}.";
         return updated;
     }
@@ -1005,6 +1135,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         Wires[wireIndex] = updated;
         SelectedWire = updated;
         SelectedWireSegmentIndex = null;
+        SelectedWireVertexIndex = null;
         RebuildNets();
         SelectedWire = Wires.Single(wire => wire.WireId == updated.WireId);
         StatusText = $"Deleted wire segment {segmentIndex} on {SelectedWire.NetName}.";
@@ -1054,6 +1185,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         Wires.Remove(SelectedWire);
         SelectedWire = null;
         SelectedWireSegmentIndex = null;
+        SelectedWireVertexIndex = null;
         RebuildNets();
         StatusText = "Deleted selected wire.";
         return true;

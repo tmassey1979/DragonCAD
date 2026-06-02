@@ -847,6 +847,7 @@ public sealed class MainWindowViewModelTests
     [InlineData("Capsules", "Capsule manager ready")]
     [InlineData("Marketplace", "Marketplace ready")]
     [InlineData("Fabrication", "Fabrication handoff ready")]
+    [InlineData("Help", "Help ready")]
     public void WorkbenchStatusTextReflectsActiveWorkspaceTab(string tabName, string expectedStatusPrefix)
     {
         MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
@@ -856,6 +857,24 @@ public sealed class MainWindowViewModelTests
         viewModel.ApplyStartupTab(tabName);
 
         Assert.StartsWith(expectedStatusPrefix, viewModel.WorkbenchStatusText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void HelpWorkspaceCommandShowsRenderedDocumentationSections()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 1);
+
+        viewModel.ShowHelpTabCommand.Execute(null);
+
+        Assert.Equal("Help", viewModel.ActiveWorkspaceTab);
+        Assert.True(viewModel.IsHelpTabActive);
+        Assert.False(viewModel.IsComponentManagerTabActive);
+        Assert.False(viewModel.IsSchematicTabActive);
+        Assert.Contains(viewModel.HelpSections, section => section.Title == "Schematic editor" && section.Body.Contains("Wire", StringComparison.Ordinal));
+        Assert.Contains(viewModel.HelpSections, section => section.Title == "PCB editor" && section.Body.Contains("Route", StringComparison.Ordinal));
+        Assert.Contains(viewModel.HelpSections, section => section.Title == "Library and marketplace" && section.Body.Contains("placeable", StringComparison.Ordinal));
     }
 
     [Theory]

@@ -199,7 +199,7 @@
                     </MenuItem>
                     <MenuItem Header="_Help">
                         <MenuItem Header="Documentation"
-                                  Command="{Binding ShowDatasheetsTabCommand}" />
+                                  Command="{Binding ShowHelpTabCommand}" />
                         <MenuItem Header="Component Library"
                                   Command="{Binding ShowComponentManagerTabCommand}" />
                         <MenuItem Header="Marketplace Status"
@@ -323,6 +323,15 @@
                                                 Content="Capsules" />
                                     </TreeViewItem.Header>
                                 </TreeViewItem>
+                                <TreeViewItem>
+                                    <TreeViewItem.Header>
+                                        <Button x:Name="ProjectExplorerHelpButton"
+                                                Classes="tree-nav"
+                                                Classes.active="{Binding IsHelpTabActive}"
+                                                Command="{Binding ShowHelpTabCommand}"
+                                                Content="Help" />
+                                    </TreeViewItem.Header>
+                                </TreeViewItem>
                             </TreeViewItem>
                         </TreeView>
                     </ScrollViewer>
@@ -371,6 +380,10 @@
                                 Classes="workbench-tab"
                                 Classes.active="{Binding IsFabricationTabActive}"
                                 Content="Fab" />
+                        <Button Command="{Binding ShowHelpTabCommand}"
+                                Classes="workbench-tab"
+                                Classes.active="{Binding IsHelpTabActive}"
+                                Content="Help" />
                     </StackPanel>
                 </Border>
 
@@ -2989,6 +3002,59 @@
                             </StackPanel>
                         </Border>
                     </Grid>
+                </Grid>
+
+                <Grid Grid.Row="2"
+                      Margin="18"
+                      RowDefinitions="Auto,*"
+                      IsVisible="{Binding IsHelpTabActive}">
+                    <StackPanel Spacing="6">
+                        <TextBlock Text="Help"
+                                   FontSize="24"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource DragonText}" />
+                        <TextBlock Text="Editor documentation is rendered as local markdown-style sections so workflows can be reviewed without leaving DragonCAD."
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource DragonMutedText}" />
+                    </StackPanel>
+
+                    <ScrollViewer x:Name="HelpMarkdownViewer"
+                                  Grid.Row="1"
+                                  Margin="0,14,0,0"
+                                  VerticalScrollBarVisibility="Auto">
+                        <ItemsControl ItemsSource="{Binding HelpSections}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="app:HelpSection"
+                                              x:DataType="app:HelpSection">
+                                    <Border Background="{StaticResource DragonPanelBackground}"
+                                            BorderBrush="{StaticResource DragonBorder}"
+                                            BorderThickness="1"
+                                            CornerRadius="6"
+                                            Padding="16"
+                                            Margin="0,0,0,12">
+                                        <StackPanel Spacing="8">
+                                            <TextBlock Text="{Binding Title}"
+                                                       FontSize="18"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource DragonText}" />
+                                            <TextBlock Text="{Binding Body}"
+                                                       TextWrapping="Wrap"
+                                                       Foreground="{StaticResource DragonMutedText}" />
+                                            <Border Background="#132033"
+                                                    BorderBrush="{StaticResource DragonBorder}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="4"
+                                                    Padding="10">
+                                                <TextBlock Text="{Binding Action}"
+                                                           TextWrapping="Wrap"
+                                                           Foreground="{StaticResource DragonGreen}" />
+                                            </Border>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
                 </Grid>
 
                 <Grid Grid.Row="2"

@@ -16,6 +16,12 @@ public sealed record SchematicWire(
     string NetName = "",
     string ManualNetName = "");
 
+public sealed record SchematicWireVertexHandle(
+    string WireId,
+    int VertexIndex,
+    CadPoint Position,
+    bool IsSelected);
+
 public sealed record SchematicNet(
     string Name,
     IReadOnlyList<string> PinNames,

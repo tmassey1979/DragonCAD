@@ -188,6 +188,7 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("<MenuItem Header=\"_Marketplace\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<MenuItem Header=\"Fa_brication\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<MenuItem Header=\"_Help\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ShowHelpTabCommand", mainWindow, StringComparison.Ordinal);
         Assert.Contains("ShowComponentManagerTabCommand", mainWindow, StringComparison.Ordinal);
         Assert.Contains("ShowMarketplaceTabCommand", mainWindow, StringComparison.Ordinal);
         Assert.Contains("PlaceSelectedComponentCommand", mainWindow, StringComparison.Ordinal);
@@ -208,6 +209,21 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("InUseVendorCatalogSyncActionSummary.FreshnessLabel", mainWindow, StringComparison.Ordinal);
         Assert.Contains("InUseVendorCatalogSyncActionSummary.PrimaryActionLabel", mainWindow, StringComparison.Ordinal);
         Assert.Contains("FabricationChecklistPreview.ActionSummary.SummaryText", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MainWindowRendersMarkdownStyleHelpViewerAsWorkspaceTab()
+    {
+        string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
+
+        Assert.Contains("x:Name=\"HelpMarkdownViewer\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("IsVisible=\"{Binding IsHelpTabActive}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding HelpSections}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ShowHelpTabCommand", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Help\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding Title}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding Body}\"", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"##", mainWindow, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -275,6 +291,7 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("<TreeViewItem Header=\"Manufacturing\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Content=\"Firmware\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Content=\"Capsules\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Help\"", mainWindow, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -301,6 +318,8 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("Command=\"{Binding ShowFirmwareTabCommand}\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ProjectExplorerCapsulesButton\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding ShowCapsulesTabCommand}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ProjectExplorerHelpButton\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ShowHelpTabCommand}\"", mainWindow, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -317,6 +336,7 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("Classes.active=\"{Binding IsFabricationTabActive}\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Classes.active=\"{Binding IsFirmwareTabActive}\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Classes.active=\"{Binding IsCapsulesTabActive}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Classes.active=\"{Binding IsHelpTabActive}\"", mainWindow, StringComparison.Ordinal);
     }
 
     [Fact]

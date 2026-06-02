@@ -803,6 +803,81 @@ public sealed class SchematicEditorViewModelTests
     }
 
     [Fact]
+    public void SelectedWireVertexHandlesExposeInteriorRoutePointsForCanvasHandles()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+        SchematicWire wire = Assert.Single(editor.Wires);
+        editor.SelectWireAt(new CadPoint(2_000_000, 1_000_000));
+
+        SchematicWireVertexHandle[] handles = editor.SelectedWireVertexHandles.ToArray();
+
+        Assert.Collection(
+            handles,
+            handle =>
+            {
+                Assert.Equal(wire.WireId, handle.WireId);
+                Assert.Equal(1, handle.VertexIndex);
+                Assert.Equal(new CadPoint(2_000_000, 0), handle.Position);
+                Assert.False(handle.IsSelected);
+            },
+            handle =>
+            {
+                Assert.Equal(wire.WireId, handle.WireId);
+                Assert.Equal(2, handle.VertexIndex);
+                Assert.Equal(new CadPoint(2_000_000, 2_000_000), handle.Position);
+                Assert.False(handle.IsSelected);
+            },
+            handle =>
+            {
+                Assert.Equal(wire.WireId, handle.WireId);
+                Assert.Equal(3, handle.VertexIndex);
+                Assert.Equal(new CadPoint(4_000_000, 2_000_000), handle.Position);
+                Assert.False(handle.IsSelected);
+            });
+    }
+
+    [Fact]
+    public void SelectWireVertexAtSelectsNearestInteriorVertexHandle()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+
+        SchematicWireVertexHandle? selected = editor.SelectWireVertexAt(new CadPoint(2_200_000, 1_800_000));
+
+        Assert.NotNull(selected);
+        Assert.Equal(2, selected.VertexIndex);
+        Assert.Equal(new CadPoint(2_000_000, 2_000_000), selected.Position);
+        Assert.Equal(2, editor.SelectedWireVertexIndex);
+        Assert.Null(editor.SelectedWireSegmentIndex);
+        Assert.Null(editor.SelectedComponent);
+        Assert.Null(editor.SelectedPinEndpoint);
+        Assert.Null(editor.SelectedNetLabel);
+        Assert.Equal("Selected wire vertex 2 on N$1.", editor.StatusText);
+        Assert.Contains(editor.SelectedWireVertexHandles, handle => handle.VertexIndex == 2 && handle.IsSelected);
+    }
+
+    [Fact]
+    public void MoveSelectedWireVertexToSnapsInteriorVertexAndPreservesOrthogonalRoute()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+        editor.SelectWireVertexAt(new CadPoint(2_000_000, 2_000_000));
+
+        SchematicWire moved = editor.MoveSelectedWireVertexTo(new CadPoint(3_200_000, 3_400_000));
+
+        Assert.Equal(2, editor.SelectedWireVertexIndex);
+        Assert.Equal(
+            [
+                new CadPoint(1_000_000, 0),
+                new CadPoint(3_000_000, 0),
+                new CadPoint(3_000_000, 3_000_000),
+                new CadPoint(4_000_000, 3_000_000),
+                new CadPoint(4_000_000, 0)
+            ],
+            moved.RoutePoints);
+        Assert.All(AdjacentSegments(moved), segment => Assert.True(IsOrthogonal(segment.Start, segment.End)));
+        Assert.Equal("Moved wire vertex 2 on N$1.", editor.StatusText);
+    }
+
+    [Fact]
     public void RenameSelectedWireNetUpdatesTheWireAndNet()
     {
         SchematicEditorViewModel editor = new();

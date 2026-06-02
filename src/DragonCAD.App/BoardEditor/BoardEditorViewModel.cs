@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using DragonCAD.App.ComponentManager;
 using DragonCAD.App.SchematicEditor;
 using DragonCAD.Core.Geometry;
 
@@ -26,6 +27,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     private BoardTrace? hoveredTrace;
     private BoardVia? hoveredVia;
     private int? hoveredTraceSegmentIndex;
+    private BoardPadHit? pendingTraceStartPad;
     private readonly List<CadPoint> pendingTraceRoutePoints = [];
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -377,18 +379,16 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         Airwires.Clear();
         foreach (SchematicWire wire in schematicWires)
         {
-            CadPoint startPosition = BoardPositionForWireEndpoint(wire.Start.InstanceId);
-            CadPoint endPosition = BoardPositionForWireEndpoint(wire.End.InstanceId);
             Airwires.Add(new BoardAirwire(
                 wire.NetName,
                 wire.Start.InstanceId,
                 wire.Start.ReferenceDesignator,
                 wire.Start.PinName,
-                startPosition,
+                BoardPositionForWireEndpoint(wire.Start.InstanceId, wire.Start.PinName),
                 wire.End.InstanceId,
                 wire.End.ReferenceDesignator,
                 wire.End.PinName,
-                endPosition));
+                BoardPositionForWireEndpoint(wire.End.InstanceId, wire.End.PinName)));
         }
 
         string componentText = $"{Components.Count} board component{(Components.Count == 1 ? "" : "s")}";
@@ -766,6 +766,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         ActiveTool = "Select";
         pendingTraceRoutePoints.Clear();
         PendingTraceStart = null;
+        pendingTraceStartPad = null;
         StatusText = "Board select tool active.";
     }
 
@@ -781,20 +782,26 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
 
     public bool TraceClickAt(CadPoint point)
     {
-        CadPoint snappedPoint = placementGrid.Snap(point);
+        BoardPadHit? padHit = FindPadAt(point);
+        CadPoint routePoint = padHit?.Position ?? placementGrid.Snap(point);
         if (PendingTraceStart is null)
         {
-            PendingTraceStart = snappedPoint;
+            PendingTraceStart = routePoint;
+            pendingTraceStartPad = padHit;
             pendingTraceRoutePoints.Clear();
-            pendingTraceRoutePoints.Add(snappedPoint);
+            pendingTraceRoutePoints.Add(routePoint);
             OnPropertyChanged(nameof(PendingTraceRoutePoints));
-            StatusText = $"Started board trace at {FormatMillimeters(snappedPoint.X)} mm, {FormatMillimeters(snappedPoint.Y)} mm.";
+            StatusText = padHit is null
+                ? $"Started board trace at {FormatMillimeters(routePoint.X)} mm, {FormatMillimeters(routePoint.Y)} mm."
+                : $"Started board trace at pad {padHit.ReferenceDesignator}.{padHit.PadName}.";
             return true;
         }
 
-        AddOrthogonalLeg(pendingTraceRoutePoints, snappedPoint);
+        AddOrthogonalLeg(pendingTraceRoutePoints, routePoint);
         OnPropertyChanged(nameof(PendingTraceRoutePoints));
-        StatusText = $"Added board trace segment at {FormatMillimeters(snappedPoint.X)} mm, {FormatMillimeters(snappedPoint.Y)} mm.";
+        StatusText = padHit is null
+            ? $"Added board trace segment at {FormatMillimeters(routePoint.X)} mm, {FormatMillimeters(routePoint.Y)} mm."
+            : $"Added board trace segment at pad {padHit.ReferenceDesignator}.{padHit.PadName}.";
         return true;
     }
 
@@ -806,19 +813,24 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
             return false;
         }
 
-        AddOrthogonalLeg(pendingTraceRoutePoints, placementGrid.Snap(point));
+        BoardPadHit? endPad = FindPadAt(point);
+        AddOrthogonalLeg(pendingTraceRoutePoints, endPad?.Position ?? placementGrid.Snap(point));
         if (pendingTraceRoutePoints.Count < 2)
         {
             StatusText = "Board trace needs at least two points.";
             return false;
         }
 
+        BoardAirwire? retiredAirwire = RetireAirwireBetween(pendingTraceStartPad, endPad);
         Traces.Add(new BoardTrace(Guid.NewGuid().ToString("N"), ActiveLayerName, [.. pendingTraceRoutePoints]));
         pendingTraceRoutePoints.Clear();
         PendingTraceStart = null;
+        pendingTraceStartPad = null;
         OnPropertyChanged(nameof(PendingTraceRoutePoints));
         OnPropertyChanged(nameof(VisibleTraces));
-        StatusText = $"Routed board trace on {ActiveLayerName}.";
+        StatusText = retiredAirwire is null
+            ? $"Routed board trace on {ActiveLayerName}."
+            : $"Routed board trace on {ActiveLayerName} and retired airwire {retiredAirwire.NetName}.";
         return true;
     }
 
@@ -1059,10 +1071,18 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         return null;
     }
 
-    private CadPoint BoardPositionForWireEndpoint(string syncId)
+    private CadPoint BoardPositionForWireEndpoint(string syncId, string pinName)
     {
         int index = IndexOfSyncId(syncId);
-        return index >= 0 ? Components[index].Position : default;
+        if (index < 0)
+        {
+            return default;
+        }
+
+        BoardComponentInstance component = Components[index];
+        ComponentFootprintPadPreview? pad = component.FootprintPreview.Pads.FirstOrDefault(candidate =>
+            string.Equals(candidate.Name, pinName, StringComparison.OrdinalIgnoreCase));
+        return pad is null ? component.Position : TransformLocalPoint(component, pad.Position);
     }
 
     private void RefreshAirwireEndpoints()
@@ -1072,8 +1092,8 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
             BoardAirwire airwire = Airwires[index];
             Airwires[index] = airwire with
             {
-                StartPosition = BoardPositionForWireEndpoint(airwire.StartSyncId),
-                EndPosition = BoardPositionForWireEndpoint(airwire.EndSyncId)
+                StartPosition = BoardPositionForWireEndpoint(airwire.StartSyncId, airwire.StartPinName),
+                EndPosition = BoardPositionForWireEndpoint(airwire.EndSyncId, airwire.EndPinName)
             };
         }
     }
@@ -1090,6 +1110,90 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
                 component.Position.Y - 1_000_000,
                 component.Position.X + 1_500_000,
                 component.Position.Y + 1_000_000);
+
+    private BoardPadHit? FindPadAt(CadPoint point)
+    {
+        for (int componentIndex = Components.Count - 1; componentIndex >= 0; componentIndex--)
+        {
+            BoardComponentInstance component = Components[componentIndex];
+            for (int padIndex = component.FootprintPreview.Pads.Count - 1; padIndex >= 0; padIndex--)
+            {
+                ComponentFootprintPadPreview pad = component.FootprintPreview.Pads[padIndex];
+                CadPoint padCenter = TransformLocalPoint(component, pad.Position);
+                CadVector padSize = PadSizeForComponentRotation(component, pad);
+                CadRectangle bounds = new(
+                    padCenter.X - (padSize.X / 2),
+                    padCenter.Y - (padSize.Y / 2),
+                    padCenter.X + (padSize.X / 2),
+                    padCenter.Y + (padSize.Y / 2));
+                if (bounds.Contains(point))
+                {
+                    return new BoardPadHit(component.SyncId, component.ReferenceDesignator, pad.Name, padCenter);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private BoardAirwire? RetireAirwireBetween(BoardPadHit? startPad, BoardPadHit? endPad)
+    {
+        if (startPad is null || endPad is null)
+        {
+            return null;
+        }
+
+        for (int index = Airwires.Count - 1; index >= 0; index--)
+        {
+            BoardAirwire airwire = Airwires[index];
+            if (AirwireMatches(airwire, startPad, endPad))
+            {
+                Airwires.RemoveAt(index);
+                return airwire;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool AirwireMatches(BoardAirwire airwire, BoardPadHit startPad, BoardPadHit endPad) =>
+        (EndpointMatches(airwire.StartSyncId, airwire.StartPinName, startPad) &&
+            EndpointMatches(airwire.EndSyncId, airwire.EndPinName, endPad)) ||
+        (EndpointMatches(airwire.StartSyncId, airwire.StartPinName, endPad) &&
+            EndpointMatches(airwire.EndSyncId, airwire.EndPinName, startPad));
+
+    private static bool EndpointMatches(string syncId, string pinName, BoardPadHit pad) =>
+        string.Equals(syncId, pad.SyncId, StringComparison.Ordinal) &&
+        string.Equals(pinName, pad.PadName, StringComparison.OrdinalIgnoreCase);
+
+    private static CadVector PadSizeForComponentRotation(BoardComponentInstance component, ComponentFootprintPadPreview pad) =>
+        NormalizeRotation(component.RotationDegrees) is 90 or 270
+            ? new CadVector(pad.Size.Y, pad.Size.X)
+            : pad.Size;
+
+    private static CadPoint TransformLocalPoint(BoardComponentInstance component, CadPoint localPoint)
+    {
+        CadPoint mirrored = component.IsMirrored
+            ? new CadPoint(-localPoint.X, localPoint.Y)
+            : localPoint;
+        CadPoint rotated = RotateLocalPoint(mirrored, component.RotationDegrees);
+        return new CadPoint(component.Position.X + rotated.X, component.Position.Y + rotated.Y);
+    }
+
+    private static CadPoint RotateLocalPoint(CadPoint point, int rotationDegrees) =>
+        NormalizeRotation(rotationDegrees) switch
+        {
+            90 => new CadPoint(-point.Y, point.X),
+            180 => new CadPoint(-point.X, -point.Y),
+            270 => new CadPoint(point.Y, -point.X),
+            _ => point
+        };
+
+    private static int NormalizeRotation(int rotationDegrees)
+    {
+        int normalized = rotationDegrees % 360;
+        return normalized < 0 ? normalized + 360 : normalized;
+    }
 
     private static string FormatMillimeters(long internalUnits) =>
         ((decimal)internalUnits / CadUnit.InternalUnitsPerMillimeter).ToString("0.000", System.Globalization.CultureInfo.InvariantCulture);
@@ -1208,4 +1312,6 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     private sealed record SegmentHit(double Distance, int SegmentIndex);
 
     private sealed record TraceHit(BoardTrace Trace, int SegmentIndex);
+
+    private sealed record BoardPadHit(string SyncId, string ReferenceDesignator, string PadName, CadPoint Position);
 }

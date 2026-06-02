@@ -160,6 +160,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         ShowFirmwareTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "Firmware");
         ShowCapsulesTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "Capsules");
         ShowFabricationTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "Fabrication");
+        ShowHelpTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "Help");
         SubmitAiPromptCommand = new DelegateCommand(SubmitAiPrompt);
         AddSelectedMarketplaceComponentToCartCommand = new DelegateCommand(AddSelectedMarketplaceComponentToCart);
         AddMarketplaceComponentToCartCommand = new DelegateCommand(AddMarketplaceComponentToCart);
@@ -763,6 +764,30 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             Assets: "Generated subsystem drafts require explainable review before project mutation.")
     ];
 
+    public IReadOnlyList<HelpSection> HelpSections { get; } =
+    [
+        new(
+            Title: "Schematic editor",
+            Body: "Use Select for part movement and Wire for pin-to-pin schematic routing. Wires snap to the visible grid, use orthogonal segments, and can be selected for segment or vertex editing.",
+            Action: "Shortcut: V selects, W starts the Wire tool, Delete removes the active schematic selection."),
+        new(
+            Title: "PCB editor",
+            Body: "Use the PCB tab for layer-aware Route work, via placement, active-layer changes, trace movement, and board component positioning. Route starts should be made from pads when a package is available.",
+            Action: "Use the layer palette before routing so new traces land on the intended copper layer."),
+        new(
+            Title: "Library and marketplace",
+            Body: "The component manager lists trusted placeable parts. Marketplace and datasheet rows are sourcing and review evidence until promoted into the trusted library.",
+            Action: "Select a placeable component, review symbol and footprint previews, then choose Place."),
+        new(
+            Title: "Grid and snapping",
+            Body: "Schematic and PCB editors share visible grid controls for dot or line display, spacing, and snapping. Placement, wire, route, via, and movement commands snap to editor grid units.",
+            Action: "Use the Grid inspector tab to verify visibility, style, and current spacing."),
+        new(
+            Title: "Fabrication handoff",
+            Body: "Fabrication, BOM, and marketplace order views are review-first. DragonCAD prepares deterministic local artifacts and order drafts before any provider-specific live checkout is enabled.",
+            Action: "Open Fab for Gerber, drill, paste, BOM, pick-and-place, and order-readiness checks.")
+    ];
+
     public IReadOnlyList<AiInspectorSummaryRow> AiInspectorSummaryRows =>
     [
         new(
@@ -875,6 +900,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
     public DelegateCommand ShowFabricationTabCommand { get; }
 
+    public DelegateCommand ShowHelpTabCommand { get; }
+
     public DelegateCommand SubmitAiPromptCommand { get; }
 
     public DelegateCommand AddSelectedMarketplaceComponentToCartCommand { get; }
@@ -961,6 +988,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             OnPropertyChanged(nameof(IsFirmwareTabActive));
             OnPropertyChanged(nameof(IsCapsulesTabActive));
             OnPropertyChanged(nameof(IsFabricationTabActive));
+            OnPropertyChanged(nameof(IsHelpTabActive));
             OnPropertyChanged(nameof(ContextInspectorSelectedIndex));
             OnPropertyChanged(nameof(WorkbenchStatusText));
         }
@@ -981,6 +1009,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     public bool IsCapsulesTabActive => ActiveWorkspaceTab == "Capsules";
 
     public bool IsFabricationTabActive => ActiveWorkspaceTab == "Fabrication";
+
+    public bool IsHelpTabActive => ActiveWorkspaceTab == "Help";
 
     public int ContextInspectorSelectedIndex => ActiveWorkspaceTab switch
     {
@@ -1026,6 +1056,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         "Firmware" => "Firmware workspace ready: connect source, build output, and pin bindings.",
         "Capsules" => "Capsule manager ready: package reusable hardware subsystems for review.",
         "Fabrication" => "Fabrication handoff ready: review Gerbers, BOM, pick-and-place, and order paths.",
+        "Help" => "Help ready: review editor tools, command shortcuts, and workflow guidance.",
         _ => PlacementStatus
     };
 
@@ -1041,6 +1072,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             "Firmware" => "Firmware",
             "Capsules" => "Capsules",
             "Fabrication" => "Fabrication",
+            "Help" => "Help",
             _ => ActiveWorkspaceTab
         };
     }
@@ -3862,6 +3894,11 @@ public sealed record CapsuleReadinessRow(
     string Name,
     string Status,
     string Assets);
+
+public sealed record HelpSection(
+    string Title,
+    string Body,
+    string Action);
 
 public sealed record AiInspectorSummaryRow(
     string Area,
