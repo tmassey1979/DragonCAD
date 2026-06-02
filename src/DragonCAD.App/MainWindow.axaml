@@ -279,7 +279,14 @@
                                                     Content="Fabrication" />
                                         </TreeViewItem.Header>
                                     </TreeViewItem>
-                                    <TreeViewItem Header="BOM and Orders" />
+                                    <TreeViewItem>
+                                        <TreeViewItem.Header>
+                                            <Button x:Name="ProjectExplorerBomOrdersButton"
+                                                    Classes="tree-nav"
+                                                    Command="{Binding ShowMarketplaceTabCommand}"
+                                                    Content="BOM and Orders" />
+                                        </TreeViewItem.Header>
+                                    </TreeViewItem>
                                 </TreeViewItem>
                                 <TreeViewItem Header="Firmware" />
                                 <TreeViewItem Header="Capsules" />

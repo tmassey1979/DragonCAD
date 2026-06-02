@@ -279,6 +279,8 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("Command=\"{Binding ShowDatasheetsTabCommand}\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"ProjectExplorerFabricationButton\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding ShowFabricationTabCommand}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ProjectExplorerBomOrdersButton\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Content=\"BOM and Orders\"", mainWindow, StringComparison.Ordinal);
     }
 
     [Fact]
