@@ -710,6 +710,25 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void SchematicPointerMoveReportsHoverTargetsWhenSelectToolIsActive()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 20);
+        viewModel.ComponentManager.SelectedComponent = Assert.Single(
+            viewModel.ComponentManager.Components,
+            row => row.DisplayName.Contains("RESISTOR", StringComparison.Ordinal));
+        viewModel.PlaceSelectedComponentCommand.Execute(null);
+        viewModel.HandleSchematicCanvasClick(new CadPoint(0, 0));
+        viewModel.ActivateSelectToolCommand.Execute(null);
+
+        viewModel.HandleSchematicPointerMoved(new CadPoint(0, 0));
+
+        Assert.Contains("Component U1", viewModel.PlacementStatus, StringComparison.Ordinal);
+        Assert.NotNull(viewModel.SchematicEditor.HoveredComponent);
+    }
+
+    [Fact]
     public void ZoomCommandsChangeSchematicZoomLevel()
     {
         MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(

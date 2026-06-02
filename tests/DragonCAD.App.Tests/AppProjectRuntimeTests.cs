@@ -516,6 +516,17 @@ public sealed class AppProjectRuntimeTests
     }
 
     [Fact]
+    public void SchematicCanvasUsesHoverTargetsForMoveAffordance()
+    {
+        string schematicCanvas = ReadSourceFile("src", "DragonCAD.App", "SchematicEditor", "SchematicCanvasControl.cs");
+
+        Assert.Contains("nameof(SchematicEditorViewModel.HoveredComponent)", schematicCanvas, StringComparison.Ordinal);
+        Assert.Contains("nameof(SchematicEditorViewModel.HoveredWire)", schematicCanvas, StringComparison.Ordinal);
+        Assert.Contains("Editor?.HoveredComponent is not null", schematicCanvas, StringComparison.Ordinal);
+        Assert.Contains("Editor?.HoveredWire is not null", schematicCanvas, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowIncludesSchematicKeyboardShortcuts()
     {
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");

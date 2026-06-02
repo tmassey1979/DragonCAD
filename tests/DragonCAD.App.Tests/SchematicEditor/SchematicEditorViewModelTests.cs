@@ -400,6 +400,27 @@ public sealed class SchematicEditorViewModelTests
     }
 
     [Fact]
+    public void UpdateHoverTargetReportsComponentsAndWireSegmentsBeforeSelection()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+
+        string componentHover = editor.UpdateHoverTargetAt(new CadPoint(-800_000, 800_000));
+
+        Assert.Equal("Component U1: First", componentHover);
+        Assert.Equal(componentHover, editor.HoverTargetText);
+        Assert.Null(editor.SelectedWire);
+        Assert.NotNull(editor.HoveredComponent);
+
+        string wireHover = editor.UpdateHoverTargetAt(new CadPoint(2_000_000, 1_600_000));
+
+        Assert.Equal("Wire N$1 segment 2", wireHover);
+        Assert.Equal(wireHover, editor.HoverTargetText);
+        Assert.NotNull(editor.HoveredWire);
+        Assert.Equal(2, editor.HoveredWireSegmentIndex);
+        Assert.Null(editor.SelectedWire);
+    }
+
+    [Fact]
     public void SelectPinEndpointAtSelectsNearestPinWithoutSelectingComponent()
     {
         SchematicEditorViewModel editor = new();

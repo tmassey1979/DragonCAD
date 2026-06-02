@@ -20,6 +20,10 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
     private int? selectedWireSegmentIndex;
     private SchematicPinEndpoint? pendingWireStart;
     private SchematicPinEndpoint? hoveredPin;
+    private SchematicComponentInstance? hoveredComponent;
+    private SchematicWire? hoveredWire;
+    private int? hoveredWireSegmentIndex;
+    private string hoverTargetText = "No hover target";
     private SchematicPinEndpoint? selectedPinEndpoint;
     private SchematicNetLabel? selectedNetLabel;
     private CadPoint? pendingWirePreviewPoint;
@@ -211,6 +215,66 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             }
 
             hoveredPin = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public SchematicComponentInstance? HoveredComponent
+    {
+        get => hoveredComponent;
+        private set
+        {
+            if (hoveredComponent == value)
+            {
+                return;
+            }
+
+            hoveredComponent = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public SchematicWire? HoveredWire
+    {
+        get => hoveredWire;
+        private set
+        {
+            if (hoveredWire == value)
+            {
+                return;
+            }
+
+            hoveredWire = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public int? HoveredWireSegmentIndex
+    {
+        get => hoveredWireSegmentIndex;
+        private set
+        {
+            if (hoveredWireSegmentIndex == value)
+            {
+                return;
+            }
+
+            hoveredWireSegmentIndex = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string HoverTargetText
+    {
+        get => hoverTargetText;
+        private set
+        {
+            if (hoverTargetText == value)
+            {
+                return;
+            }
+
+            hoverTargetText = value;
             OnPropertyChanged();
         }
     }
@@ -657,7 +721,74 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
     public SchematicPinEndpoint? UpdateHoveredPinAt(CadPoint point)
     {
         HoveredPin = FindPinAt(point);
+        if (HoveredPin is not null)
+        {
+            HoveredComponent = null;
+            HoveredWire = null;
+            HoveredWireSegmentIndex = null;
+            HoverTargetText = $"Pin {HoveredPin.ReferenceDesignator}.{HoveredPin.PinName}";
+        }
+        else
+        {
+            HoveredComponent = null;
+            HoveredWire = null;
+            HoveredWireSegmentIndex = null;
+            HoverTargetText = "No hover target";
+        }
+
         return HoveredPin;
+    }
+
+    public string UpdateHoverTargetAt(CadPoint point)
+    {
+        if (UpdateHoveredPinAt(point) is { } hoveredEndpoint)
+        {
+            return $"Pin {hoveredEndpoint.ReferenceDesignator}.{hoveredEndpoint.PinName}";
+        }
+
+        HoveredComponent = null;
+        HoveredWire = null;
+        HoveredWireSegmentIndex = null;
+
+        for (int componentIndex = Components.Count - 1; componentIndex >= 0; componentIndex--)
+        {
+            SchematicComponentInstance candidate = Components[componentIndex];
+            if (Contains(candidate, point))
+            {
+                HoveredComponent = candidate;
+                HoverTargetText = $"Component {candidate.ReferenceDesignator}: {candidate.DisplayName}";
+                StatusText = HoverTargetText;
+                return HoverTargetText;
+            }
+        }
+
+        const double tolerance = 350_000;
+        double nearestDistance = double.MaxValue;
+        SchematicWire? nearestWire = null;
+        int? nearestSegmentIndex = null;
+        for (int wireIndex = Wires.Count - 1; wireIndex >= 0; wireIndex--)
+        {
+            SchematicWire wire = Wires[wireIndex];
+            int? segmentIndex = NearestSegmentIndex(point, wire.RoutePoints, tolerance, out double distance);
+            if (segmentIndex is not null && distance < nearestDistance)
+            {
+                nearestDistance = distance;
+                nearestWire = wire;
+                nearestSegmentIndex = segmentIndex;
+            }
+        }
+
+        if (nearestWire is not null)
+        {
+            HoveredWire = nearestWire;
+            HoveredWireSegmentIndex = nearestSegmentIndex;
+            HoverTargetText = $"Wire {nearestWire.NetName} segment {nearestSegmentIndex}";
+            StatusText = HoverTargetText;
+            return HoverTargetText;
+        }
+
+        HoverTargetText = "No hover target";
+        return HoverTargetText;
     }
 
     public void UpdateTracePreviewAt(CadPoint point)

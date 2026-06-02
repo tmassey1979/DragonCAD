@@ -2737,6 +2737,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
         if (!IsDraggingSchematicComponent || SchematicEditor.SelectedComponent is null)
         {
+            SchematicEditor.UpdateHoverTargetAt(point);
+            PlacementStatus = SchematicEditor.HoverTargetText;
             return;
         }
 

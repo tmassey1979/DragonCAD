@@ -427,6 +427,9 @@ public sealed class SchematicCanvasControl : Control
             nameof(SchematicEditorViewModel.SelectedNetLabel) or
             nameof(SchematicEditorViewModel.SelectedPinEndpoint) or
             nameof(SchematicEditorViewModel.HoveredPin) or
+            nameof(SchematicEditorViewModel.HoveredComponent) or
+            nameof(SchematicEditorViewModel.HoveredWire) or
+            nameof(SchematicEditorViewModel.HoveredWireSegmentIndex) or
             nameof(SchematicEditorViewModel.PendingWireRoutePoints) or
             nameof(SchematicEditorViewModel.PendingWirePreviewPoint) or
             nameof(SchematicEditorViewModel.PendingWirePreviewRoutePoints))
@@ -461,6 +464,12 @@ public sealed class SchematicCanvasControl : Control
         if (Editor?.HoveredPin is not null)
         {
             return new Cursor(StandardCursorType.Hand);
+        }
+
+        if (Editor?.HoveredComponent is not null ||
+            Editor?.HoveredWire is not null)
+        {
+            return new Cursor(StandardCursorType.SizeAll);
         }
 
         return null;
