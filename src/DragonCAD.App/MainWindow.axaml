@@ -3424,6 +3424,34 @@
                                     <TextBlock Text="AI review uses the current component catalog, schematic graph, board sync, and routing state."
                                                TextWrapping="Wrap"
                                                Foreground="{StaticResource DragonMutedText}" />
+                                    <Border Background="#0D1218"
+                                            BorderBrush="{StaticResource DragonBorder}"
+                                            BorderThickness="1"
+                                            Padding="10"
+                                            CornerRadius="4">
+                                        <StackPanel x:Name="AiInspectorActionStrip"
+                                                    Spacing="8">
+                                            <TextBlock Text="AI-guided next steps"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource DragonText}" />
+                                            <Button x:Name="AiInspectComponentsButton"
+                                                    Command="{Binding ShowComponentManagerTabCommand}"
+                                                    Content="Inspect components"
+                                                    HorizontalAlignment="Stretch" />
+                                            <Button x:Name="AiReviewSchematicButton"
+                                                    Command="{Binding ShowSchematicTabCommand}"
+                                                    Content="Review schematic"
+                                                    HorizontalAlignment="Stretch" />
+                                            <Button x:Name="AiGenerateCapsuleButton"
+                                                    Command="{Binding ShowCapsulesTabCommand}"
+                                                    Content="Generate capsule"
+                                                    HorizontalAlignment="Stretch" />
+                                            <Button x:Name="AiReviewFabricationButton"
+                                                    Command="{Binding ShowFabricationTabCommand}"
+                                                    Content="Review fabrication"
+                                                    HorizontalAlignment="Stretch" />
+                                        </StackPanel>
+                                    </Border>
                                     <ListBox ItemsSource="{Binding AiInspectorSummaryRows}"
                                              Background="Transparent"
                                              BorderThickness="0">
@@ -3450,15 +3478,6 @@
                                             </DataTemplate>
                                         </ListBox.ItemTemplate>
                                     </ListBox>
-                                    <Border Background="#0D1218"
-                                            BorderBrush="{StaticResource DragonBorder}"
-                                            BorderThickness="1"
-                                            Padding="10"
-                                            CornerRadius="4">
-                                        <TextBlock Text="Ask DragonCAD to inspect components, generate capsules, or review constraints."
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{StaticResource DragonText}" />
-                                    </Border>
                                 </StackPanel>
                             </ScrollViewer>
                         </TabItem>

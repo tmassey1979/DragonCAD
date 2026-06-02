@@ -219,6 +219,15 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("x:Name=\"ContextInspectorTabs\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<TabItem Header=\"AI\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("ItemsSource=\"{Binding AiInspectorSummaryRows}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"AiInspectorActionStrip\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"AiInspectComponentsButton\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ShowComponentManagerTabCommand}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"AiReviewSchematicButton\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ShowSchematicTabCommand}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"AiGenerateCapsuleButton\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ShowCapsulesTabCommand}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"AiReviewFabricationButton\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding ShowFabricationTabCommand}\"", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("Ready for explainable engineering workflows once schematic and board graph projections are added.", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<TabItem Header=\"Schematic\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("<TabItem Header=\"PCB\"", mainWindow, StringComparison.Ordinal);
