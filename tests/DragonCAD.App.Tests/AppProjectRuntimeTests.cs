@@ -333,6 +333,7 @@ public sealed class AppProjectRuntimeTests
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
 
         Assert.Contains("<Setter Property=\"Padding\" Value=\"12,8\" />", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("<Setter Property=\"Focusable\" Value=\"False\" />", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Content=\"Components\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Content=\"Market\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Content=\"PCB\"", mainWindow, StringComparison.Ordinal);

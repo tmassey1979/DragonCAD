@@ -45,6 +45,7 @@
     <Window.Styles>
         <Style Selector="Button.workbench-tab">
             <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Focusable" Value="False" />
             <Setter Property="Background" Value="#0D1218" />
             <Setter Property="BorderBrush" Value="{StaticResource DragonBorder}" />
             <Setter Property="BorderThickness" Value="1,1,1,0" />
