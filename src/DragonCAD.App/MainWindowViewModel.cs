@@ -127,6 +127,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         PlaceSelectedComponentCommand = new DelegateCommand(PlaceSelectedComponent);
         OpenSelectedComponentEditorCommand = new DelegateCommand(OpenSelectedComponentEditor);
         NewComponentEditorCommand = new DelegateCommand(OpenNewComponentEditor);
+        AddComponentEditorStarterGeometryCommand = new DelegateCommand(AddComponentEditorStarterGeometry);
         CancelPlacementCommand = new DelegateCommand(CancelPlacement);
         CancelActiveOperationCommand = new DelegateCommand(CancelActiveOperation);
         PlaceArmedComponentOnSchematicCommand = new DelegateCommand(PlaceArmedComponentOnSchematic);
@@ -229,7 +230,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
                 return;
             }
 
+            if (activeComponentEditorWorkspace is not null)
+            {
+                activeComponentEditorWorkspace.ViewModel.PropertyChanged -= ComponentEditorViewModelPropertyChanged;
+            }
+
             activeComponentEditorWorkspace = value;
+            if (activeComponentEditorWorkspace is not null)
+            {
+                activeComponentEditorWorkspace.ViewModel.PropertyChanged += ComponentEditorViewModelPropertyChanged;
+            }
+
             OnPropertyChanged();
             OnPropertyChanged(nameof(WorkbenchStatusText));
         }
@@ -887,6 +898,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     public DelegateCommand OpenSelectedComponentEditorCommand { get; }
 
     public DelegateCommand NewComponentEditorCommand { get; }
+
+    public DelegateCommand AddComponentEditorStarterGeometryCommand { get; }
 
     public DelegateCommand CancelPlacementCommand { get; }
 
@@ -2806,6 +2819,25 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         PlacementStatus = $"New component draft: {ActiveComponentEditorWorkspace.ViewModel.ComponentId}";
     }
 
+    private void AddComponentEditorStarterGeometry()
+    {
+        if (ActiveComponentEditorWorkspace is null)
+        {
+            OpenNewComponentEditor();
+        }
+
+        ComponentEditorViewModel editor = ActiveComponentEditorWorkspace!.ViewModel;
+        if (editor.Pins.Count > 0 || editor.Symbols.Count > 0 || editor.Footprints.Count > 0 || editor.Variants.Count > 0)
+        {
+            PlacementStatus = "Component editor already has starter geometry.";
+            return;
+        }
+
+        editor.AddBasicPinPackageAndMapping("1", "PIN1", "GENERIC-1");
+        RefreshComponentEditorComputedState();
+        PlacementStatus = ActiveComponentEditorWorkspace.SaveReadiness.Message;
+    }
+
     private static ComponentDefinition CreateComponentEditorDefinition(ComponentManagerRow row)
     {
         ComponentKind kind = Enum.TryParse(row.Kind, ignoreCase: false, out ComponentKind parsedKind)
@@ -3609,6 +3641,15 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             OnPropertyChanged(nameof(BoardSelectionSummary));
             OnPropertyChanged(nameof(SelectedBoardTraceWidthMillimeters));
         }
+    }
+
+    private void ComponentEditorViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e) =>
+        RefreshComponentEditorComputedState();
+
+    private void RefreshComponentEditorComputedState()
+    {
+        OnPropertyChanged(nameof(ActiveComponentEditorWorkspace));
+        OnPropertyChanged(nameof(WorkbenchStatusText));
     }
 
     private void FabricationPropertyChanged(object? sender, PropertyChangedEventArgs e)

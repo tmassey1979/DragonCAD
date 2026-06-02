@@ -474,6 +474,11 @@
                                     Padding="12,4"
                                     Background="#2A3340"
                                     Foreground="{StaticResource DragonText}" />
+                            <Button Content="Starter Geometry"
+                                    Command="{Binding AddComponentEditorStarterGeometryCommand}"
+                                    Padding="12,4"
+                                    Background="#2A3340"
+                                    Foreground="{StaticResource DragonText}" />
                             <Button Content="Order Draft"
                                     Command="{Binding CreateMarketplaceOrderDraftCommand}"
                                     Padding="12,4"
@@ -810,7 +815,7 @@
                             BorderThickness="1"
                             CornerRadius="6"
                             Padding="12">
-                        <Grid ColumnDefinitions="*,Auto,Auto"
+                        <Grid ColumnDefinitions="*,Auto,Auto,Auto"
                               ColumnSpacing="12">
                             <TextBlock Text="{Binding ActiveComponentEditorWorkspace.SaveReadiness.Message}"
                                        VerticalAlignment="Center"
@@ -822,6 +827,12 @@
                                     Foreground="{StaticResource DragonText}"
                                     Content="New component" />
                             <Button Grid.Column="2"
+                                    Command="{Binding AddComponentEditorStarterGeometryCommand}"
+                                    Padding="12,6"
+                                    Background="#2A3340"
+                                    Foreground="{StaticResource DragonText}"
+                                    Content="Add starter geometry" />
+                            <Button Grid.Column="3"
                                     Command="{Binding ShowComponentManagerTabCommand}"
                                     Padding="12,6"
                                     Background="#2A3340"

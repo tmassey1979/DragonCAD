@@ -181,6 +181,39 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void AddComponentEditorStarterGeometryCommandCreatesFirstSymbolFootprintAndMapping()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateDesignPreview(maxBuiltInDevices: 2);
+
+        viewModel.NewComponentEditorCommand.Execute(null);
+        viewModel.ActiveComponentEditorWorkspace!.ViewModel.SetDisplayName("One Pin Header");
+
+        viewModel.AddComponentEditorStarterGeometryCommand.Execute(null);
+
+        Assert.Equal("Ready to save component changes.", viewModel.ActiveComponentEditorWorkspace.SaveReadiness.Message);
+        Assert.Equal(["1 PIN1 (Bidirectional)"], viewModel.ActiveComponentEditorWorkspace.ViewModel.PinSummaries.Select(summary => summary.DisplayText));
+        Assert.Equal(["Default Symbol - 1 pin"], viewModel.ActiveComponentEditorWorkspace.ViewModel.SymbolSummaries.Select(summary => summary.DisplayText));
+        Assert.Equal(["GENERIC-1 - 1 pad"], viewModel.ActiveComponentEditorWorkspace.ViewModel.FootprintSummaries.Select(summary => summary.DisplayText));
+        Assert.Equal(["GENERIC-1 - GENERIC-1"], viewModel.ActiveComponentEditorWorkspace.ViewModel.PackageSummaries.Select(summary => summary.DisplayText));
+        Assert.Equal("Ready to save component changes.", viewModel.PlacementStatus);
+    }
+
+    [Fact]
+    public void ComponentEditorNestedChangesRefreshComputedWorkspaceBindings()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateDesignPreview(maxBuiltInDevices: 2);
+        List<string?> changedProperties = [];
+
+        viewModel.NewComponentEditorCommand.Execute(null);
+        viewModel.PropertyChanged += (_, args) => changedProperties.Add(args.PropertyName);
+
+        viewModel.ActiveComponentEditorWorkspace!.ViewModel.SetDisplayName("Draft IC");
+
+        Assert.Contains(nameof(MainWindowViewModel.ActiveComponentEditorWorkspace), changedProperties);
+        Assert.Contains(nameof(MainWindowViewModel.WorkbenchStatusText), changedProperties);
+    }
+
+    [Fact]
     public void ComponentEditorTabCommandCreatesDraftWhenNoEditorIsActive()
     {
         MainWindowViewModel viewModel = MainWindowViewModel.CreateDesignPreview(maxBuiltInDevices: 2);

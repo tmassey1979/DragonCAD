@@ -408,8 +408,11 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("ShowComponentEditorTabCommand", mainWindow, StringComparison.Ordinal);
         Assert.Contains("OpenSelectedComponentEditorCommand", mainWindow, StringComparison.Ordinal);
         Assert.Contains("NewComponentEditorCommand", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("AddComponentEditorStarterGeometryCommand", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Content=\"New Component\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("Content=\"New component\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Starter Geometry\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Add starter geometry\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("IsComponentEditorTabActive", mainWindow, StringComparison.Ordinal);
         Assert.Contains("ActiveComponentEditorWorkspace.ViewModel.DisplayName", mainWindow, StringComparison.Ordinal);
         Assert.Contains("ActiveComponentEditorWorkspace.ValidationIssueDisplay", mainWindow, StringComparison.Ordinal);
