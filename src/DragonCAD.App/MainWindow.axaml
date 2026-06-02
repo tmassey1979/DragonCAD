@@ -2953,52 +2953,63 @@
                             <Border DockPanel.Dock="Top"
                                     Background="{StaticResource DragonPanelHeader}"
                                     Padding="10,8">
-                                <Grid ColumnDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto"
-                                      ColumnSpacing="8">
-                                    <TextBlock Text="Schematic-Synced Board Components"
+                                <Grid x:Name="BoardCanvasHeader"
+                                      ColumnDefinitions="Auto,Auto,Auto,*"
+                                      ColumnSpacing="10">
+                                    <TextBlock Text="Board"
                                                FontWeight="SemiBold"
                                                Foreground="{StaticResource DragonText}" />
-                                    <Button Grid.Column="1"
-                                            Command="{Binding ActivateBoardSelectToolCommand}"
-                                            Padding="10,3"
-                                            Content="Select" />
-                                    <Button Grid.Column="2"
-                                            Command="{Binding ActivateBoardRouteToolCommand}"
-                                            Padding="10,3"
-                                            Content="Route" />
-                                    <Button Grid.Column="3"
-                                            Command="{Binding FinishBoardRouteCommand}"
-                                            Padding="10,3"
-                                            Content="Finish" />
-                                    <Button Grid.Column="4"
-                                            Command="{Binding PlaceBoardViaCommand}"
-                                            Padding="10,3"
-                                            Content="Via" />
-                                    <ComboBox Grid.Column="5"
-                                              ItemsSource="{Binding BoardLayerNames}"
-                                              SelectedItem="{Binding SelectedBoardLayerName, Mode=TwoWay}"
-                                              Width="110" />
-                                    <Button Grid.Column="6"
-                                            Command="{Binding MoveSelectedBoardTraceToLayerCommand}"
-                                            Padding="10,3"
-                                            Content="Trace Layer" />
-                                    <Button Grid.Column="7"
-                                            Command="{Binding ToggleSelectedBoardLayerVisibilityCommand}"
-                                            Padding="10,3"
-                                            Content="Hide/Show" />
-                                    <Button Grid.Column="8"
-                                            Command="{Binding DeleteBoardSelectionCommand}"
-                                            Padding="10,3"
-                                            Content="Delete" />
-                                    <TextBlock Grid.Column="9"
-                                               Text="{Binding BoardEditor.Traces.Count}"
-                                               Foreground="{StaticResource DragonGreen}" />
-                                    <TextBlock Grid.Column="10"
-                                               Text="{Binding ActiveBoardTool}"
-                                               Foreground="{StaticResource DragonGreen}" />
-                                    <TextBlock Grid.Column="11"
-                                               Text="{Binding BoardEditor.Components.Count}"
-                                               Foreground="{StaticResource DragonGreen}" />
+                                    <StackPanel Grid.Column="1"
+                                                x:Name="BoardHeaderRouteCommands"
+                                                Orientation="Horizontal"
+                                                Spacing="6">
+                                        <Button Command="{Binding ActivateBoardSelectToolCommand}"
+                                                Padding="10,3"
+                                                Content="Select" />
+                                        <Button Command="{Binding ActivateBoardRouteToolCommand}"
+                                                Padding="10,3"
+                                                Content="Route" />
+                                        <Button Command="{Binding FinishBoardRouteCommand}"
+                                                Padding="10,3"
+                                                Content="Finish" />
+                                        <Button Command="{Binding PlaceBoardViaCommand}"
+                                                Padding="10,3"
+                                                Content="Via" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2"
+                                                x:Name="BoardHeaderLayerControls"
+                                                Orientation="Horizontal"
+                                                Spacing="6">
+                                        <TextBlock Text="Layer"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{StaticResource DragonMutedText}" />
+                                        <ComboBox ItemsSource="{Binding BoardLayerNames}"
+                                                  SelectedItem="{Binding SelectedBoardLayerName, Mode=TwoWay}"
+                                                  Width="96" />
+                                        <Button Command="{Binding MoveSelectedBoardTraceToLayerCommand}"
+                                                ToolTip.Tip="Move selected trace to active layer"
+                                                Padding="10,3"
+                                                Content="Apply" />
+                                        <Button Command="{Binding ToggleSelectedBoardLayerVisibilityCommand}"
+                                                ToolTip.Tip="Toggle active board layer visibility"
+                                                Padding="10,3"
+                                                Content="Eye" />
+                                        <Button Command="{Binding DeleteBoardSelectionCommand}"
+                                                Padding="10,3"
+                                                Content="Del" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="3"
+                                                x:Name="BoardHeaderStatusSummary"
+                                                Orientation="Horizontal"
+                                                HorizontalAlignment="Right"
+                                                Spacing="10">
+                                        <TextBlock Text="{Binding ActiveBoardTool}"
+                                                   Foreground="{StaticResource DragonGreen}" />
+                                        <TextBlock Text="{Binding BoardEditor.Components.Count, StringFormat='{}P:{0}'}"
+                                                   Foreground="{StaticResource DragonMutedText}" />
+                                        <TextBlock Text="{Binding BoardEditor.Traces.Count, StringFormat='{}T:{0}'}"
+                                                   Foreground="{StaticResource DragonMutedText}" />
+                                    </StackPanel>
                                 </Grid>
                             </Border>
                             <DockPanel>

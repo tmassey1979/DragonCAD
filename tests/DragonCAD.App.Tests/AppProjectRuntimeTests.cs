@@ -311,6 +311,23 @@ public sealed class AppProjectRuntimeTests
     }
 
     [Fact]
+    public void MainWindowGroupsBoardHeaderCommandsAndLayerControls()
+    {
+        string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
+
+        Assert.Contains("x:Name=\"BoardCanvasHeader\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"BoardHeaderRouteCommands\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"BoardHeaderLayerControls\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"BoardHeaderStatusSummary\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Text=\"Layer\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ToolTip.Tip=\"Move selected trace to active layer\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ToolTip.Tip=\"Toggle active board layer visibility\"", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("ColumnDefinitions=\"Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,Auto,*,Auto\"", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"Trace Layer\"", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"Hide/Show\"", mainWindow, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void MainWindowIncludesSchematicIconToolRail()
     {
         string mainWindow = ReadSourceFile("src", "DragonCAD.App", "MainWindow.axaml");
