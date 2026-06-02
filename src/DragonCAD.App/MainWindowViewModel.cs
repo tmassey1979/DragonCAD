@@ -150,6 +150,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         RotateSelectedBoardComponentCommand = new DelegateCommand(RotateSelectedBoardComponent);
         MirrorSelectedBoardComponentCommand = new DelegateCommand(MirrorSelectedBoardComponent);
         ToggleSelectedBoardLayerVisibilityCommand = new DelegateCommand(ToggleSelectedBoardLayerVisibility);
+        SelectBoardLayerCommand = new DelegateCommand(SelectBoardLayer);
+        ToggleBoardLayerVisibilityCommand = new DelegateCommand(ToggleBoardLayerVisibility);
         ShowComponentManagerTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "ComponentManager");
         ShowMarketplaceTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "Marketplace");
         ShowSchematicTabCommand = new DelegateCommand(() => ActiveWorkspaceTab = "Schematic");
@@ -853,6 +855,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
     public DelegateCommand ToggleSelectedBoardLayerVisibilityCommand { get; }
 
+    public DelegateCommand SelectBoardLayerCommand { get; }
+
+    public DelegateCommand ToggleBoardLayerVisibilityCommand { get; }
+
     public DelegateCommand ShowComponentManagerTabCommand { get; }
 
     public DelegateCommand ShowMarketplaceTabCommand { get; }
@@ -1222,6 +1228,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
     public IReadOnlyList<string> BoardLayerNames => BoardEditor.Layers.Select(layer => layer.Name).ToArray();
 
+    public IReadOnlyList<BoardLayerInspectorRow> BoardLayerRows =>
+        BoardEditor.Layers
+            .Select(layer => new BoardLayerInspectorRow(
+                layer.Name,
+                layer.ColorHex,
+                layer.IsVisible,
+                layer.Name == BoardEditor.ActiveLayerName,
+                layer.IsVisible ? "Visible" : "Hidden"))
+            .ToArray();
+
     public string SelectedBoardLayerName
     {
         get => BoardEditor.ActiveLayerName;
@@ -1232,6 +1248,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
                 BoardEditor.SetActiveLayer(value);
                 PlacementStatus = BoardEditor.StatusText;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(BoardLayerRows));
             }
             catch (InvalidOperationException error)
             {
@@ -3059,6 +3076,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         BoardEditor.PlaceViaAt(point);
         PlacementStatus = BoardEditor.StatusText;
         OnPropertyChanged(nameof(SelectedBoardLayerName));
+        OnPropertyChanged(nameof(BoardLayerRows));
     }
 
     private void InsertBoardViaIntoSelectedTraceSegment(object? parameter)
@@ -3072,6 +3090,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             BoardEditor.InsertViaIntoSelectedTraceSegment(point);
             PlacementStatus = BoardEditor.StatusText;
             OnPropertyChanged(nameof(SelectedBoardLayerName));
+            OnPropertyChanged(nameof(BoardLayerRows));
         }
         catch (InvalidOperationException error)
         {
@@ -3084,6 +3103,39 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         BoardLayer layer = BoardEditor.Layers.First(layer => layer.Name == BoardEditor.ActiveLayerName);
         BoardEditor.SetLayerVisibility(layer.Name, !layer.IsVisible);
         PlacementStatus = BoardEditor.StatusText;
+        OnPropertyChanged(nameof(BoardLayerRows));
+    }
+
+    private void SelectBoardLayer(object? parameter)
+    {
+        if (parameter is not string layerName)
+        {
+            PlacementStatus = "Choose a board layer before selecting it.";
+            return;
+        }
+
+        SelectedBoardLayerName = layerName;
+    }
+
+    private void ToggleBoardLayerVisibility(object? parameter)
+    {
+        if (parameter is not string layerName)
+        {
+            PlacementStatus = "Choose a board layer before toggling visibility.";
+            return;
+        }
+
+        try
+        {
+            BoardLayer layer = BoardEditor.Layers.First(candidate => candidate.Name == layerName);
+            BoardEditor.SetLayerVisibility(layer.Name, !layer.IsVisible);
+            PlacementStatus = BoardEditor.StatusText;
+            OnPropertyChanged(nameof(BoardLayerRows));
+        }
+        catch (InvalidOperationException error)
+        {
+            PlacementStatus = error.Message;
+        }
     }
 
     private void DeleteBoardSelection()
@@ -3813,6 +3865,13 @@ public sealed record AiInspectorSummaryRow(
     string Area,
     string Value,
     string Detail);
+
+public sealed record BoardLayerInspectorRow(
+    string Name,
+    string ColorHex,
+    bool IsVisible,
+    bool IsActive,
+    string VisibilityText);
 
 public sealed record UnifiedComponentSourceRow(
     string SourceKind,

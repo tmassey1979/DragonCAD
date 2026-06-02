@@ -1885,6 +1885,30 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void BoardLayerPaletteRowsExposeSwatchesAndRowCommands()
+    {
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 1);
+
+        BoardLayerInspectorRow top = Assert.Single(viewModel.BoardLayerRows, row => row.Name == "Top");
+        Assert.Equal("#E63D32", top.ColorHex);
+        Assert.True(top.IsVisible);
+        Assert.True(top.IsActive);
+
+        viewModel.SelectBoardLayerCommand.Execute("Bottom");
+        Assert.Equal("Bottom", viewModel.SelectedBoardLayerName);
+        Assert.True(Assert.Single(viewModel.BoardLayerRows, row => row.Name == "Bottom").IsActive);
+
+        viewModel.ToggleBoardLayerVisibilityCommand.Execute("Bottom");
+
+        BoardLayerInspectorRow bottom = Assert.Single(viewModel.BoardLayerRows, row => row.Name == "Bottom");
+        Assert.False(bottom.IsVisible);
+        Assert.Equal("Hidden", bottom.VisibilityText);
+        Assert.Contains("Layer Bottom hidden", viewModel.PlacementStatus, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void PlaceBoardViaCommandPlacesViaAndSwitchesLayer()
     {
         MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(

@@ -503,6 +503,12 @@ public sealed class AppProjectRuntimeTests
         Assert.Contains("FinishBoardRouteCommand", mainWindow, StringComparison.Ordinal);
         Assert.Contains("SelectedBoardLayerName", mainWindow, StringComparison.Ordinal);
         Assert.Contains("ToggleSelectedBoardLayerVisibilityCommand", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"BoardLayerPalette\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ItemsSource=\"{Binding BoardLayerRows}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Background=\"{Binding ColorHex}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding $parent[Window].DataContext.SelectBoardLayerCommand}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding $parent[Window].DataContext.ToggleBoardLayerVisibilityCommand}\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("IsChecked=\"{Binding IsVisible}\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("PlaceBoardViaCommand", mainWindow, StringComparison.Ordinal);
         Assert.Contains("ToolTip.Tip=\"Board Via\"", mainWindow, StringComparison.Ordinal);
         Assert.Contains("DeleteBoardSelectionCommand", mainWindow, StringComparison.Ordinal);

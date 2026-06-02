@@ -3600,6 +3600,50 @@
                                             BorderThickness="1"
                                             Padding="10"
                                             CornerRadius="4">
+                                        <StackPanel x:Name="BoardLayerPalette"
+                                                    Spacing="8">
+                                            <TextBlock Text="Layers"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource DragonText}" />
+                                            <ItemsControl ItemsSource="{Binding BoardLayerRows}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate DataType="app:BoardLayerInspectorRow"
+                                                                  x:DataType="app:BoardLayerInspectorRow">
+                                                        <Grid ColumnDefinitions="Auto,*,Auto,Auto"
+                                                              ColumnSpacing="8"
+                                                              Margin="0,3">
+                                                            <Border Width="14"
+                                                                    Height="14"
+                                                                    CornerRadius="2"
+                                                                    BorderBrush="{StaticResource DragonBorder}"
+                                                                    BorderThickness="1"
+                                                                    Background="{Binding ColorHex}" />
+                                                            <Button Grid.Column="1"
+                                                                    Command="{Binding $parent[Window].DataContext.SelectBoardLayerCommand}"
+                                                                    CommandParameter="{Binding Name}"
+                                                                    Padding="8,3"
+                                                                    HorizontalContentAlignment="Left"
+                                                                    Content="{Binding Name}" />
+                                                            <CheckBox Grid.Column="2"
+                                                                      Command="{Binding $parent[Window].DataContext.ToggleBoardLayerVisibilityCommand}"
+                                                                      CommandParameter="{Binding Name}"
+                                                                      IsChecked="{Binding IsVisible}"
+                                                                      VerticalAlignment="Center" />
+                                                            <TextBlock Grid.Column="3"
+                                                                       Text="{Binding VisibilityText}"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource DragonMutedText}" />
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Background="#0D1218"
+                                            BorderBrush="{StaticResource DragonBorder}"
+                                            BorderThickness="1"
+                                            Padding="10"
+                                            CornerRadius="4">
                                         <StackPanel Spacing="8">
                                             <TextBlock Text="PCB Selection"
                                                        FontWeight="SemiBold"
