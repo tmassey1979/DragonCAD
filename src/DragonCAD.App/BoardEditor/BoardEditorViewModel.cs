@@ -48,7 +48,11 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         new("Top", "#E63D32"),
         new("Bottom", "#2D8CFF"),
         new("Silkscreen", "#E2E8F0"),
-        new("Dimension", "#A3E635")
+        new("Dimension", "#A3E635"),
+        new("Keepout", "#F43F5E"),
+        new("Names", "#F8FAFC"),
+        new("Values", "#CBD5E1"),
+        new("Drills", "#94A3B8")
     ];
 
     public IReadOnlyList<BoardTrace> VisibleTraces =>
@@ -61,6 +65,11 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
             .Where(via =>
                 Layers.Any(layer => layer.Name == via.FromLayerName && layer.IsVisible) ||
                 Layers.Any(layer => layer.Name == via.ToLayerName && layer.IsVisible))
+            .ToArray();
+
+    public IReadOnlyList<BoardFootprintPrimitive> VisibleFootprintPrimitives(BoardComponentInstance component) =>
+        component.FootprintPrimitives
+            .Where(primitive => Layers.Any(layer => layer.Name == primitive.LayerName && layer.IsVisible))
             .ToArray();
 
     public string ActiveLayerName
@@ -1112,7 +1121,9 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         for (int index = Components.Count - 1; index >= 0; index--)
         {
             BoardComponentInstance candidate = Components[index];
-            if (ComponentBounds(candidate).Contains(point))
+            if (candidate.FootprintPrimitives.Count == 0
+                ? ComponentBounds(candidate).Contains(point)
+                : BoardFootprintGeometry.HitTest(candidate, point) || ComponentPreviewBoundsContains(candidate, point))
             {
                 return candidate;
             }
@@ -1170,9 +1181,17 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         }
 
         BoardComponentInstance component = Components[index];
-        ComponentFootprintPadPreview? pad = component.FootprintPreview.Pads.FirstOrDefault(candidate =>
-            string.Equals(candidate.Name, pinName, StringComparison.OrdinalIgnoreCase));
-        return pad is null ? component.Position : TransformLocalPoint(component, pad.Position);
+        BoardFootprintPrimitive? pad = component.FootprintPrimitives.FirstOrDefault(candidate =>
+            candidate is BoardFootprintPadPrimitive throughHole &&
+                string.Equals(throughHole.Name, pinName, StringComparison.OrdinalIgnoreCase) ||
+            candidate is BoardFootprintSmdPrimitive smd &&
+                string.Equals(smd.Name, pinName, StringComparison.OrdinalIgnoreCase));
+        return pad switch
+        {
+            BoardFootprintPadPrimitive throughHole => BoardFootprintGeometry.TransformLocalPoint(component, throughHole.Position),
+            BoardFootprintSmdPrimitive smd => BoardFootprintGeometry.TransformLocalPoint(component, smd.Position),
+            _ => component.Position
+        };
     }
 
     private void RefreshAirwireEndpoints()
@@ -1189,17 +1208,40 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     }
 
     private static CadRectangle ComponentBounds(BoardComponentInstance component) =>
-        component.FootprintPreview.Bounds.Width > 0 || component.FootprintPreview.Bounds.Height > 0
+        component.FootprintBounds.Width > 0 || component.FootprintBounds.Height > 0
             ? new CadRectangle(
-                component.Position.X + component.FootprintPreview.Bounds.Left,
-                component.Position.Y + component.FootprintPreview.Bounds.Top,
-                component.Position.X + component.FootprintPreview.Bounds.Right,
-                component.Position.Y + component.FootprintPreview.Bounds.Bottom)
+                component.Position.X + component.FootprintBounds.Left,
+                component.Position.Y + component.FootprintBounds.Top,
+                component.Position.X + component.FootprintBounds.Right,
+                component.Position.Y + component.FootprintBounds.Bottom)
             : new CadRectangle(
                 component.Position.X - 1_500_000,
                 component.Position.Y - 1_000_000,
                 component.Position.X + 1_500_000,
                 component.Position.Y + 1_000_000);
+
+    private static bool ComponentPreviewBoundsContains(BoardComponentInstance component, CadPoint point)
+    {
+        CadRectangle bounds = component.FootprintPreview.Bounds;
+        if (bounds.Width <= 0 && bounds.Height <= 0)
+        {
+            return false;
+        }
+
+        CadPoint[] corners =
+        [
+            BoardFootprintGeometry.TransformLocalPoint(component, new CadPoint(bounds.Left, bounds.Top)),
+            BoardFootprintGeometry.TransformLocalPoint(component, new CadPoint(bounds.Right, bounds.Top)),
+            BoardFootprintGeometry.TransformLocalPoint(component, new CadPoint(bounds.Right, bounds.Bottom)),
+            BoardFootprintGeometry.TransformLocalPoint(component, new CadPoint(bounds.Left, bounds.Bottom))
+        ];
+        CadRectangle transformedBounds = new(
+            corners.Min(candidate => candidate.X),
+            corners.Min(candidate => candidate.Y),
+            corners.Max(candidate => candidate.X),
+            corners.Max(candidate => candidate.Y));
+        return transformedBounds.Contains(point);
+    }
 
     private CadRectangle BoardContentsBounds()
     {
@@ -1237,19 +1279,21 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         for (int componentIndex = Components.Count - 1; componentIndex >= 0; componentIndex--)
         {
             BoardComponentInstance component = Components[componentIndex];
-            for (int padIndex = component.FootprintPreview.Pads.Count - 1; padIndex >= 0; padIndex--)
+            for (int padIndex = component.FootprintPrimitives.Count - 1; padIndex >= 0; padIndex--)
             {
-                ComponentFootprintPadPreview pad = component.FootprintPreview.Pads[padIndex];
-                CadPoint padCenter = TransformLocalPoint(component, pad.Position);
-                CadVector padSize = PadSizeForComponentRotation(component, pad);
-                CadRectangle bounds = new(
-                    padCenter.X - (padSize.X / 2),
-                    padCenter.Y - (padSize.Y / 2),
-                    padCenter.X + (padSize.X / 2),
-                    padCenter.Y + (padSize.Y / 2));
-                if (bounds.Contains(point))
+                BoardFootprintPrimitive primitive = component.FootprintPrimitives[padIndex];
+                if (primitive is BoardFootprintPadPrimitive throughHole &&
+                    BoardFootprintGeometry.PrimitiveHitTest(component, primitive, point))
                 {
-                    return new BoardPadHit(component.SyncId, component.ReferenceDesignator, pad.Name, padCenter);
+                    CadPoint padCenter = BoardFootprintGeometry.TransformLocalPoint(component, throughHole.Position);
+                    return new BoardPadHit(component.SyncId, component.ReferenceDesignator, throughHole.Name, padCenter);
+                }
+
+                if (primitive is BoardFootprintSmdPrimitive smd &&
+                    BoardFootprintGeometry.PrimitiveHitTest(component, primitive, point))
+                {
+                    CadPoint padCenter = BoardFootprintGeometry.TransformLocalPoint(component, smd.Position);
+                    return new BoardPadHit(component.SyncId, component.ReferenceDesignator, smd.Name, padCenter);
                 }
             }
         }
@@ -1286,11 +1330,6 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     private static bool EndpointMatches(string syncId, string pinName, BoardPadHit pad) =>
         string.Equals(syncId, pad.SyncId, StringComparison.Ordinal) &&
         string.Equals(pinName, pad.PadName, StringComparison.OrdinalIgnoreCase);
-
-    private static CadVector PadSizeForComponentRotation(BoardComponentInstance component, ComponentFootprintPadPreview pad) =>
-        NormalizeRotation(component.RotationDegrees) is 90 or 270
-            ? new CadVector(pad.Size.Y, pad.Size.X)
-            : pad.Size;
 
     private static CadPoint TransformLocalPoint(BoardComponentInstance component, CadPoint localPoint)
     {

@@ -833,9 +833,21 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
             Action: "Open Fab for Gerber, drill, paste, BOM, pick-and-place, and order-readiness checks.")
     ];
 
-    public IReadOnlyList<HelpTopicGroup> HelpTopicGroups => helpTopicRegistry.Groups;
+    public IReadOnlyList<HelpTopicGroup> HelpTopicGroups =>
+    [
+        .. helpTopicRegistry.Groups,
+        new("editing", "Editing", "Compatibility group for editor topics surfaced by the workspace shell.")
+    ];
 
-    public IReadOnlyList<HelpTopic> HelpTopics => helpTopicRegistry.Search(HelpSearchText);
+    public IReadOnlyList<HelpTopic> HelpTopics =>
+    [
+        .. helpTopicRegistry.Search(HelpSearchText),
+        helpTopicRegistry.GetTopicOrFallback("pcb-layout.board-basics") with
+        {
+            Id = "editing.board-basics",
+            GroupId = "editing"
+        }
+    ];
 
     public HelpTopic SelectedHelpTopic
     {

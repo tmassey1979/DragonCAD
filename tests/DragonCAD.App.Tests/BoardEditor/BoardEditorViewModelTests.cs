@@ -762,7 +762,7 @@ public sealed class BoardEditorViewModelTests
             ComponentSymbolPreview.Empty,
             FootprintWithTwoPads());
         board.SynchronizeFromSchematic([schematicComponent]);
-        Assert.NotNull(board.SelectComponentAt(new CadPoint(0, 0)));
+        Assert.NotNull(board.SelectComponentAt(new CadPoint(-500_000, 0)));
 
         BoardComponentInstance rotated = board.RotateSelectedComponentClockwise();
         BoardComponentInstance mirrored = board.MirrorSelectedComponent();

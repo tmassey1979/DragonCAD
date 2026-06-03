@@ -571,11 +571,11 @@ public sealed class SchematicCanvasControl : Control
     private static IBrush BrushForPrimitive(SchematicSymbolPrimitivePreview primitive) =>
         primitive.Color.ToLowerInvariant() switch
         {
-            "red" => PinPen.Brush,
-            "blue" => WirePen.Brush,
+            "red" => Brushes.IndianRed,
+            "blue" => Brushes.DeepSkyBlue,
             "brown" => PinLabelBrush,
             "black" => TextBrush,
-            _ => SymbolPen.Brush
+            _ => Brushes.SandyBrown
         };
 
     private static void DrawSelection(

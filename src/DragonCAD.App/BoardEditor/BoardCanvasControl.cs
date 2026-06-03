@@ -112,6 +112,7 @@ public sealed class BoardCanvasControl : Control
                 context,
                 viewport,
                 center,
+                Editor,
                 component,
                 Editor.SelectedComponent?.SyncId == component.SyncId,
                 ReferenceEquals(component, Editor.HoveredComponent));
@@ -306,18 +307,19 @@ public sealed class BoardCanvasControl : Control
         DrawingContext context,
         BoardCanvasViewport viewport,
         Point center,
+        BoardEditorViewModel editor,
         BoardComponentInstance component,
         bool isSelected,
         bool isHovered)
     {
         Point position = Translate(viewport.Map(component.Position), center);
-        if (component.FootprintPreview.Lines.Count == 0 && component.FootprintPreview.Pads.Count == 0)
+        if (component.FootprintPrimitives.Count == 0)
         {
             DrawFallbackComponent(context, position, isSelected, isHovered);
         }
         else
         {
-            DrawFootprintGeometry(context, viewport, center, component, isSelected, isHovered);
+            DrawFootprintGeometry(context, viewport, center, editor, component, isSelected, isHovered);
         }
 
         FormattedText label = new(
@@ -354,32 +356,25 @@ public sealed class BoardCanvasControl : Control
         DrawingContext context,
         BoardCanvasViewport viewport,
         Point center,
+        BoardEditorViewModel editor,
         BoardComponentInstance component,
         bool isSelected,
         bool isHovered)
     {
-        foreach (ComponentPreviewLine line in component.FootprintPreview.Lines)
+        foreach (BoardFootprintPrimitive primitive in editor.VisibleFootprintPrimitives(component))
         {
-            context.DrawLine(
-                SilkscreenPen,
-                Translate(viewport.Map(TransformLocalPoint(component, line.Start)), center),
-                Translate(viewport.Map(TransformLocalPoint(component, line.End)), center));
-        }
-
-        foreach (ComponentFootprintPadPreview pad in component.FootprintPreview.Pads)
-        {
-            DrawPad(context, viewport, center, component, pad);
+            DrawFootprintPrimitive(context, viewport, center, editor, component, primitive);
         }
 
         if (isSelected || isHovered)
         {
-            CadRectangle bounds = component.FootprintPreview.Bounds;
+            CadRectangle bounds = component.FootprintBounds;
             Point[] corners =
             [
-                Translate(viewport.Map(TransformLocalPoint(component, new CadPoint(bounds.Left, bounds.Top))), center),
-                Translate(viewport.Map(TransformLocalPoint(component, new CadPoint(bounds.Right, bounds.Top))), center),
-                Translate(viewport.Map(TransformLocalPoint(component, new CadPoint(bounds.Right, bounds.Bottom))), center),
-                Translate(viewport.Map(TransformLocalPoint(component, new CadPoint(bounds.Left, bounds.Bottom))), center)
+                Translate(viewport.Map(BoardFootprintGeometry.TransformLocalPoint(component, new CadPoint(bounds.Left, bounds.Top))), center),
+                Translate(viewport.Map(BoardFootprintGeometry.TransformLocalPoint(component, new CadPoint(bounds.Right, bounds.Top))), center),
+                Translate(viewport.Map(BoardFootprintGeometry.TransformLocalPoint(component, new CadPoint(bounds.Right, bounds.Bottom))), center),
+                Translate(viewport.Map(BoardFootprintGeometry.TransformLocalPoint(component, new CadPoint(bounds.Left, bounds.Bottom))), center)
             ];
             Rect selectionBounds = new(
                 new Point(corners.Min(point => point.X), corners.Min(point => point.Y)),
@@ -388,24 +383,154 @@ public sealed class BoardCanvasControl : Control
         }
     }
 
-    private static void DrawPad(
+    private static void DrawFootprintPrimitive(
+        DrawingContext context,
+        BoardCanvasViewport viewport,
+        Point center,
+        BoardEditorViewModel editor,
+        BoardComponentInstance component,
+        BoardFootprintPrimitive primitive)
+    {
+        IBrush brush = LayerBrushFor(editor, primitive.LayerName, Color.FromRgb(226, 232, 240));
+        Pen pen = new(brush, 1.2);
+        switch (primitive)
+        {
+            case BoardFootprintPadPrimitive pad:
+                DrawPrimitivePad(context, viewport, center, component, pad.Position, pad.Size, pad.Shape, pad.DrillSize, brush, pen);
+                break;
+            case BoardFootprintSmdPrimitive smd:
+                DrawPrimitivePad(context, viewport, center, component, smd.Position, smd.Size, smd.Shape, drillSize: 0, brush, pen);
+                break;
+            case BoardFootprintHolePrimitive hole:
+                DrawHole(context, viewport, center, component, hole, brush, pen);
+                break;
+            case BoardFootprintKeepoutPrimitive keepout:
+                DrawKeepout(context, viewport, center, component, keepout, pen);
+                break;
+            case BoardFootprintLinePrimitive line:
+                context.DrawLine(
+                    pen,
+                    Translate(viewport.Map(BoardFootprintGeometry.TransformLocalPoint(component, line.Start)), center),
+                    Translate(viewport.Map(BoardFootprintGeometry.TransformLocalPoint(component, line.End)), center));
+                break;
+            case BoardFootprintArcPrimitive arc:
+                DrawArc(context, viewport, center, component, arc, pen);
+                break;
+            case BoardFootprintTextPrimitive text:
+                DrawFootprintText(context, viewport, center, component, text, brush);
+                break;
+        }
+    }
+
+    private static void DrawPrimitivePad(
         DrawingContext context,
         BoardCanvasViewport viewport,
         Point center,
         BoardComponentInstance component,
-        ComponentFootprintPadPreview pad)
+        CadPoint position,
+        CadVector size,
+        string shape,
+        long drillSize,
+        IBrush brush,
+        Pen pen)
     {
-        CadVector padSize = NormalizeRotation(component.RotationDegrees) is 90 or 270
-            ? new CadVector(pad.Size.Y, pad.Size.X)
-            : pad.Size;
-        CadPoint padCenter = TransformLocalPoint(component, pad.Position);
+        CadVector padSize = BoardFootprintGeometry.SizeForRotation(component, size);
+        CadPoint padCenter = BoardFootprintGeometry.TransformLocalPoint(component, position);
         CadPoint first = new(padCenter.X - (padSize.X / 2), padCenter.Y - (padSize.Y / 2));
         CadPoint second = new(padCenter.X + (padSize.X / 2), padCenter.Y + (padSize.Y / 2));
         Rect padRect = new Rect(
             Translate(viewport.Map(first), center),
             Translate(viewport.Map(second), center)).Normalize();
-        IBrush fill = pad.Technology == "SurfaceMount" ? SmdPadBrush : PadBrush;
-        context.DrawRectangle(fill, PadPen, padRect, radiusX: 2, radiusY: 2);
+        if (shape is "Round" or "Oval")
+        {
+            context.DrawEllipse(brush, pen, padRect.Center, padRect.Width / 2, padRect.Height / 2);
+        }
+        else
+        {
+            context.DrawRectangle(brush, pen, padRect, radiusX: shape == "RoundedRectangle" ? 2 : 0, radiusY: shape == "RoundedRectangle" ? 2 : 0);
+        }
+
+        if (drillSize > 0)
+        {
+            Point drillCenter = Translate(viewport.Map(padCenter), center);
+            double radius = Math.Max(1.2, drillSize * 0.000025 / 2);
+            context.DrawEllipse(BackgroundBrush, null, drillCenter, radius, radius);
+        }
+    }
+
+    private static void DrawHole(
+        DrawingContext context,
+        BoardCanvasViewport viewport,
+        Point center,
+        BoardComponentInstance component,
+        BoardFootprintHolePrimitive hole,
+        IBrush brush,
+        Pen pen)
+    {
+        Point position = Translate(viewport.Map(BoardFootprintGeometry.TransformLocalPoint(component, hole.Position)), center);
+        double radius = Math.Max(1.2, hole.DrillSize * 0.000025 / 2);
+        context.DrawEllipse(BackgroundBrush, pen, position, radius, radius);
+    }
+
+    private static void DrawKeepout(
+        DrawingContext context,
+        BoardCanvasViewport viewport,
+        Point center,
+        BoardComponentInstance component,
+        BoardFootprintKeepoutPrimitive keepout,
+        Pen pen)
+    {
+        Rect rect = new(
+            Translate(viewport.Map(BoardFootprintGeometry.TransformLocalPoint(component, new CadPoint(keepout.Bounds.Left, keepout.Bounds.Top))), center),
+            Translate(viewport.Map(BoardFootprintGeometry.TransformLocalPoint(component, new CadPoint(keepout.Bounds.Right, keepout.Bounds.Bottom))), center));
+        context.DrawRectangle(null, pen, rect.Normalize());
+    }
+
+    private static void DrawArc(
+        DrawingContext context,
+        BoardCanvasViewport viewport,
+        Point center,
+        BoardComponentInstance component,
+        BoardFootprintArcPrimitive arc,
+        Pen pen)
+    {
+        const int segmentCount = 24;
+        CadPoint? previous = null;
+        for (int index = 0; index <= segmentCount; index++)
+        {
+            double angle = (arc.StartAngleDegrees + (arc.SweepAngleDegrees * (index / (double)segmentCount))) * Math.PI / 180;
+            CadPoint point = new(
+                arc.Center.X + (long)Math.Round(Math.Cos(angle) * arc.Radius),
+                arc.Center.Y + (long)Math.Round(Math.Sin(angle) * arc.Radius));
+            if (previous is not null)
+            {
+                context.DrawLine(
+                    pen,
+                    Translate(viewport.Map(BoardFootprintGeometry.TransformLocalPoint(component, previous.Value)), center),
+                    Translate(viewport.Map(BoardFootprintGeometry.TransformLocalPoint(component, point)), center));
+            }
+
+            previous = point;
+        }
+    }
+
+    private static void DrawFootprintText(
+        DrawingContext context,
+        BoardCanvasViewport viewport,
+        Point center,
+        BoardComponentInstance component,
+        BoardFootprintTextPrimitive text,
+        IBrush brush)
+    {
+        Point position = Translate(viewport.Map(BoardFootprintGeometry.TransformLocalPoint(component, text.Position)), center);
+        FormattedText label = new(
+            text.Value,
+            System.Globalization.CultureInfo.CurrentCulture,
+            FlowDirection.LeftToRight,
+            Typeface.Default,
+            Math.Max(8, text.Size * 0.000025),
+            brush);
+        context.DrawText(label, position);
     }
 
     private static void DrawTrace(
