@@ -29,6 +29,23 @@ The solution is split into bounded projects so agents can work in parallel witho
 
 Matching test projects live under `tests/`.
 
+See [docs/architecture.md](docs/architecture.md) for the project-by-project ownership map, including what each project must not own.
+
+## Contributor Map
+
+Start here before changing code:
+
+- [Architecture map](docs/architecture.md) - project responsibilities, boundaries, and forbidden ownership.
+- [Contributor guide](docs/contributing.md) - test-first workflow, Agent Boundary rules, and six-agent wave execution.
+- [Implementation roadmap](docs/remaining-implementation-roadmap.md) - current epic backlog and next vertical slices.
+- [Editor interaction backlog](docs/editor-interaction-backlog.md) - editor-specific interaction gaps and follow-up work.
+- [Component marketplace roadmap](docs/component-marketplace-roadmap.md) - marketplace, component, sourcing, and trusted-library direction.
+- [Local help: workspace basics](docs/help/getting-started/workspace.md) - in-app help source for opening and inspecting workspaces.
+- [Local help: project folders](docs/help/project-system/project-folders.md) - project folder conventions.
+- [Local help: schematic wires](docs/help/schematic-editing/placing-wires.md) - schematic editing help source.
+- [Local help: board basics](docs/help/editing/board-basics.md) - board editing help source.
+- [Generated wiki home](docs/wiki/Home.md) - exported help table of contents.
+
 ## Build, Test, Run
 
 Requirements:
@@ -56,12 +73,19 @@ dotnet build DragonCAD.slnx --no-restore -p:UseSharedCompilation=false -v:minima
 dotnet test DragonCAD.slnx --no-build -p:UseSharedCompilation=false --logger "console;verbosity=minimal"
 ```
 
+Validate contributor documentation links:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File docs\documentation-test\Validate-ReadmeLinks.ps1
+```
+
 ## Development Workflow
 
 DragonCAD is managed as vertical stories in GitHub:
 
 - Project board: [DragonCAD Iterative Development](https://github.com/users/tmassey1979/projects/5)
 - Repository: [tmassey1979/DragonCAD](https://github.com/tmassey1979/DragonCAD)
+- Issue tracker: [DragonCAD issues](https://github.com/tmassey1979/DragonCAD/issues)
 
 Every implementation story should:
 
@@ -73,12 +97,12 @@ Every implementation story should:
 
 The project is organized for six-agent execution:
 
-1. Component Core and Trusted Library
-2. Schematic Editor Completion
-3. PCB Editor and Routing Completion
-4. Project System and EAGLE Import Assembly
-5. Marketplace Sourcing and Fabrication Handoff
-6. Hardware IDE Long-Term Platform
+1. Component Core and Trusted Library.
+2. Schematic Editor Completion.
+3. PCB Editor and Routing Completion.
+4. Project System and EAGLE Import Assembly.
+5. Marketplace Sourcing and Fabrication Handoff.
+6. Hardware IDE Long-Term Platform.
 
 ## Roadmap
 
