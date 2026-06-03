@@ -797,6 +797,69 @@ public sealed class BoardEditorViewModelTests
     }
 
     [Fact]
+    public void SelectedViaDiameterAndDrillMillimetersExposeEditableSelectedViaSize()
+    {
+        BoardEditorViewModel board = new();
+        BoardVia via = board.PlaceViaAt(new CadPoint(2_000_000, 2_000_000));
+        board.ActivateSelectTool();
+        Assert.True(board.SelectAt(via.Position));
+
+        Assert.Equal("0.800", board.SelectedViaDiameterMillimeters);
+        Assert.Equal("0.350", board.SelectedViaDrillMillimeters);
+
+        board.SelectedViaDiameterMillimeters = "0.950";
+        board.SelectedViaDrillMillimeters = "0.425";
+
+        BoardVia resized = Assert.Single(board.Vias);
+        Assert.Equal(950_000, resized.DiameterInternal);
+        Assert.Equal(425_000, resized.DrillInternal);
+        Assert.Equal("0.950", board.SelectedViaDiameterMillimeters);
+        Assert.Equal("0.425", board.SelectedViaDrillMillimeters);
+        Assert.Same(resized, board.SelectedVia);
+    }
+
+    [Fact]
+    public void SelectedViaDiameterAndDrillMillimetersRejectInvalidValuesWithoutChangingVia()
+    {
+        BoardEditorViewModel board = new();
+        BoardVia via = board.PlaceViaAt(new CadPoint(2_000_000, 2_000_000));
+        board.ActivateSelectTool();
+        Assert.True(board.SelectAt(via.Position));
+
+        board.SelectedViaDiameterMillimeters = "not-a-number";
+        Assert.Equal("Via diameter must be a number in millimeters.", board.StatusText);
+
+        board.SelectedViaDrillMillimeters = "0";
+        Assert.Contains("Via drill must be positive.", board.StatusText, StringComparison.Ordinal);
+
+        board.SelectedViaDiameterMillimeters = "0.300";
+        Assert.Contains("Via drill must be smaller than the diameter.", board.StatusText, StringComparison.Ordinal);
+
+        BoardVia unchanged = Assert.Single(board.Vias);
+        Assert.Equal(800_000, unchanged.DiameterInternal);
+        Assert.Equal(350_000, unchanged.DrillInternal);
+        Assert.Equal("Top", unchanged.FromLayerName);
+        Assert.Equal("Bottom", unchanged.ToLayerName);
+        Assert.Same(unchanged, board.SelectedVia);
+    }
+
+    [Fact]
+    public void SetSelectedViaSizeInternalPreservesRouteTransitionMetadata()
+    {
+        BoardEditorViewModel board = new();
+        BoardVia via = board.PlaceViaAt(new CadPoint(2_000_000, 2_000_000));
+        board.ActivateSelectTool();
+        Assert.True(board.SelectAt(via.Position));
+
+        BoardVia resized = board.SetSelectedViaSizeInternal(900_000, 400_000);
+
+        Assert.Equal(via.ViaId, resized.ViaId);
+        Assert.Equal(via.Position, resized.Position);
+        Assert.Equal("Top", resized.FromLayerName);
+        Assert.Equal("Bottom", resized.ToLayerName);
+    }
+
+    [Fact]
     public void SetSelectedViaSizeInternalRejectsInvalidSizes()
     {
         BoardEditorViewModel board = new();

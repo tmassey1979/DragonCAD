@@ -588,12 +588,18 @@ public sealed class BoardCanvasControl : Control
         bool isHoveredVia)
     {
         Point position = Translate(viewport.Map(via.Position), center);
-        double radius = Math.Max(3.5, via.DiameterInternal * 0.000025 / 2);
-        double drillRadius = Math.Max(1.5, via.DrillInternal * 0.000025 / 2);
-        IBrush viaBrush = LayerBrushFor(editor, via.FromLayerName, Color.FromRgb(239, 197, 74));
-        context.DrawEllipse(viaBrush, isSelected ? SelectedComponentPen : isHoveredVia ? HoverSelectionPen : PadPen, position, radius, radius);
-        context.DrawEllipse(BackgroundBrush, null, position, drillRadius, drillRadius);
+        BoardViaRenderState renderState = CreateViaRenderState(via);
+        IBrush viaBrush = LayerBrushFor(editor, renderState.FromLayerName, Color.FromRgb(239, 197, 74));
+        context.DrawEllipse(viaBrush, isSelected ? SelectedComponentPen : isHoveredVia ? HoverSelectionPen : PadPen, position, renderState.Radius, renderState.Radius);
+        context.DrawEllipse(BackgroundBrush, null, position, renderState.DrillRadius, renderState.DrillRadius);
     }
+
+    public static BoardViaRenderState CreateViaRenderState(BoardVia via) =>
+        new(
+            Math.Max(3.5, via.DiameterInternal * 0.000025 / 2),
+            Math.Max(1.5, via.DrillInternal * 0.000025 / 2),
+            via.FromLayerName,
+            via.ToLayerName);
 
     private static IBrush LayerBrushFor(BoardEditorViewModel editor, string layerName, Color fallback)
     {
@@ -691,3 +697,9 @@ public sealed class BoardCanvasControl : Control
         TraceSegment
     }
 }
+
+public sealed record BoardViaRenderState(
+    double Radius,
+    double DrillRadius,
+    string FromLayerName,
+    string ToLayerName);

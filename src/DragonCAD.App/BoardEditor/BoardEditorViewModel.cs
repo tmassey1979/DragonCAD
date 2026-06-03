@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.CompilerServices;
 using Avalonia;
 using DragonCAD.App.ComponentManager;
@@ -293,7 +294,25 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
 
             selectedVia = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectedViaDiameterMillimeters));
+            OnPropertyChanged(nameof(SelectedViaDrillMillimeters));
         }
+    }
+
+    public string SelectedViaDiameterMillimeters
+    {
+        get => SelectedVia is null
+            ? ""
+            : FormatMillimeters(SelectedVia.DiameterInternal);
+        set => TrySetSelectedViaSizeMillimeters(value, isDiameter: true);
+    }
+
+    public string SelectedViaDrillMillimeters
+    {
+        get => SelectedVia is null
+            ? ""
+            : FormatMillimeters(SelectedVia.DrillInternal);
+        set => TrySetSelectedViaSizeMillimeters(value, isDiameter: false);
     }
 
     public BoardComponentInstance? HoveredComponent
@@ -694,6 +713,44 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         SelectedVia = resized;
         StatusText = $"Set selected via size to {FormatMillimeters(diameterInternal)} mm diameter, {FormatMillimeters(drillInternal)} mm drill.";
         return resized;
+    }
+
+    private void TrySetSelectedViaSizeMillimeters(string value, bool isDiameter)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        string dimensionName = isDiameter ? "diameter" : "drill";
+        if (!decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out decimal millimeters))
+        {
+            StatusText = $"Via {dimensionName} must be a number in millimeters.";
+            return;
+        }
+
+        if (SelectedVia is null)
+        {
+            StatusText = "No board via is selected.";
+            return;
+        }
+
+        long sizeInternal = (long)Math.Round(millimeters * CadUnit.InternalUnitsPerMillimeter, MidpointRounding.AwayFromZero);
+        long diameterInternal = isDiameter ? sizeInternal : SelectedVia.DiameterInternal;
+        long drillInternal = isDiameter ? SelectedVia.DrillInternal : sizeInternal;
+
+        try
+        {
+            SetSelectedViaSizeInternal(diameterInternal, drillInternal);
+        }
+        catch (ArgumentOutOfRangeException error)
+        {
+            StatusText = error.Message;
+        }
+        catch (InvalidOperationException error)
+        {
+            StatusText = error.Message;
+        }
     }
 
     public BoardTrace MoveSelectedTraceSegmentTo(CadPoint requestedPosition)
@@ -1522,7 +1579,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     }
 
     private static string FormatMillimeters(long internalUnits) =>
-        ((decimal)internalUnits / CadUnit.InternalUnitsPerMillimeter).ToString("0.000", System.Globalization.CultureInfo.InvariantCulture);
+        ((decimal)internalUnits / CadUnit.InternalUnitsPerMillimeter).ToString("0.000", CultureInfo.InvariantCulture);
 
     private static CadPoint CenterOf(CadRectangle bounds) =>
         new(bounds.Left + (bounds.Width / 2), bounds.Top + (bounds.Height / 2));
