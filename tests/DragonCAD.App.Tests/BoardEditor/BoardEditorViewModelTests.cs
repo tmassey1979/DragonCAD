@@ -710,8 +710,11 @@ public sealed class BoardEditorViewModelTests
         Assert.Equal("90", board.RouteCornerMode);
     }
 
-    [Fact]
-    public void BoardRouteCornerModeCanCreateFortyFiveDegreeLegs()
+    [Theory]
+    [MemberData(nameof(FortyFiveDegreeRouteCases))]
+    public void BoardRouteCornerModeGeneratesFortyFiveDegreeRoutes(
+        CadPoint target,
+        IReadOnlyList<CadPoint> expectedRoutePoints)
     {
         BoardEditorViewModel board = new();
 
@@ -719,21 +722,16 @@ public sealed class BoardEditorViewModelTests
         board.ActivateRouteTool();
         board.SetFreeRouteMode(true);
         board.TraceClickAt(new CadPoint(0, 0));
-        board.CompleteTraceAt(new CadPoint(2_000_000, 2_000_000));
+        board.CompleteTraceAt(target);
 
         BoardTrace trace = Assert.Single(board.Traces);
         Assert.Equal("45", board.RouteCornerMode);
-        Assert.Equal(
-            [
-                new CadPoint(0, 0),
-                new CadPoint(2_000_000, 2_000_000)
-            ],
-            trace.RoutePoints);
+        Assert.Equal(expectedRoutePoints, trace.RoutePoints);
         Assert.Equal("Routed board trace on Top.", board.StatusText);
     }
 
     [Fact]
-    public void BoardRouteCornerModeFallsBackToNinetyThenFortyFiveWhenDeltaIsNotSquare()
+    public void BoardRouteCornerModeUsesSameFortyFiveGeneratorForPreviewAndCompletedTrace()
     {
         BoardEditorViewModel board = new();
 
@@ -741,14 +739,26 @@ public sealed class BoardEditorViewModelTests
         board.ActivateRouteTool();
         board.SetFreeRouteMode(true);
         board.TraceClickAt(new CadPoint(0, 0));
-        board.CompleteTraceAt(new CadPoint(4_000_000, 2_000_000));
+        board.TraceClickAt(new CadPoint(4_100_000, 2_300_000));
+
+        Assert.Equal(
+            [
+                new CadPoint(0, 0),
+                new CadPoint(2_000_000, 0),
+                new CadPoint(4_000_000, 2_000_000)
+            ],
+            board.PendingTraceRoutePoints);
+
+        board.CompleteTraceAt(new CadPoint(6_200_000, 5_900_000));
 
         BoardTrace trace = Assert.Single(board.Traces);
         Assert.Equal(
             [
                 new CadPoint(0, 0),
                 new CadPoint(2_000_000, 0),
-                new CadPoint(4_000_000, 2_000_000)
+                new CadPoint(4_000_000, 2_000_000),
+                new CadPoint(4_000_000, 4_000_000),
+                new CadPoint(6_000_000, 6_000_000)
             ],
             trace.RoutePoints);
     }
@@ -923,6 +933,48 @@ public sealed class BoardEditorViewModelTests
                 new ComponentFootprintPadPreview("1", new CadPoint(-500_000, 0), new CadVector(400_000, 300_000), "Round", "ThroughHole"),
                 new ComponentFootprintPadPreview("2", new CadPoint(500_000, 0), new CadVector(400_000, 300_000), "Round", "ThroughHole")
             ]);
+
+    public static TheoryData<CadPoint, IReadOnlyList<CadPoint>> FortyFiveDegreeRouteCases() =>
+        new()
+        {
+            {
+                new CadPoint(4_000_000, 2_000_000),
+                [
+                    new CadPoint(0, 0),
+                    new CadPoint(2_000_000, 0),
+                    new CadPoint(4_000_000, 2_000_000)
+                ]
+            },
+            {
+                new CadPoint(2_000_000, 4_000_000),
+                [
+                    new CadPoint(0, 0),
+                    new CadPoint(0, 2_000_000),
+                    new CadPoint(2_000_000, 4_000_000)
+                ]
+            },
+            {
+                new CadPoint(4_000_000, 0),
+                [
+                    new CadPoint(0, 0),
+                    new CadPoint(4_000_000, 0)
+                ]
+            },
+            {
+                new CadPoint(0, 4_000_000),
+                [
+                    new CadPoint(0, 0),
+                    new CadPoint(0, 4_000_000)
+                ]
+            },
+            {
+                new CadPoint(2_000_000, 2_000_000),
+                [
+                    new CadPoint(0, 0),
+                    new CadPoint(2_000_000, 2_000_000)
+                ]
+            }
+        };
 
     private static BoardEditorViewModel BoardWithOneAirwireBetweenNamedPads() =>
         BoardWithNamedPadAirwires(Wire("wire-1", "sync-1", "U1", "OUT", "sync-2", "U2", "IN", "N$1"));
