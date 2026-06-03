@@ -56,13 +56,14 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
                 yield break;
             }
 
-            for (int index = 1; index < SelectedWire.RoutePoints.Count - 1; index++)
+            for (int index = 0; index < SelectedWire.RoutePoints.Count; index++)
             {
                 yield return new SchematicWireVertexHandle(
                     SelectedWire.WireId,
                     index,
                     SelectedWire.RoutePoints[index],
-                    index == SelectedWireVertexIndex);
+                    index == SelectedWireVertexIndex,
+                    IsEndpointVertexIndex(SelectedWire.RoutePoints, index));
             }
         }
     }
@@ -985,7 +986,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         for (int wireIndex = Wires.Count - 1; wireIndex >= 0; wireIndex--)
         {
             SchematicWire wire = Wires[wireIndex];
-            for (int vertexIndex = 1; vertexIndex < wire.RoutePoints.Count - 1; vertexIndex++)
+            for (int vertexIndex = 0; vertexIndex < wire.RoutePoints.Count; vertexIndex++)
             {
                 double distance = Distance(point, wire.RoutePoints[vertexIndex]);
                 if (distance <= WireSegmentHitTolerance && distance < nearestDistance)
@@ -1014,8 +1015,14 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             nearestWire.WireId,
             nearestVertexIndex.Value,
             nearestWire.RoutePoints[nearestVertexIndex.Value],
-            true);
+            true,
+            IsEndpointVertexIndex(nearestWire.RoutePoints, nearestVertexIndex.Value));
     }
+
+    public bool IsSelectedWireVertexEndpoint() =>
+        SelectedWire is not null &&
+        SelectedWireVertexIndex is { } vertexIndex &&
+        IsEndpointVertexIndex(SelectedWire.RoutePoints, vertexIndex);
 
     public SchematicWire MoveSelectedWireSegmentTo(CadPoint requestedPosition)
     {
@@ -1096,11 +1103,63 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             ? new CadPoint(snapped.X, next.Y)
             : new CadPoint(next.X, snapped.Y);
 
+        routePoints = CompactRoute(routePoints);
         SchematicWire moved = SelectedWire with { RoutePoints = routePoints };
         Wires[wireIndex] = moved;
         SelectedWire = moved;
+        int updatedVertexIndex = routePoints.IndexOf(snapped);
+        SelectedWireVertexIndex = updatedVertexIndex > 0 && updatedVertexIndex < routePoints.Count - 1
+            ? updatedVertexIndex
+            : null;
         StatusText = $"Moved wire vertex {vertexIndex} on {moved.NetName}.";
         return moved;
+    }
+
+    public SchematicWire CompleteSelectedWireEndpointDrag(CadPoint releasePosition)
+    {
+        if (SelectedWire is null || SelectedWireVertexIndex is null)
+        {
+            throw new InvalidOperationException("No schematic wire endpoint is selected.");
+        }
+
+        int vertexIndex = SelectedWireVertexIndex.Value;
+        if (!IsEndpointVertexIndex(SelectedWire.RoutePoints, vertexIndex))
+        {
+            throw new InvalidOperationException("Only schematic wire endpoints can be reconnected on release.");
+        }
+
+        int wireIndex = Wires.IndexOf(SelectedWire);
+        if (wireIndex < 0)
+        {
+            throw new InvalidOperationException("The selected schematic wire is no longer in the document.");
+        }
+
+        SchematicPinEndpoint? endpoint = FindPinAt(releasePosition);
+        bool isStartEndpoint = vertexIndex == 0;
+        SchematicPinEndpoint fixedEndpoint = isStartEndpoint ? SelectedWire.End : SelectedWire.Start;
+        if (endpoint is null || PinKey(endpoint) == PinKey(fixedEndpoint))
+        {
+            StatusText = "Wire endpoint must be released over a compatible pin.";
+            return SelectedWire;
+        }
+
+        List<CadPoint> routePoints = [..SelectedWire.RoutePoints];
+        int endpointIndex = isStartEndpoint ? 0 : routePoints.Count - 1;
+        routePoints[endpointIndex] = endpoint.Position;
+        RepairAdjacentEndpointSegment(routePoints, endpointIndex);
+        routePoints = CompactRoute(OrthogonalizeRoute(routePoints));
+
+        SchematicWire reconnected = isStartEndpoint
+            ? SelectedWire with { Start = endpoint, RoutePoints = routePoints }
+            : SelectedWire with { End = endpoint, RoutePoints = routePoints };
+        Wires[wireIndex] = reconnected;
+        SelectedWire = reconnected;
+        SelectedWireVertexIndex = isStartEndpoint ? 0 : reconnected.RoutePoints.Count - 1;
+        RebuildNets();
+        SelectedWire = Wires.Single(wire => wire.WireId == reconnected.WireId);
+        SelectedWireVertexIndex = isStartEndpoint ? 0 : SelectedWire.RoutePoints.Count - 1;
+        StatusText = $"Reconnected wire endpoint to {endpoint.ReferenceDesignator}.{endpoint.PinName}.";
+        return SelectedWire;
     }
 
     public SchematicWire InsertVertexIntoSelectedWireSegment(CadPoint requestedPosition)
@@ -1643,6 +1702,9 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
         return compacted;
     }
+
+    private static bool IsEndpointVertexIndex(IReadOnlyList<CadPoint> routePoints, int vertexIndex) =>
+        vertexIndex == 0 || vertexIndex == routePoints.Count - 1;
 
     private static void RepairAdjacentEndpointSegment(List<CadPoint> routePoints, int endpointIndex)
     {

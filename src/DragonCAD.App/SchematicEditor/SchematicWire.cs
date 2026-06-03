@@ -20,7 +20,8 @@ public sealed record SchematicWireVertexHandle(
     string WireId,
     int VertexIndex,
     CadPoint Position,
-    bool IsSelected);
+    bool IsSelected,
+    bool IsEndpoint = false);
 
 public sealed record SchematicNet(
     string Name,

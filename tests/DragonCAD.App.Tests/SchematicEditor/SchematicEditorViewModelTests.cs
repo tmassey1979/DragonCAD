@@ -847,7 +847,7 @@ public sealed class SchematicEditorViewModelTests
     }
 
     [Fact]
-    public void SelectedWireVertexHandlesExposeInteriorRoutePointsForCanvasHandles()
+    public void SelectedWireVertexHandlesExposeEndpointAndInteriorRoutePointsForCanvasHandles()
     {
         SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
         SchematicWire wire = Assert.Single(editor.Wires);
@@ -860,9 +860,18 @@ public sealed class SchematicEditorViewModelTests
             handle =>
             {
                 Assert.Equal(wire.WireId, handle.WireId);
+                Assert.Equal(0, handle.VertexIndex);
+                Assert.Equal(new CadPoint(1_000_000, 0), handle.Position);
+                Assert.False(handle.IsSelected);
+                Assert.True(handle.IsEndpoint);
+            },
+            handle =>
+            {
+                Assert.Equal(wire.WireId, handle.WireId);
                 Assert.Equal(1, handle.VertexIndex);
                 Assert.Equal(new CadPoint(2_000_000, 0), handle.Position);
                 Assert.False(handle.IsSelected);
+                Assert.False(handle.IsEndpoint);
             },
             handle =>
             {
@@ -870,6 +879,7 @@ public sealed class SchematicEditorViewModelTests
                 Assert.Equal(2, handle.VertexIndex);
                 Assert.Equal(new CadPoint(2_000_000, 2_000_000), handle.Position);
                 Assert.False(handle.IsSelected);
+                Assert.False(handle.IsEndpoint);
             },
             handle =>
             {
@@ -877,6 +887,15 @@ public sealed class SchematicEditorViewModelTests
                 Assert.Equal(3, handle.VertexIndex);
                 Assert.Equal(new CadPoint(4_000_000, 2_000_000), handle.Position);
                 Assert.False(handle.IsSelected);
+                Assert.False(handle.IsEndpoint);
+            },
+            handle =>
+            {
+                Assert.Equal(wire.WireId, handle.WireId);
+                Assert.Equal(4, handle.VertexIndex);
+                Assert.Equal(new CadPoint(4_000_000, 0), handle.Position);
+                Assert.False(handle.IsSelected);
+                Assert.True(handle.IsEndpoint);
             });
     }
 
@@ -919,6 +938,59 @@ public sealed class SchematicEditorViewModelTests
             moved.RoutePoints);
         Assert.All(AdjacentSegments(moved), segment => Assert.True(IsOrthogonal(segment.Start, segment.End)));
         Assert.Equal("Moved wire vertex 2 on N$1.", editor.StatusText);
+    }
+
+    [Fact]
+    public void MoveSelectedWireVertexToCompactsRedundantRoutePoints()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+        editor.SelectWireVertexAt(new CadPoint(2_000_000, 2_000_000));
+
+        SchematicWire moved = editor.MoveSelectedWireVertexTo(new CadPoint(4_000_000, 2_000_000));
+
+        Assert.Equal(
+            [
+                new CadPoint(1_000_000, 0),
+                new CadPoint(4_000_000, 0)
+            ],
+            moved.RoutePoints);
+        Assert.Null(editor.SelectedWireVertexIndex);
+        Assert.All(AdjacentSegments(moved), segment => Assert.True(IsOrthogonal(segment.Start, segment.End)));
+    }
+
+    [Fact]
+    public void CompleteSelectedWireEndpointDragBlocksReleaseAwayFromCompatiblePin()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+        SchematicWire original = Assert.Single(editor.Wires);
+        editor.SelectWireVertexAt(new CadPoint(1_000_000, 0));
+
+        SchematicWire unchanged = editor.CompleteSelectedWireEndpointDrag(new CadPoint(8_000_000, 8_000_000));
+
+        Assert.Equal(original, unchanged);
+        Assert.Equal(original.RoutePoints, unchanged.RoutePoints);
+        Assert.Equal("Wire endpoint must be released over a compatible pin.", editor.StatusText);
+    }
+
+    [Fact]
+    public void CompleteSelectedWireEndpointDragReconnectsEndpointToCompatiblePin()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+        SchematicComponentInstance replacement = editor.PlaceComponent(
+            IntentWithPin("hawkcad:third", "Third", "ALT", new CadPoint(1_000_000, 0)),
+            new CadPoint(-5_000_000, 3_000_000));
+        SchematicWire original = Assert.Single(editor.Wires);
+        editor.SelectWireAt(new CadPoint(2_000_000, 1_000_000));
+        editor.SelectWireVertexAt(new CadPoint(1_000_000, 0));
+
+        SchematicWire reconnected = editor.CompleteSelectedWireEndpointDrag(new CadPoint(-4_000_000, 3_000_000));
+
+        Assert.Equal(replacement.InstanceId, reconnected.Start.InstanceId);
+        Assert.Equal("ALT", reconnected.Start.PinName);
+        Assert.Equal(new CadPoint(-4_000_000, 3_000_000), reconnected.RoutePoints[0]);
+        Assert.Equal(original.End, reconnected.End);
+        Assert.All(AdjacentSegments(reconnected), segment => Assert.True(IsOrthogonal(segment.Start, segment.End)));
+        Assert.Equal("Reconnected wire endpoint to U3.ALT.", editor.StatusText);
     }
 
     [Fact]

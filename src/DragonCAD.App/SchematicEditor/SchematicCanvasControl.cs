@@ -29,12 +29,17 @@ public sealed class SchematicCanvasControl : Control
     private static readonly Pen WireSelectionPen = new(new SolidColorBrush(Color.FromRgb(255, 176, 52)), 3.0);
     private static readonly Pen HoverWirePen = new(new SolidColorBrush(Color.FromRgb(70, 180, 255)), 3.2);
     private static readonly Pen NetLabelSelectionPen = new(new SolidColorBrush(Color.FromRgb(255, 176, 52)), 1.4);
+    private static readonly Pen WireVertexHandlePen = new(new SolidColorBrush(Color.FromRgb(27, 59, 96)), 1.4);
+    private static readonly Pen SelectedWireVertexHandlePen = new(new SolidColorBrush(Color.FromRgb(255, 176, 52)), 2.0);
     private static readonly IBrush HoverPinBrush = new SolidColorBrush(Color.FromRgb(255, 213, 74));
     private static readonly IBrush WireNodeBrush = new SolidColorBrush(Color.FromRgb(0, 92, 210));
+    private static readonly IBrush WireVertexHandleBrush = new SolidColorBrush(Color.FromRgb(250, 247, 238));
+    private static readonly IBrush SelectedWireVertexHandleBrush = new SolidColorBrush(Color.FromRgb(255, 245, 214));
     private static readonly IBrush NetLabelBrush = new SolidColorBrush(Color.FromRgb(0, 70, 160));
     private static readonly IBrush TextBrush = new SolidColorBrush(Color.FromRgb(22, 37, 52));
     private static readonly IBrush PinLabelBrush = new SolidColorBrush(Color.FromRgb(73, 43, 32));
     private bool isPanningViewport;
+    private bool isDraggingSchematicWireVertexHandle;
     private Point lastPanScreenPoint;
 
     static SchematicCanvasControl()
@@ -121,6 +126,7 @@ public sealed class SchematicCanvasControl : Control
             DrawNetLabel(context, viewport, bounds.Center, label);
         }
 
+        DrawWireVertexHandles(context, viewport, bounds.Center, Editor.SelectedWireVertexHandles);
         DrawPendingWire(context, viewport, bounds.Center, Editor.PendingWirePreviewRoutePoints);
     }
 
@@ -134,6 +140,11 @@ public sealed class SchematicCanvasControl : Control
 
         CadPoint point = CreateViewport().ScreenToCad(e.GetPosition(this), Bounds.Center);
         DragonCadLog.Info($"schematic-canvas pointer-pressed position={e.GetPosition(this)} cad=({point.X},{point.Y}) placementTarget={PlacementTarget.GetType().Name}");
+        if (TryBeginWireVertexHandleDrag(point, e))
+        {
+            return;
+        }
+
         PlacementTarget.HandleSchematicPointerPressed(point);
         if (PlacementTarget.IsDraggingSchematicComponent || PlacementTarget.IsDraggingSchematicWireSegment)
         {
@@ -172,6 +183,19 @@ public sealed class SchematicCanvasControl : Control
             return;
         }
 
+        if (isDraggingSchematicWireVertexHandle && Editor is not null)
+        {
+            CadPoint dragPoint = CreateViewport().ScreenToCad(e.GetPosition(this), Bounds.Center);
+            if (!Editor.IsSelectedWireVertexEndpoint())
+            {
+                Editor.MoveSelectedWireVertexTo(dragPoint);
+            }
+
+            Cursor = new Cursor(StandardCursorType.SizeAll);
+            e.Handled = true;
+            return;
+        }
+
         CadPoint point = CreateViewport().ScreenToCad(e.GetPosition(this), Bounds.Center);
         PlacementTarget.HandleSchematicPointerMoved(point);
         Cursor = PlacementTarget.IsDraggingSchematicComponent || PlacementTarget.IsDraggingSchematicWireSegment
@@ -191,6 +215,25 @@ public sealed class SchematicCanvasControl : Control
         if (isPanningViewport)
         {
             isPanningViewport = false;
+            Cursor = null;
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            return;
+        }
+
+        if (isDraggingSchematicWireVertexHandle && Editor is not null)
+        {
+            CadPoint releasePoint = CreateViewport().ScreenToCad(e.GetPosition(this), Bounds.Center);
+            if (Editor.IsSelectedWireVertexEndpoint())
+            {
+                Editor.CompleteSelectedWireEndpointDrag(releasePoint);
+            }
+            else
+            {
+                Editor.MoveSelectedWireVertexTo(releasePoint);
+            }
+
+            isDraggingSchematicWireVertexHandle = false;
             Cursor = null;
             e.Pointer.Capture(null);
             e.Handled = true;
@@ -256,6 +299,27 @@ public sealed class SchematicCanvasControl : Control
             {
                 context.DrawEllipse(GridPen.Brush, null, new Point(x, y), 1.1, 1.1);
             }
+        }
+    }
+
+    private static void DrawWireVertexHandles(
+        DrawingContext context,
+        SchematicCanvasViewport viewport,
+        Point center,
+        IEnumerable<SchematicWireVertexHandle> handles)
+    {
+        foreach (SchematicWireVertexHandle handle in handles)
+        {
+            Point point = Translate(viewport.Map(new CadPoint(0, 0), handle.Position), center);
+            Pen pen = handle.IsSelected ? SelectedWireVertexHandlePen : WireVertexHandlePen;
+            IBrush brush = handle.IsSelected ? SelectedWireVertexHandleBrush : WireVertexHandleBrush;
+            if (handle.IsEndpoint)
+            {
+                context.DrawRectangle(brush, pen, new Rect(point.X - 5, point.Y - 5, 10, 10));
+                continue;
+            }
+
+            context.DrawEllipse(brush, pen, point, 4.8, 4.8);
         }
     }
 
@@ -630,6 +694,8 @@ public sealed class SchematicCanvasControl : Control
             nameof(SchematicEditorViewModel.SelectedComponent) or
             nameof(SchematicEditorViewModel.SelectedWire) or
             nameof(SchematicEditorViewModel.SelectedWireSegmentIndex) or
+            nameof(SchematicEditorViewModel.SelectedWireVertexIndex) or
+            nameof(SchematicEditorViewModel.SelectedWireVertexHandles) or
             nameof(SchematicEditorViewModel.SelectedNetLabel) or
             nameof(SchematicEditorViewModel.SelectedPinEndpoint) or
             nameof(SchematicEditorViewModel.HoveredPin) or
@@ -679,5 +745,26 @@ public sealed class SchematicCanvasControl : Control
         }
 
         return null;
+    }
+
+    private bool TryBeginWireVertexHandleDrag(CadPoint point, PointerPressedEventArgs e)
+    {
+        if (Editor?.PendingWireStart is not null)
+        {
+            return false;
+        }
+
+        SchematicWireVertexHandle? handle = Editor?.SelectWireVertexAt(point);
+        if (handle is null)
+        {
+            return false;
+        }
+
+        isDraggingSchematicWireVertexHandle = true;
+        Cursor = new Cursor(StandardCursorType.SizeAll);
+        e.Pointer.Capture(this);
+        e.Handled = true;
+        DragonCadLog.Info($"schematic wire vertex drag start point=({point.X},{point.Y}) vertex={handle.VertexIndex}");
+        return true;
     }
 }
