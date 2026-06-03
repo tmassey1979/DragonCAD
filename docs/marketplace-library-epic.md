@@ -65,6 +65,88 @@ This table is the coordination index for parallel marketplace agents. Story-leve
 - Marketplace rows, imported candidates, and datasheet drafts are not placeable editor components until review/promotion marks them trusted.
 - Ordering and fabrication stories must use reviewable records, exports, or handoff actions and must not imply live checkout, payment, shipping, upload, or provider order submission.
 
+### MKT-015 Foundation Baseline
+
+MKT-015 is the documentation/status checkpoint for the marketplace and component-library wave. It does not add source behavior; it records the contract boundaries and continuation plan that later agents should follow.
+
+Completed foundation through this checkpoint:
+- Marketplace provider contracts are defined for vendor catalog data, sourcing offers, manufacturing handoff capabilities, diagnostics, timestamps, and terms metadata.
+- Credential/config behavior is explicitly separated from project files. Digi-Key and Mouser client work uses environment-backed credentials, redacted diagnostics, and opt-in live-smoke paths rather than committed secrets.
+- Digi-Key client foundations include OAuth client-credentials token handling, product-search normalization, retry/backoff, and in-memory token caching. Live use remains caller-driven and credential-backed.
+- Mouser client foundations include API-key search normalization, retry/backoff, environment-backed configuration, and redacted failure diagnostics.
+- Vendor catalog ingestion foundations cover API-backed Digi-Key/Mouser, Adafruit fixture normalization, SparkFun open-hardware/source manifests, and Jameco curated manual-feed import without unsupported scraping.
+- Vendor catalog snapshot and freshness work includes provider-neutral sync results, in-use placed-component refresh planning, persisted freshness state, force refresh, provider-specific TTL defaults, editable/resettable policy, validation, and clear-state commands.
+- BOM/cost planning foundations include quote ladders, BOM order plans, cost rollups, quantity commands, reviewable CSV/order previews, and local order records. These are planning and review artifacts, not purchases.
+- Cart handoff foundations include provider-specific draft orders, cart rows, stale/missing-offer diagnostics, local checkout readiness blockers, and local order history. No payment, shipping, vendor cart mutation, or live submission is represented as complete.
+- OSH Park and PCBCart foundations cover provider profiles, package readiness, disabled checkout explanations, fabrication checklist previews, and manual-review handoff packets for prototype and production flows.
+- Legal and terms guardrails are represented as source modes, attribution/redistribution/cache/scrape restrictions, provider capability flags, and compliance diagnostics. Product text should avoid legal advice while still surfacing blocked automation.
+- App shell foundations surface marketplace status, vendor sync status, BOM/cost rollups, dedupe review, trusted-library promotion status, fabrication readiness, quality badges, saved filters, audit history, and review-only order controls from deterministic or local state.
+
+Current limits that future agents must preserve:
+- Live vendor smoke exists only behind `DRAGONCAD_VENDOR_LIVE_SMOKE=1`; normal validation must not require network or real credentials.
+- Digi-Key and Mouser live clients can be called by wired services, but no story has completed live purchasing, provider cart mutation, payment, shipping, checkout automation, or vendor order submission.
+- Trusted-library promotion, datasheet candidate linking, and vendor match promotion are review/planning records unless a later story explicitly owns durable trusted-library mutation.
+- App panels may show deterministic sample/local state where project-derived wiring is still pending; documentation should label those surfaces accurately.
+
+### Current Status Matrix
+
+| Capability area | Current documentation status | Remaining coordination rule |
+| --- | --- | --- |
+| Digi-Key/Mouser clients | Foundation implemented for credential-backed search, token/cache/retry behavior, normalized results, and opt-in live smoke. | Keep live calls explicit; do not require credentials or network in default tests. |
+| Vendor catalog snapshots | Implemented as catalog candidates, source manifests, sync plans/results, freshness state, and in-use refresh queues. | Catalog rows remain candidates until dedupe/review/promotion accepts them. |
+| BOM and cost planning | Implemented as rollups, quote/order previews, quantity commands, CSV preview, and local order records. | Treat all output as estimate/review data until provider-specific ordering stories exist. |
+| Cart handoff | Implemented as reviewable provider drafts, cart commands, readiness blockers, and local history. | No live cart mutation, checkout, payment, shipping, or order confirmation is complete. |
+| OSH Park/PCBCart handoff | Implemented as readiness/profile/checklist/manual packet planning. | Handoff remains manual/review-first; no automated upload or provider order submission is complete. |
+| Legal/terms guardrails | Implemented as compliance metadata, source mode restrictions, and blocked automation diagnostics. | New providers must expose capability and terms limits before UI actions depend on them. |
+| Editor/library placement | Partial through shell visibility and library status surfaces. | Schematic placement must still require trusted placeable components; marketplace rows and drafts cannot arm placement directly. |
+
+### Remaining Six-Agent Continuation Stories
+
+**MKT-060 - Project-Scoped Marketplace State**
+
+**As a** project owner, **I want** vendor freshness, selected alternates, cart drafts, and local order records scoped to the DragonCAD project, **so that** review history follows the design instead of the app artifact directory.
+
+**AC:**
+- Project-scoped files preserve provider freshness, cart/order draft ids, selected alternates, and local order records without storing credentials, payment, or shipping secrets.
+- Migration from app-artifact-scoped state is deterministic and rollback-friendly.
+- Tests cover load, save, missing file, malformed file, and no-secret serialization.
+
+**MKT-061 - Trusted-Library Promotion Persistence**
+
+**As a** component librarian, **I want** reviewed vendor/imported/datasheet candidates promoted into the trusted library with provenance, **so that** marketplace discoveries can become placeable editor components after human approval.
+
+**AC:**
+- Promotion writes preserve source provenance, reviewer, timestamp, package/footprint mapping, and rollback/audit records.
+- Conflicts require explicit decisions and never overwrite verified geometry silently.
+- Tests cover promote-new, link-existing, reject, conflict-blocked, and audit replay.
+
+**MKT-062 - Project-Derived BOM And Handoff Wiring**
+
+**As a** product builder, **I want** BOM cost rollups, cart drafts, and fabrication readiness derived from the active schematic and board, **so that** marketplace planning reflects the current design.
+
+**AC:**
+- BOM rows derive from placed schematic/board components, selected packages, alternates, and do-not-substitute rules.
+- Fabrication readiness consumes current Gerber/drill/BOM/pick-and-place artifacts and reports missing data without inventing files.
+- Tests cover placement-derived BOM updates, package changes, removed components, stale vendor offers, and blocked fabrication packets.
+
+**MKT-063 - Provider Terms Review UI**
+
+**As a** marketplace user, **I want** provider terms, attribution, cache, and automation limits visible before running sync or handoff actions, **so that** I understand why some actions are disabled or manual.
+
+**AC:**
+- UI surfaces provider capability flags, source modes, attribution requirements, cache limits, and blocked automation modes.
+- Disabled actions explain whether the blocker is credentials, stale data, missing manufacturing artifacts, or provider terms.
+- Tests cover API-backed provider, manual-feed provider, scrape-restricted provider, and upload/quote handoff provider states.
+
+**MKT-064 - Live Provider Smoke Operator Checklist**
+
+**As a** maintainer, **I want** a documented, opt-in live-smoke checklist for Digi-Key and Mouser, **so that** real credentials can be verified locally without making default CI or agents depend on the network.
+
+**AC:**
+- Checklist names required environment variables, safe sample queries, expected non-secret diagnostics, and cleanup steps.
+- Documentation states that live smoke is not purchasing, cart mutation, or order submission.
+- Validation keeps default tests offline and verifies live-smoke docs links.
+
 ---
 
 ## MKT-001 - Marketplace Provider Contracts

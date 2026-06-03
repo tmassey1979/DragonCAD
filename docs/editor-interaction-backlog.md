@@ -54,6 +54,18 @@ Editor stories can expose marketplace and library status, but placement behavior
 
 These gates intentionally avoid claiming live vendor ordering or API-backed placement. Live provider sync, carts, checkout, manufacturing upload, payment, shipping, and automatic promotion require explicit marketplace stories before editor work may depend on them.
 
+### Editor-To-Marketplace Workflow Cross-Links
+
+Use this table when an editor story needs marketplace/library state. The editor backlog owns workflow behavior; `docs/marketplace-library-epic.md` owns catalog, sourcing, promotion, cart, and provider capability rules.
+
+| Editor workflow | Marketplace/library dependency | Required editor behavior |
+| --- | --- | --- |
+| Placing components | Trusted placeable components from `MKT-009`, future persisted promotions from `MKT-061`, and provenance/audit state from `MKT-026`/`MKT-032`. | Add-part and repeat placement may preview catalog-only rows, but only trusted placeable records may arm the cursor or create schematic/board components. |
+| Syncing schematic to board | Package/footprint mappings from trusted library promotion and canonical identity work. | Board sync must preserve source identity, selected package, reference, value, and footprint mapping; package changes need diagnostics before replacing board geometry. |
+| BOM sourcing from the design | BOM/order planning from `MKT-010`, `MKT-018`, `MKT-022`, `MKT-028`, and project-derived follow-up `MKT-062`. | BOM rows must be derived from placed schematic/board components and selected alternates; editor-only placeholders must not satisfy sourcing gaps. |
+| Vendor refresh while editing | In-use vendor sync and freshness state from `MKT-025`, `MKT-029`, and the MKT-015 baseline. | Refresh commands should be explicit user actions, show stale/fresh state, and avoid surprise network calls while placing or routing. |
+| Fabrication handoff from board state | OSH Park/PCBCart readiness from `MKT-012`, `MKT-013`, `MKT-019`, `MKT-024`, `MKT-031`, and future project-derived wiring in `MKT-062`. | Board routing and package choices provide handoff inputs; handoff panels must remain review/export/manual next-step flows unless a provider-specific live story exists. |
+
 ### USE-001 - Schematic Part Placement Flow
 
 **As a** schematic designer, **I want** to search, preview, place, and repeat-place verified components from one add-part workflow, **so that** I can build a schematic quickly without confusing catalog-only results with placeable parts.
@@ -68,6 +80,7 @@ These gates intentionally avoid claiming live vendor ordering or API-backed plac
 **Implementation Dev Notes:**
 - Coordinate with `EDIT-003`, `EDIT-004`, `EDIT-005`, `EDIT-010`, and marketplace component-browser stories.
 - Use the Marketplace And Library Placement Gates table before adding any placement path that consumes marketplace, imported, or datasheet-derived records.
+- Use the Editor-To-Marketplace Workflow Cross-Links table for trusted placement and provenance dependencies.
 - Do not let marketplace rows, generated datasheet drafts, or unreviewed imported candidates bypass trusted component review.
 - The implementation should preserve schematic-to-board identity from the first placement command so later board synchronization does not depend on display text.
 
@@ -100,6 +113,7 @@ These gates intentionally avoid claiming live vendor ordering or API-backed plac
 
 **Implementation Dev Notes:**
 - Coordinate with `EDIT-006`, `EDIT-007`, `EDIT-012`, Wave 3 via insertion, Wave 4 trace width editing, and Wave 5 via size editing.
+- Coordinate package/footprint identity with trusted-library promotion and project-derived BOM/handoff follow-ups in `docs/marketplace-library-epic.md`.
 - Synchronization should remain explicit and testable; avoid hidden canvas side effects.
 - Do not implement autorouting or full ERC/DRC as part of this usability pass.
 
@@ -117,6 +131,7 @@ These gates intentionally avoid claiming live vendor ordering or API-backed plac
 **Implementation Dev Notes:**
 - Coordinate with `docs/marketplace-library-epic.md`, `docs/component-marketplace-roadmap.md`, `MKT-016` through `MKT-033`, and `EDIT-010`.
 - Treat `MKT-015` as the current documentation/status source for marketplace sequencing and six-agent boundaries.
+- Treat future `MKT-061` and `MKT-062` as the handoff points for durable trusted-library promotion and active-design BOM sourcing.
 - Do not write generated parts directly into the permanent library without an explicit reviewed promotion story.
 - Treat marketplace integration as a review-first workflow; source, merge, and order state should remain explainable from component provenance.
 
@@ -133,6 +148,7 @@ These gates intentionally avoid claiming live vendor ordering or API-backed plac
 
 **Implementation Dev Notes:**
 - Coordinate with fabrication stories, Wave 3 BOM CSV, Wave 4 pick/place CSV, Wave 5 Gerber manifest summary, and marketplace cart/fabrication readiness stories.
+- Use `MKT-062` for the future bridge from active schematic/board state into BOM cost rollups, cart drafts, and OSH Park/PCBCart readiness.
 - Ordering UX must preserve the current review-only posture: local order records and handoff artifacts are not live vendor orders.
 - Keep prototype and production handoff decisions separate because OSH Park and PCBCart require different manufacturing evidence.
 
