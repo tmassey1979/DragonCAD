@@ -22,6 +22,22 @@ public sealed class DatasheetCandidateLinkingViewModelTests
     }
 
     [Fact]
+    public void SampleSuggestionsCoverEverySupportedTargetTypeForOneIntakeRecord()
+    {
+        DatasheetCandidateLinkingViewModel linker = DatasheetCandidateLinkingViewModel.CreateSample();
+
+        Assert.All(linker.Suggestions, suggestion => Assert.Equal("intake:lm7805ct", suggestion.IntakeRecordId));
+        Assert.Equal(
+            [
+                DatasheetCandidateLinkTargetType.CanonicalComponent,
+                DatasheetCandidateLinkTargetType.VendorCatalogRow,
+                DatasheetCandidateLinkTargetType.ImportedCandidate,
+                DatasheetCandidateLinkTargetType.NewCandidatePlaceholder
+            ],
+            linker.Suggestions.Select(suggestion => suggestion.TargetType).ToArray());
+    }
+
+    [Fact]
     public void PackageConflictSuggestionPreservesSourceAndTargetValues()
     {
         DatasheetCandidateLinkingViewModel linker = DatasheetCandidateLinkingViewModel.CreateSample();
@@ -38,30 +54,44 @@ public sealed class DatasheetCandidateLinkingViewModelTests
     }
 
     [Fact]
-    public void AcceptAndRejectCreateAuditableDecisionRecordsWithoutLibraryMutation()
+    public void AcceptCreatesAuditableDecisionRecordWithoutLibraryMutation()
     {
         DatasheetCandidateLinkingViewModel linker = DatasheetCandidateLinkingViewModel.CreateSample();
         DatasheetCandidateLinkSuggestion accepted = Assert.Single(linker.Suggestions, row => row.TargetId == "dragon:lm7805");
-        DatasheetCandidateLinkSuggestion rejected = Assert.Single(linker.Suggestions, row => row.TargetId == "vendor:digikey:296-1389-5-ND");
 
-        accepted.Accept("Use canonical regulator already in core library.");
-        rejected.Reject("Vendor row is useful for sourcing but not a canonical component.");
+        accepted.Accept("Use canonical regulator already in core library.", new DateTimeOffset(2026, 6, 3, 9, 15, 0, TimeSpan.Zero));
 
         Assert.Equal(DatasheetCandidateLinkReviewState.Accepted, accepted.ReviewState);
-        Assert.Equal(DatasheetCandidateLinkReviewState.Rejected, rejected.ReviewState);
-        Assert.Equal(2, linker.Decisions.Count);
-        Assert.Contains(linker.Decisions, decision =>
-            decision.TargetId == "dragon:lm7805" &&
-            decision.Decision == "Accepted" &&
-            decision.ReviewerNote == "Use canonical regulator already in core library." &&
-            !decision.MutatedTrustedLibrary);
-        Assert.Contains(linker.Decisions, decision =>
-            decision.TargetId == "vendor:digikey:296-1389-5-ND" &&
-            decision.Decision == "Rejected" &&
-            decision.ReviewerNote == "Vendor row is useful for sourcing but not a canonical component." &&
-            !decision.MutatedTrustedLibrary);
+        DatasheetCandidateLinkDecisionRecord decision = Assert.Single(linker.Decisions);
+        Assert.Equal("intake:lm7805ct", decision.IntakeRecordId);
+        Assert.Equal("dragon:lm7805", decision.TargetId);
+        Assert.Equal(DatasheetCandidateLinkTargetType.CanonicalComponent, decision.TargetType);
+        Assert.Equal(DatasheetCandidateLinkReviewState.Accepted, decision.ReviewState);
+        Assert.Equal(DatasheetCandidateLinkConfidence.High, decision.Confidence);
+        Assert.Equal("Exact MPN and package match", decision.MatchBasis);
+        Assert.Empty(decision.Conflicts);
+        Assert.Equal("Use canonical regulator already in core library.", decision.ReviewerNote);
+        Assert.Equal(new DateTimeOffset(2026, 6, 3, 9, 15, 0, TimeSpan.Zero), decision.ReviewedAt);
+        Assert.False(decision.MutatedTrustedLibrary);
         Assert.Equal("Accepted link dragon:lm7805 for LM7805CT", accepted.StatusText);
-        Assert.Equal("Rejected link vendor:digikey:296-1389-5-ND for LM7805CT", rejected.StatusText);
+    }
+
+    [Fact]
+    public void RejectCreatesAuditableDecisionRecordWithConflictsAndDefaultReviewerNote()
+    {
+        DatasheetCandidateLinkingViewModel linker = DatasheetCandidateLinkingViewModel.CreateSample();
+        DatasheetCandidateLinkSuggestion rejected = Assert.Single(linker.Suggestions, row => row.TargetId == "dragon:lm7805-smd");
+
+        rejected.Reject("  ", new DateTimeOffset(2026, 6, 3, 9, 20, 0, TimeSpan.Zero));
+
+        Assert.Equal(DatasheetCandidateLinkReviewState.Rejected, rejected.ReviewState);
+        DatasheetCandidateLinkDecisionRecord decision = Assert.Single(linker.Decisions);
+        DatasheetCandidateLinkConflict conflict = Assert.Single(decision.Conflicts);
+        Assert.Equal("Package", conflict.FieldName);
+        Assert.Equal(DatasheetCandidateLinkReviewState.Rejected, decision.ReviewState);
+        Assert.Equal("No reviewer note.", decision.ReviewerNote);
+        Assert.Equal(new DateTimeOffset(2026, 6, 3, 9, 20, 0, TimeSpan.Zero), decision.ReviewedAt);
+        Assert.Equal("Rejected link dragon:lm7805-smd for LM7805CT", rejected.StatusText);
     }
 
     [Fact]
@@ -76,5 +106,67 @@ public sealed class DatasheetCandidateLinkingViewModelTests
         DatasheetCandidateLinkSuggestion suggestion = Assert.Single(linker.Suggestions);
         Assert.Equal("dragon:lm7805", suggestion.TargetId);
         Assert.Equal(["All", "Pending", "Accepted", "Rejected"], linker.ReviewStateFilterOptions);
+    }
+
+    [Fact]
+    public void AcceptedLinksForSameIntakeRecordProduceConflictDiagnostics()
+    {
+        DatasheetCandidateLinkingViewModel linker = DatasheetCandidateLinkingViewModel.CreateSample();
+
+        linker.Suggestions.Single(row => row.TargetId == "dragon:lm7805").Accept(
+            "Canonical component is preferred.",
+            new DateTimeOffset(2026, 6, 3, 9, 15, 0, TimeSpan.Zero));
+        linker.Suggestions.Single(row => row.TargetId == "vendor:digikey:296-1389-5-ND").Accept(
+            "Vendor evidence should stay linked too.",
+            new DateTimeOffset(2026, 6, 3, 9, 16, 0, TimeSpan.Zero));
+
+        DatasheetCandidateLinkDiagnostic diagnostic = Assert.Single(linker.Diagnostics);
+        Assert.Equal("intake:lm7805ct", diagnostic.IntakeRecordId);
+        Assert.Equal(DatasheetCandidateLinkDiagnosticSeverity.Warning, diagnostic.Severity);
+        Assert.Equal(
+            "Accepted link conflict for intake:lm7805ct: dragon:lm7805, vendor:digikey:296-1389-5-ND",
+            diagnostic.Message);
+    }
+
+    [Fact]
+    public void SuggestionsAreOrderedByConfidenceThenTargetTypeThenTargetId()
+    {
+        DatasheetCandidateLinkingViewModel linker = DatasheetCandidateLinkingViewModel.CreateSample();
+
+        Assert.Equal(
+            [
+                "dragon:lm7805",
+                "vendor:digikey:296-1389-5-ND",
+                "dragon:lm7805-smd",
+                "new:lm7805ct"
+            ],
+            linker.Suggestions.Select(suggestion => suggestion.TargetId).ToArray());
+    }
+
+    [Fact]
+    public void ReviewSummaryOutputIsDeterministic()
+    {
+        DatasheetCandidateLinkingViewModel linker = DatasheetCandidateLinkingViewModel.CreateSample();
+        linker.Suggestions.Single(row => row.TargetId == "dragon:lm7805").Accept(
+            "Canonical component is preferred.",
+            new DateTimeOffset(2026, 6, 3, 9, 15, 0, TimeSpan.Zero));
+        linker.Suggestions.Single(row => row.TargetId == "dragon:lm7805-smd").Reject(
+            "Package conflict.",
+            new DateTimeOffset(2026, 6, 3, 9, 16, 0, TimeSpan.Zero));
+
+        Assert.Equal(
+            """
+            Datasheet candidate link review
+            Intake records: 1
+            Suggestions: 4
+            Accepted: 1
+            Rejected: 1
+            Pending: 2
+            Diagnostics: 0
+            Decisions:
+            - 2026-06-03T09:15:00.0000000+00:00 | intake:lm7805ct | Accepted | CanonicalComponent | dragon:lm7805 | High | Exact MPN and package match | Canonical component is preferred.
+            - 2026-06-03T09:16:00.0000000+00:00 | intake:lm7805ct | Rejected | ImportedCandidate | dragon:lm7805-smd | Medium | MPN match with package conflict | Package conflict.
+            """,
+            linker.ReviewSummary);
     }
 }

@@ -20,8 +20,8 @@ public sealed class DatasheetCandidateLinkingViewModel : INotifyPropertyChanged
 
     private DatasheetCandidateLinkingViewModel(IReadOnlyList<DatasheetCandidateLinkSuggestion> suggestions)
     {
-        allSuggestions = suggestions;
-        Suggestions = new ObservableCollection<DatasheetCandidateLinkSuggestion>(suggestions);
+        allSuggestions = SortSuggestions(suggestions);
+        Suggestions = new ObservableCollection<DatasheetCandidateLinkSuggestion>(allSuggestions);
         selectedSuggestion = Suggestions.FirstOrDefault();
 
         foreach (DatasheetCandidateLinkSuggestion suggestion in allSuggestions)
@@ -30,7 +30,9 @@ public sealed class DatasheetCandidateLinkingViewModel : INotifyPropertyChanged
             suggestion.DecisionRecorded += (_, decision) =>
             {
                 Decisions.Add(decision);
+                RebuildDiagnostics();
                 OnPropertyChanged(nameof(Summary));
+                OnPropertyChanged(nameof(ReviewSummary));
             };
         }
     }
@@ -40,6 +42,8 @@ public sealed class DatasheetCandidateLinkingViewModel : INotifyPropertyChanged
     public ObservableCollection<DatasheetCandidateLinkSuggestion> Suggestions { get; }
 
     public ObservableCollection<DatasheetCandidateLinkDecisionRecord> Decisions { get; } = [];
+
+    public ObservableCollection<DatasheetCandidateLinkDiagnostic> Diagnostics { get; } = [];
 
     public IReadOnlyList<string> ReviewStateFilterOptions => ReviewStateFilterLabels;
 
@@ -77,10 +81,30 @@ public sealed class DatasheetCandidateLinkingViewModel : INotifyPropertyChanged
     public string Summary =>
         $"{allSuggestions.Count} datasheet candidate link suggestions, {Decisions.Count} decisions recorded";
 
+    public string ReviewSummary =>
+        string.Join(
+            "\n",
+            [
+                "Datasheet candidate link review",
+                $"Intake records: {allSuggestions.Select(suggestion => suggestion.IntakeRecordId).Distinct(StringComparer.Ordinal).Count()}",
+                $"Suggestions: {allSuggestions.Count}",
+                $"Accepted: {allSuggestions.Count(suggestion => suggestion.ReviewState == DatasheetCandidateLinkReviewState.Accepted)}",
+                $"Rejected: {allSuggestions.Count(suggestion => suggestion.ReviewState == DatasheetCandidateLinkReviewState.Rejected)}",
+                $"Pending: {allSuggestions.Count(suggestion => suggestion.ReviewState == DatasheetCandidateLinkReviewState.Pending)}",
+                $"Diagnostics: {Diagnostics.Count}",
+                "Decisions:",
+                .. Decisions
+                    .OrderBy(decision => decision.ReviewedAt)
+                    .ThenBy(decision => decision.IntakeRecordId, StringComparer.Ordinal)
+                    .ThenBy(decision => decision.TargetId, StringComparer.Ordinal)
+                    .Select(FormatDecisionSummary)
+            ]);
+
     public static DatasheetCandidateLinkingViewModel CreateSample() =>
         new(
         [
             new DatasheetCandidateLinkSuggestion(
+                intakeRecordId: "intake:lm7805ct",
                 candidateName: "LM7805CT",
                 sourceManufacturerPartNumber: "LM7805CT",
                 sourcePackageName: "TO-220-3",
@@ -93,6 +117,7 @@ public sealed class DatasheetCandidateLinkingViewModel : INotifyPropertyChanged
                 matchBasis: "Exact MPN and package match",
                 conflicts: []),
             new DatasheetCandidateLinkSuggestion(
+                intakeRecordId: "intake:lm7805ct",
                 candidateName: "LM7805CT",
                 sourceManufacturerPartNumber: "LM7805CT",
                 sourcePackageName: "TO-220-3",
@@ -108,6 +133,7 @@ public sealed class DatasheetCandidateLinkingViewModel : INotifyPropertyChanged
                     new DatasheetCandidateLinkConflict("Package", "TO-220-3", "SOT-223")
                 ]),
             new DatasheetCandidateLinkSuggestion(
+                intakeRecordId: "intake:lm7805ct",
                 candidateName: "LM7805CT",
                 sourceManufacturerPartNumber: "LM7805CT",
                 sourcePackageName: "TO-220-3",
@@ -120,6 +146,7 @@ public sealed class DatasheetCandidateLinkingViewModel : INotifyPropertyChanged
                 matchBasis: "Vendor SKU and MPN match",
                 conflicts: []),
             new DatasheetCandidateLinkSuggestion(
+                intakeRecordId: "intake:lm7805ct",
                 candidateName: "LM7805CT",
                 sourceManufacturerPartNumber: "LM7805CT",
                 sourcePackageName: "TO-220-3",
@@ -158,13 +185,60 @@ public sealed class DatasheetCandidateLinkingViewModel : INotifyPropertyChanged
         }
 
         Suggestions.Clear();
-        foreach (DatasheetCandidateLinkSuggestion suggestion in filteredSuggestions)
+        foreach (DatasheetCandidateLinkSuggestion suggestion in SortSuggestions(filteredSuggestions))
         {
             Suggestions.Add(suggestion);
         }
 
         SelectedSuggestion = Suggestions.FirstOrDefault();
     }
+
+    private void RebuildDiagnostics()
+    {
+        Diagnostics.Clear();
+
+        foreach (IGrouping<string, DatasheetCandidateLinkDecisionRecord> acceptedGroup in Decisions
+            .Where(decision => decision.ReviewState == DatasheetCandidateLinkReviewState.Accepted)
+            .GroupBy(decision => decision.IntakeRecordId)
+            .Where(group => group.Select(decision => decision.TargetId).Distinct(StringComparer.Ordinal).Count() > 1)
+            .OrderBy(group => group.Key, StringComparer.Ordinal))
+        {
+            string targetIds = string.Join(
+                ", ",
+                acceptedGroup
+                    .Select(decision => decision.TargetId)
+                    .Distinct(StringComparer.Ordinal)
+                    .Order(StringComparer.Ordinal));
+
+            Diagnostics.Add(
+                new DatasheetCandidateLinkDiagnostic(
+                    acceptedGroup.Key,
+                    DatasheetCandidateLinkDiagnosticSeverity.Warning,
+                    $"Accepted link conflict for {acceptedGroup.Key}: {targetIds}"));
+        }
+
+        OnPropertyChanged(nameof(ReviewSummary));
+    }
+
+    private static IReadOnlyList<DatasheetCandidateLinkSuggestion> SortSuggestions(IEnumerable<DatasheetCandidateLinkSuggestion> suggestions) =>
+        suggestions
+            .OrderByDescending(suggestion => suggestion.Confidence)
+            .ThenBy(suggestion => GetTargetTypeSortOrder(suggestion.TargetType))
+            .ThenBy(suggestion => suggestion.TargetId, StringComparer.Ordinal)
+            .ToArray();
+
+    private static int GetTargetTypeSortOrder(DatasheetCandidateLinkTargetType targetType) =>
+        targetType switch
+        {
+            DatasheetCandidateLinkTargetType.CanonicalComponent => 0,
+            DatasheetCandidateLinkTargetType.VendorCatalogRow => 1,
+            DatasheetCandidateLinkTargetType.ImportedCandidate => 2,
+            DatasheetCandidateLinkTargetType.NewCandidatePlaceholder => 3,
+            _ => throw new InvalidOperationException($"Unsupported candidate link target type {targetType}.")
+        };
+
+    private static string FormatDecisionSummary(DatasheetCandidateLinkDecisionRecord decision) =>
+        $"- {decision.ReviewedAt:O} | {decision.IntakeRecordId} | {decision.Decision} | {decision.TargetType} | {decision.TargetId} | {decision.Confidence} | {decision.MatchBasis} | {decision.ReviewerNote}";
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -176,6 +250,7 @@ public sealed class DatasheetCandidateLinkSuggestion : INotifyPropertyChanged
     private string statusText = "Review pending";
 
     public DatasheetCandidateLinkSuggestion(
+        string intakeRecordId,
         string candidateName,
         string sourceManufacturerPartNumber,
         string sourcePackageName,
@@ -188,6 +263,7 @@ public sealed class DatasheetCandidateLinkSuggestion : INotifyPropertyChanged
         string matchBasis,
         IReadOnlyList<DatasheetCandidateLinkConflict> conflicts)
     {
+        IntakeRecordId = intakeRecordId;
         CandidateName = candidateName;
         SourceManufacturerPartNumber = sourceManufacturerPartNumber;
         SourcePackageName = sourcePackageName;
@@ -204,6 +280,8 @@ public sealed class DatasheetCandidateLinkSuggestion : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public event EventHandler<DatasheetCandidateLinkDecisionRecord>? DecisionRecorded;
+
+    public string IntakeRecordId { get; }
 
     public string CandidateName { get; }
 
@@ -285,27 +363,42 @@ public sealed class DatasheetCandidateLinkSuggestion : INotifyPropertyChanged
             : string.Join("; ", Conflicts.Select(conflict => $"{conflict.FieldName}: source {conflict.SourceValue} vs target {conflict.TargetValue}"));
 
     public void Accept(string reviewerNote)
+        => Accept(reviewerNote, DateTimeOffset.UtcNow);
+
+    public void Accept(string reviewerNote, DateTimeOffset reviewedAt)
     {
         ReviewState = DatasheetCandidateLinkReviewState.Accepted;
         StatusText = $"Accepted link {TargetId} for {CandidateName}";
-        DecisionRecorded?.Invoke(this, CreateDecisionRecord("Accepted", reviewerNote));
+        DecisionRecorded?.Invoke(this, CreateDecisionRecord(DatasheetCandidateLinkReviewState.Accepted, reviewerNote, reviewedAt));
     }
 
     public void Reject(string reviewerNote)
+        => Reject(reviewerNote, DateTimeOffset.UtcNow);
+
+    public void Reject(string reviewerNote, DateTimeOffset reviewedAt)
     {
         ReviewState = DatasheetCandidateLinkReviewState.Rejected;
         StatusText = $"Rejected link {TargetId} for {CandidateName}";
-        DecisionRecorded?.Invoke(this, CreateDecisionRecord("Rejected", reviewerNote));
+        DecisionRecorded?.Invoke(this, CreateDecisionRecord(DatasheetCandidateLinkReviewState.Rejected, reviewerNote, reviewedAt));
     }
 
-    private DatasheetCandidateLinkDecisionRecord CreateDecisionRecord(string decision, string reviewerNote) =>
+    private DatasheetCandidateLinkDecisionRecord CreateDecisionRecord(
+        DatasheetCandidateLinkReviewState decision,
+        string reviewerNote,
+        DateTimeOffset reviewedAt) =>
         new(
+            IntakeRecordId,
             CandidateName,
             SourceManufacturerPartNumber,
             TargetId,
             TargetType,
+            decision == DatasheetCandidateLinkReviewState.Accepted ? "Accepted" : "Rejected",
             decision,
+            Confidence,
+            MatchBasis,
+            Conflicts,
             string.IsNullOrWhiteSpace(reviewerNote) ? "No reviewer note." : reviewerNote.Trim(),
+            reviewedAt,
             MutatedTrustedLibrary);
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
@@ -318,13 +411,29 @@ public sealed record DatasheetCandidateLinkConflict(
     string TargetValue);
 
 public sealed record DatasheetCandidateLinkDecisionRecord(
+    string IntakeRecordId,
     string CandidateName,
     string SourceManufacturerPartNumber,
     string TargetId,
     DatasheetCandidateLinkTargetType TargetType,
     string Decision,
+    DatasheetCandidateLinkReviewState ReviewState,
+    DatasheetCandidateLinkConfidence Confidence,
+    string MatchBasis,
+    IReadOnlyList<DatasheetCandidateLinkConflict> Conflicts,
     string ReviewerNote,
+    DateTimeOffset ReviewedAt,
     bool MutatedTrustedLibrary);
+
+public sealed record DatasheetCandidateLinkDiagnostic(
+    string IntakeRecordId,
+    DatasheetCandidateLinkDiagnosticSeverity Severity,
+    string Message);
+
+public enum DatasheetCandidateLinkDiagnosticSeverity
+{
+    Warning,
+}
 
 public enum DatasheetCandidateLinkTargetType
 {
