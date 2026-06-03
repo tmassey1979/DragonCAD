@@ -116,6 +116,27 @@
                       Background="Transparent"
                       Foreground="{StaticResource DragonText}">
                     <MenuItem Header="_File">
+                        <MenuItem Header="New Project"
+                                  Command="{Binding NewProjectCommand}" />
+                        <MenuItem Header="Open Project Folder"
+                                  Command="{Binding OpenProjectFolderCommand}" />
+                        <MenuItem Header="Open Recent"
+                                  ItemsSource="{Binding RecentProjects}">
+                            <MenuItem.ItemTemplate>
+                                <DataTemplate DataType="pc:ProjectCenterRecentProject"
+                                              x:DataType="pc:ProjectCenterRecentProject">
+                                    <MenuItem Header="{Binding Name}"
+                                              Command="{Binding $parent[Window].DataContext.OpenRecentProjectCommand}"
+                                              CommandParameter="{Binding}" />
+                                </DataTemplate>
+                            </MenuItem.ItemTemplate>
+                        </MenuItem>
+                        <Separator />
+                        <MenuItem Header="Save"
+                                  Command="{Binding SaveProjectCommand}" />
+                        <MenuItem Header="Save As"
+                                  Command="{Binding SaveAsProjectCommand}" />
+                        <Separator />
                         <MenuItem Header="Load 7805 Sample"
                                   Command="{Binding Load7805SampleCommand}" />
                         <MenuItem Header="Load Arduino Uno Sample"

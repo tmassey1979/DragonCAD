@@ -2357,6 +2357,92 @@ public sealed class MainWindowViewModelTests
     }
 
     [Fact]
+    public void SaveAsProjectCommandPersistsShellStateAndReportsCleanPath()
+    {
+        using TempProjectDirectory temp = TempProjectDirectory.Create();
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 20);
+        viewModel.Load7805SampleCommand.Execute(null);
+
+        Assert.True(viewModel.IsProjectDirty);
+
+        viewModel.SaveAsProjectCommand.Execute(temp.Path);
+
+        Assert.False(viewModel.IsProjectDirty);
+        Assert.Equal(temp.Path, viewModel.CurrentProjectFolderPath);
+        Assert.True(File.Exists(Path.Combine(temp.Path, "dragoncad.project.json")));
+        Assert.Contains(temp.Path, viewModel.ProjectPersistenceStatus, StringComparison.Ordinal);
+        Assert.Contains("clean", viewModel.ProjectPersistenceStatus, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void SaveProjectCommandUsesCurrentPathAndResetsDirtyState()
+    {
+        using TempProjectDirectory temp = TempProjectDirectory.Create();
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 20);
+        viewModel.Load7805SampleCommand.Execute(null);
+        viewModel.SaveAsProjectCommand.Execute(temp.Path);
+
+        viewModel.LoadArduinoUnoSampleCommand.Execute(null);
+        Assert.True(viewModel.IsProjectDirty);
+
+        viewModel.SaveProjectCommand.Execute(null);
+
+        Assert.False(viewModel.IsProjectDirty);
+        Assert.Equal(temp.Path, viewModel.CurrentProjectFolderPath);
+        Assert.Contains(temp.Path, viewModel.ProjectPersistenceStatus, StringComparison.Ordinal);
+        Assert.Contains("clean", viewModel.ProjectPersistenceStatus, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void OpenProjectFolderCommandReplacesWorkspaceOnlyAfterSuccessfulLoad()
+    {
+        using TempProjectDirectory temp = TempProjectDirectory.Create();
+        MainWindowViewModel source = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 20);
+        source.Load7805SampleCommand.Execute(null);
+        source.SaveAsProjectCommand.Execute(temp.Path);
+
+        MainWindowViewModel target = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 20);
+        target.LoadArduinoUnoSampleCommand.Execute(null);
+        Assert.Equal(21, target.SchematicEditor.Components.Count);
+
+        target.OpenProjectFolderCommand.Execute(temp.Path);
+
+        Assert.Equal(3, target.SchematicEditor.Components.Count);
+        Assert.Equal(3, target.BoardEditor.Components.Count);
+        Assert.False(target.IsProjectDirty);
+        Assert.Equal(temp.Path, target.CurrentProjectFolderPath);
+        Assert.Contains("Opened project folder", target.ProjectPersistenceStatus, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OpenProjectFolderCommandReportsBlockedDiagnosticAndKeepsWorkspace()
+    {
+        using TempProjectDirectory temp = TempProjectDirectory.Create();
+        File.WriteAllText(Path.Combine(temp.Path, "dragoncad.project.json"), "{}");
+        MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
+            MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
+            maxBuiltInDevices: 20);
+        viewModel.LoadArduinoUnoSampleCommand.Execute(null);
+
+        viewModel.OpenProjectFolderCommand.Execute(temp.Path);
+
+        Assert.Equal(21, viewModel.SchematicEditor.Components.Count);
+        Assert.Equal(21, viewModel.BoardEditor.Components.Count);
+        Assert.True(viewModel.IsProjectDirty);
+        Assert.Empty(viewModel.CurrentProjectFolderPath);
+        Assert.Contains("ProjectFileMissing", viewModel.ProjectPersistenceStatus, StringComparison.Ordinal);
+        Assert.Contains("schematic/schematic.json", viewModel.ProjectPersistenceStatus, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void LoadArduinoUnoSampleCreatesSchematicAndRoutedBoard()
     {
         MainWindowViewModel viewModel = MainWindowViewModel.CreateFromHawkCadLibraryJson(
@@ -2419,6 +2505,30 @@ public sealed class MainWindowViewModelTests
 
     private static SchematicComponentInstance ComponentByName(MainWindowViewModel viewModel, string displayName) =>
         Assert.Single(viewModel.SchematicEditor.Components, component => component.DisplayName == displayName);
+
+    private sealed class TempProjectDirectory : IDisposable
+    {
+        public TempProjectDirectory()
+        {
+            Path = System.IO.Path.Combine(
+                System.IO.Path.GetTempPath(),
+                "DragonCAD.App.ShellProject.Tests",
+                Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(Path);
+        }
+
+        public string Path { get; }
+
+        public static TempProjectDirectory Create() => new();
+
+        public void Dispose()
+        {
+            if (Directory.Exists(Path))
+            {
+                Directory.Delete(Path, recursive: true);
+            }
+        }
+    }
 
     [Fact]
     public void FullHawkCadCoreLibraryAssetIsAvailableForShipping()

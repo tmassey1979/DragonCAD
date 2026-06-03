@@ -1,3 +1,4 @@
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
@@ -31,6 +32,7 @@ using DragonCAD.App.Marketplace.Sync.InUse;
 using DragonCAD.App.Marketplace.Sync.Results;
 using DragonCAD.App.Marketplace.TrustedLibrary;
 using DragonCAD.App.Placement;
+using DragonCAD.App.Projects;
 using DragonCAD.App.SchematicEditor;
 using DragonCAD.Core.Components.Catalog;
 using DragonCAD.Core.Components.Definitions;
@@ -39,6 +41,7 @@ using DragonCAD.Core.Components.Marketplace;
 using DragonCAD.Core.Components.Marketplace.Provenance;
 using DragonCAD.Core.Geometry;
 using DragonCAD.Core.Libraries;
+using DragonCAD.Core.Projects;
 using DragonCAD.Sourcing;
 using DragonCAD.Sourcing.Bom;
 using DragonCAD.Sourcing.Catalog;
@@ -59,9 +62,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     private const double DefaultFitViewportPaddingPixels = 40;
     private readonly BuiltInHawkCadLibraryService builtInLibraryService;
     private readonly HelpTopicRegistry helpTopicRegistry = HelpTopicRegistry.CreateDefault();
+    private readonly DragonProjectFolderStore projectFolderStore = new();
+    private readonly ProjectShellStateStore projectShellStateStore = new();
+    private readonly ProjectCenterViewModel projectCenter = new();
     private readonly string datasheetPromotionArtifactDirectory;
     private string librarySearchText = "";
     private string helpSearchText = "";
+    private string currentProjectFolderPath = "";
+    private string projectPersistenceStatus = "No project folder is open.";
+    private bool isProjectDirty;
+    private bool suppressProjectDirtyTracking;
     private HelpTopic selectedHelpTopic;
     private ComponentEditorWorkspace? activeComponentEditorWorkspace;
     private int newComponentDraftSequence;
@@ -134,6 +144,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         CancelPlacementCommand = new DelegateCommand(CancelPlacement);
         CancelActiveOperationCommand = new DelegateCommand(CancelActiveOperation);
         PlaceArmedComponentOnSchematicCommand = new DelegateCommand(PlaceArmedComponentOnSchematic);
+        NewProjectCommand = new DelegateCommand(NewProject);
+        OpenProjectFolderCommand = new DelegateCommand(OpenProjectFolder);
+        SaveProjectCommand = new DelegateCommand(SaveProject);
+        SaveAsProjectCommand = new DelegateCommand(SaveProjectAs);
+        OpenRecentProjectCommand = new DelegateCommand(OpenRecentProject);
         MoveSelectedLeftCommand = new DelegateCommand(() => MoveActiveEditorSelectionByGrid(new CadVector(-1, 0)));
         MoveSelectedRightCommand = new DelegateCommand(() => MoveActiveEditorSelectionByGrid(new CadVector(1, 0)));
         MoveSelectedUpCommand = new DelegateCommand(() => MoveActiveEditorSelectionByGrid(new CadVector(0, -1)));
@@ -212,6 +227,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         Marketplace.PropertyChanged += MarketplacePropertyChanged;
         SchematicEditor.PropertyChanged += SchematicEditorPropertyChanged;
         BoardEditor.PropertyChanged += BoardEditorPropertyChanged;
+        TrackProjectDirtyState();
         Fabrication.PropertyChanged += FabricationPropertyChanged;
         foreach (DatasheetLinkReviewRow row in DatasheetLinkReviewPlans)
         {
@@ -945,6 +961,16 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
     public DelegateCommand PlaceArmedComponentOnSchematicCommand { get; }
 
+    public DelegateCommand NewProjectCommand { get; }
+
+    public DelegateCommand OpenProjectFolderCommand { get; }
+
+    public DelegateCommand SaveProjectCommand { get; }
+
+    public DelegateCommand SaveAsProjectCommand { get; }
+
+    public DelegateCommand OpenRecentProjectCommand { get; }
+
     public DelegateCommand MoveSelectedLeftCommand { get; }
 
     public DelegateCommand MoveSelectedRightCommand { get; }
@@ -1095,6 +1121,59 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
     public AsyncDelegateCommand ForceInUseVendorCatalogSyncCommand { get; }
 
+    public IReadOnlyList<ProjectCenterRecentProject> RecentProjects => projectCenter.RecentProjects;
+
+    public string CurrentProjectFolderPath
+    {
+        get => currentProjectFolderPath;
+        private set
+        {
+            string nextValue = string.IsNullOrWhiteSpace(value)
+                ? ""
+                : ProjectCenterRecentProjectStore.NormalizePath(value);
+            if (currentProjectFolderPath == nextValue)
+            {
+                return;
+            }
+
+            currentProjectFolderPath = nextValue;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsProjectDirty
+    {
+        get => isProjectDirty;
+        private set
+        {
+            if (isProjectDirty == value)
+            {
+                return;
+            }
+
+            isProjectDirty = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ProjectDirtyStateText));
+        }
+    }
+
+    public string ProjectDirtyStateText => IsProjectDirty ? "dirty" : "clean";
+
+    public string ProjectPersistenceStatus
+    {
+        get => projectPersistenceStatus;
+        private set
+        {
+            if (projectPersistenceStatus == value)
+            {
+                return;
+            }
+
+            projectPersistenceStatus = value;
+            OnPropertyChanged();
+        }
+    }
+
     public FabricationHandoffActionPlan SelectedFabricationHandoffPlan =>
         CreateFabricationHandoffPlan(Fabrication.SelectedOption);
 
@@ -1239,6 +1318,342 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
                 break;
         }
     }
+
+    private void NewProject(object? parameter)
+    {
+        ApplyProjectShellState(new ProjectShellState([], [], [], [], [], [], []));
+        CurrentProjectFolderPath = parameter as string ?? "";
+        IsProjectDirty = false;
+        ProjectPersistenceStatus = string.IsNullOrWhiteSpace(CurrentProjectFolderPath)
+            ? "New project created. State: clean."
+            : $"New project created at {CurrentProjectFolderPath}. State: clean.";
+    }
+
+    private void SaveProject(object? parameter)
+    {
+        string projectRoot = parameter as string ?? CurrentProjectFolderPath;
+        if (string.IsNullOrWhiteSpace(projectRoot))
+        {
+            ProjectPersistenceStatus = "Save blocked: choose Save As before using Save.";
+            return;
+        }
+
+        SaveProjectTo(projectRoot);
+    }
+
+    private void SaveProjectAs(object? parameter)
+    {
+        if (parameter is not string projectRoot || string.IsNullOrWhiteSpace(projectRoot))
+        {
+            ProjectPersistenceStatus = "Save As blocked: choose a project folder.";
+            return;
+        }
+
+        SaveProjectTo(projectRoot);
+    }
+
+    private void OpenProjectFolder(object? parameter)
+    {
+        if (parameter is not string projectRoot || string.IsNullOrWhiteSpace(projectRoot))
+        {
+            ProjectPersistenceStatus = "Open project folder blocked: choose a project folder.";
+            return;
+        }
+
+        OpenProjectFolder(projectRoot);
+    }
+
+    private void OpenRecentProject(object? parameter)
+    {
+        string? projectRoot = parameter switch
+        {
+            ProjectCenterRecentProject recentProject => recentProject.Path,
+            string path => path,
+            _ => null
+        };
+
+        OpenProjectFolder(projectRoot);
+    }
+
+    private void OpenProjectFolder(string? projectRoot)
+    {
+        if (string.IsNullOrWhiteSpace(projectRoot))
+        {
+            ProjectPersistenceStatus = "Open recent blocked: choose a recent project.";
+            return;
+        }
+
+        string normalizedRoot = ProjectCenterRecentProjectStore.NormalizePath(projectRoot);
+        DragonProjectLoadResult loadResult = projectFolderStore.Load(normalizedRoot);
+        if (loadResult.Project is null || loadResult.Diagnostics.Count > 0)
+        {
+            DragonProjectDiagnostic diagnostic = loadResult.Diagnostics.FirstOrDefault()
+                ?? new DragonProjectDiagnostic(DragonProjectDiagnosticSeverity.Error, "ProjectLoadFailed", "Project folder could not be loaded.");
+            ProjectPersistenceStatus = $"Open project folder blocked for {normalizedRoot}: {diagnostic.Code}: {diagnostic.Message}";
+            return;
+        }
+
+        ProjectShellState state = projectShellStateStore.Load(normalizedRoot) ?? CreateShellState(loadResult.Project);
+        ApplyProjectShellState(state);
+        CurrentProjectFolderPath = normalizedRoot;
+        projectCenter.AddRecentProject(normalizedRoot);
+        OnPropertyChanged(nameof(RecentProjects));
+        IsProjectDirty = false;
+        ProjectPersistenceStatus = $"Opened project folder {normalizedRoot}. State: clean.";
+    }
+
+    private void SaveProjectTo(string projectRoot)
+    {
+        string normalizedRoot = ProjectCenterRecentProjectStore.NormalizePath(projectRoot);
+        projectFolderStore.Save(normalizedRoot, CreateDragonProject(normalizedRoot));
+        projectShellStateStore.Save(normalizedRoot, CreateShellState());
+        CurrentProjectFolderPath = normalizedRoot;
+        projectCenter.AddRecentProject(normalizedRoot);
+        OnPropertyChanged(nameof(RecentProjects));
+        IsProjectDirty = false;
+        ProjectPersistenceStatus = $"Saved project to {normalizedRoot}. State: clean.";
+    }
+
+    private DragonProject CreateDragonProject(string projectRoot)
+    {
+        string projectName = string.IsNullOrWhiteSpace(CurrentProjectFolderPath)
+            ? ProjectCenterRecentProjectStore.DisplayNameFor(projectRoot)
+            : ProjectCenterRecentProjectStore.DisplayNameFor(CurrentProjectFolderPath);
+
+        return new DragonProject(
+            new DragonProjectManifest(projectName, new Version(1, 0), "DragonCAD.App"),
+            new DragonSchematicDocument(
+                "schematic",
+                SchematicEditor.Components
+                    .Select(component => new DragonSchematicComponent(
+                        component.InstanceId,
+                        component.ReferenceDesignator,
+                        component.ComponentId))
+                    .ToArray(),
+                SchematicEditor.Nets
+                    .Select(net => new DragonSchematicNet(net.Name, net.PinNames))
+                    .ToArray()),
+            new DragonBoardDocument(
+                "board",
+                BoardEditor.Components
+                    .Select(component => new DragonBoardPlacement(
+                        component.SyncId,
+                        component.ReferenceDesignator,
+                        component.ComponentId,
+                        component.Position.X,
+                        component.Position.Y,
+                        component.RotationDegrees))
+                    .ToArray(),
+                BoardEditor.Traces
+                    .Select(trace => new DragonBoardTrace(
+                        TraceNetName(trace),
+                        trace.LayerName,
+                        trace.WidthInternal))
+                    .ToArray()),
+            new DragonLibraryReferences([new DragonLibraryReference("built-in", "DragonCAD.App/BuiltInLibraries", null)]),
+            new DragonDatasheetIntake([]),
+            new DragonFabricationMetadata([], []),
+            ProjectComponents: []);
+    }
+
+    private ProjectShellState CreateShellState() =>
+        new(
+            SchematicEditor.Components.Select(ToProjectShellComponent).ToArray(),
+            SchematicEditor.Wires.ToArray(),
+            SchematicEditor.Nets.ToArray(),
+            SchematicEditor.NetLabels.ToArray(),
+            BoardEditor.Components.Select(ToProjectShellComponent).ToArray(),
+            BoardEditor.Traces.ToArray(),
+            BoardEditor.Vias.ToArray());
+
+    private ProjectShellState CreateShellState(DragonProject project)
+    {
+        Dictionary<string, ComponentManagerRow> rowsById = ComponentManager.Components
+            .GroupBy(row => row.ComponentId, StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+
+        ProjectShellSchematicComponent[] schematicComponents = project.Schematic.Components
+            .Select((component, index) =>
+            {
+                rowsById.TryGetValue(component.ComponentId, out ComponentManagerRow? row);
+                return new ProjectShellSchematicComponent(
+                    component.IdentityId,
+                    component.Reference,
+                    component.ComponentId,
+                    row?.DisplayName ?? component.ComponentId,
+                    new CadPoint(index * 3_000_000, 0),
+                    row?.SymbolPreview ?? ComponentSymbolPreview.Empty,
+                    row?.FootprintPreview ?? ComponentFootprintPreview.Empty,
+                    "",
+                    0,
+                    false);
+            })
+            .ToArray();
+
+        Dictionary<string, ProjectShellSchematicComponent> schematicById = schematicComponents
+            .ToDictionary(component => component.InstanceId, StringComparer.Ordinal);
+        ProjectShellBoardComponent[] boardComponents = project.Board.Placements
+            .Select(placement =>
+            {
+                schematicById.TryGetValue(placement.SchematicComponentId, out ProjectShellSchematicComponent? schematicComponent);
+                return new ProjectShellBoardComponent(
+                    placement.SchematicComponentId,
+                    placement.Reference,
+                    schematicComponent?.ComponentId ?? placement.FootprintId,
+                    schematicComponent?.DisplayName ?? placement.FootprintId,
+                    new CadPoint((long)placement.X, (long)placement.Y),
+                    schematicComponent?.FootprintPreview ?? ComponentFootprintPreview.Empty,
+                    "",
+                    (int)placement.Rotation,
+                    false);
+            })
+            .ToArray();
+
+        return new ProjectShellState(
+            schematicComponents,
+            [],
+            project.Schematic.Nets
+                .Select(net => new SchematicNet(net.Name, net.Pins, []))
+                .ToArray(),
+            [],
+            boardComponents,
+            [],
+            []);
+    }
+
+    private void ApplyProjectShellState(ProjectShellState state)
+    {
+        suppressProjectDirtyTracking = true;
+        try
+        {
+            ActivePlacement = null;
+            ActiveWorkspaceTab = "Schematic";
+            SchematicEditor.Clear();
+            BoardEditor.Clear();
+
+            foreach (ProjectShellSchematicComponent component in state.SchematicComponents)
+            {
+                SchematicEditor.Components.Add(ToSchematicComponentInstance(component));
+            }
+
+            foreach (SchematicWire wire in state.SchematicWires)
+            {
+                SchematicEditor.Wires.Add(wire);
+            }
+
+            foreach (SchematicNet net in state.SchematicNets)
+            {
+                SchematicEditor.Nets.Add(net);
+            }
+
+            foreach (SchematicNetLabel netLabel in state.SchematicNetLabels)
+            {
+                SchematicEditor.NetLabels.Add(netLabel);
+            }
+
+            foreach (ProjectShellBoardComponent component in state.BoardComponents)
+            {
+                BoardEditor.Components.Add(ToBoardComponentInstance(component));
+            }
+
+            foreach (BoardTrace trace in state.BoardTraces)
+            {
+                BoardEditor.Traces.Add(trace);
+            }
+
+            foreach (BoardVia via in state.BoardVias)
+            {
+                BoardEditor.Vias.Add(via);
+            }
+        }
+        finally
+        {
+            suppressProjectDirtyTracking = false;
+        }
+
+        OnProjectGraphChanged();
+        OnPropertyChanged(nameof(InUseVendorCatalogSyncQueue));
+        OnPropertyChanged(nameof(InUseVendorCatalogSyncSummary));
+        OnPropertyChanged(nameof(InUseVendorCatalogSyncActionSummary));
+    }
+
+    private void TrackProjectDirtyState()
+    {
+        NotifyCollectionChangedEventHandler markDirty = (_, _) => MarkProjectDirty();
+        SchematicEditor.Components.CollectionChanged += markDirty;
+        SchematicEditor.Wires.CollectionChanged += markDirty;
+        SchematicEditor.Nets.CollectionChanged += markDirty;
+        SchematicEditor.NetLabels.CollectionChanged += markDirty;
+        BoardEditor.Components.CollectionChanged += markDirty;
+        BoardEditor.Traces.CollectionChanged += markDirty;
+        BoardEditor.Vias.CollectionChanged += markDirty;
+        BoardEditor.Airwires.CollectionChanged += markDirty;
+    }
+
+    private void MarkProjectDirty()
+    {
+        if (suppressProjectDirtyTracking)
+        {
+            return;
+        }
+
+        IsProjectDirty = true;
+    }
+
+    private static string TraceNetName(BoardTrace trace) =>
+        !string.IsNullOrWhiteSpace(trace.StartPadReferenceDesignator) && !string.IsNullOrWhiteSpace(trace.StartPadName)
+            ? $"{trace.StartPadReferenceDesignator}.{trace.StartPadName}"
+            : "";
+
+    private static ProjectShellSchematicComponent ToProjectShellComponent(SchematicComponentInstance component) =>
+        new(
+            component.InstanceId,
+            component.ReferenceDesignator,
+            component.ComponentId,
+            component.DisplayName,
+            component.Position,
+            component.SymbolPreview,
+            component.FootprintPreview,
+            component.Value,
+            component.RotationDegrees,
+            component.IsMirrored);
+
+    private static ProjectShellBoardComponent ToProjectShellComponent(BoardComponentInstance component) =>
+        new(
+            component.SyncId,
+            component.ReferenceDesignator,
+            component.ComponentId,
+            component.DisplayName,
+            component.Position,
+            component.FootprintPreview,
+            component.Value,
+            component.RotationDegrees,
+            component.IsMirrored);
+
+    private static SchematicComponentInstance ToSchematicComponentInstance(ProjectShellSchematicComponent component) =>
+        new(
+            component.InstanceId,
+            component.ReferenceDesignator,
+            component.ComponentId,
+            component.DisplayName,
+            component.Position,
+            component.SymbolPreview,
+            component.FootprintPreview,
+            component.Value,
+            component.RotationDegrees,
+            component.IsMirrored);
+
+    private static BoardComponentInstance ToBoardComponentInstance(ProjectShellBoardComponent component) =>
+        new(
+            component.SyncId,
+            component.ReferenceDesignator,
+            component.ComponentId,
+            component.DisplayName,
+            component.Position,
+            component.FootprintPreview,
+            component.Value,
+            component.RotationDegrees,
+            component.IsMirrored);
 
     public bool IsSelectToolActive => ActiveSchematicTool == "Select";
 
