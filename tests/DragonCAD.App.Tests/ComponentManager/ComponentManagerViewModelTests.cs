@@ -215,6 +215,156 @@ public sealed class ComponentManagerViewModelTests
     }
 
     [Fact]
+    public void FiltersComposeAcrossValuePackageVendorLifecycleVerifiedStatusAndSource()
+    {
+        ComponentDefinition productionResistor = Component(
+            "dragon:resistor-0603",
+            "Resistor 0603",
+            ComponentKind.Passive,
+            "Yageo",
+            "RC0603FR-0710KL",
+            symbolCount: 1,
+            footprintCount: 1,
+            hasSourcing: true,
+            attributes:
+            [
+                new ComponentAttribute("Value", "10 kOhm"),
+                new ComponentAttribute("Lifecycle", "Production"),
+                new ComponentAttribute("Package", "0603")
+            ],
+            provenance: [new ComponentProvenanceRecord(ComponentProvenanceKind.Native, "DragonCAD", "Curated native part")]);
+        ComponentDefinition obsoleteResistor = Component(
+            "dragon:resistor-0805",
+            "Resistor 0805",
+            ComponentKind.Passive,
+            "Yageo",
+            "RC0805JR-070RL",
+            symbolCount: 1,
+            footprintCount: 1,
+            hasSourcing: false,
+            attributes:
+            [
+                new ComponentAttribute("Value", "0 Ohm"),
+                new ComponentAttribute("Lifecycle", "Obsolete"),
+                new ComponentAttribute("Package", "0805")
+            ],
+            provenance: [new ComponentProvenanceRecord(ComponentProvenanceKind.EagleImport, "Eagle", "Imported library part")]);
+        ComponentCatalog catalog = new(
+            BuiltInDefinitions: [productionResistor],
+            UserDefinitions: [obsoleteResistor],
+            ProjectDefinitions: []);
+        ComponentManagerViewModel viewModel = ComponentManagerViewModel.FromCatalog(catalog);
+
+        viewModel.SelectedTypeFilter = "Passive";
+        viewModel.ValueFilter = "10 k";
+        viewModel.PackageFilter = "0603";
+        viewModel.SelectedVendorAvailabilityFilter = "Vendor offers";
+        viewModel.SelectedLifecycleFilter = "Production";
+        viewModel.SelectedVerifiedStatusFilter = "Verified";
+        viewModel.SelectedSourceFilter = "BuiltIn";
+
+        ComponentManagerRow row = Assert.Single(viewModel.Components);
+        Assert.Equal("Resistor 0603", row.DisplayName);
+        Assert.Equal("10 kOhm", row.Value);
+        Assert.Equal("Production", row.Lifecycle);
+        Assert.True(row.HasVendorOffers);
+        Assert.True(row.IsVerified);
+    }
+
+    [Fact]
+    public void ResultCollectionsSeparateVerifiedPlaceableCatalogOnlyAndDraftComponents()
+    {
+        ComponentCatalog catalog = new(
+            BuiltInDefinitions:
+            [
+                Component(
+                    "dragon:verified-opamp",
+                    "Verified Op Amp",
+                    ComponentKind.IntegratedCircuit,
+                    "Dragon",
+                    "DOP-1",
+                    symbolCount: 1,
+                    footprintCount: 1,
+                    provenance: [new ComponentProvenanceRecord(ComponentProvenanceKind.Native, "DragonCAD", "Curated native part")]),
+                Component(
+                    "dragon:catalog-only-regulator",
+                    "Catalog Only Regulator",
+                    ComponentKind.IntegratedCircuit,
+                    "Texas Instruments",
+                    "LM7805CT",
+                    symbolCount: 0,
+                    footprintCount: 0,
+                    hasDatasheet: true,
+                    hasSourcing: true)
+            ],
+            UserDefinitions: [],
+            ProjectDefinitions:
+            [
+                Component(
+                    "dragon:generated-draft",
+                    "Generated Draft",
+                    ComponentKind.IntegratedCircuit,
+                    "AI",
+                    "DRAFT-1",
+                    symbolCount: 1,
+                    footprintCount: 1,
+                    provenance: [new ComponentProvenanceRecord(ComponentProvenanceKind.DatasheetGenerated, "AI", "Pending review")])
+            ]);
+
+        ComponentManagerViewModel viewModel = ComponentManagerViewModel.FromCatalog(catalog);
+
+        Assert.Equal(["Verified Op Amp"], viewModel.VerifiedPlaceableComponents.Select(row => row.DisplayName));
+        Assert.Equal(["Catalog Only Regulator"], viewModel.CatalogOnlyComponents.Select(row => row.DisplayName));
+        Assert.Equal(["Generated Draft"], viewModel.DraftComponents.Select(row => row.DisplayName));
+    }
+
+    [Fact]
+    public void RowsExposeDatasheetVendorOffersWarningsAndPlacementReviewGate()
+    {
+        ComponentCatalog catalog = new(
+            BuiltInDefinitions:
+            [
+                Component(
+                    "dragon:verified-regulator",
+                    "Verified Regulator",
+                    ComponentKind.IntegratedCircuit,
+                    "Texas Instruments",
+                    "LM7805CT",
+                    symbolCount: 1,
+                    footprintCount: 1,
+                    hasDatasheet: true,
+                    hasSourcing: true,
+                    provenance: [new ComponentProvenanceRecord(ComponentProvenanceKind.Native, "DragonCAD", "Curated native part")]),
+                Component(
+                    "dragon:generated-draft",
+                    "Generated Draft",
+                    ComponentKind.IntegratedCircuit,
+                    "AI",
+                    "DRAFT-1",
+                    symbolCount: 1,
+                    footprintCount: 1,
+                    provenance: [new ComponentProvenanceRecord(ComponentProvenanceKind.DatasheetGenerated, "AI", "Pending review")])
+            ],
+            UserDefinitions: [],
+            ProjectDefinitions: []);
+        ComponentManagerViewModel viewModel = ComponentManagerViewModel.FromCatalog(catalog);
+
+        ComponentManagerRow verified = viewModel.Components.Single(row => row.DisplayName == "Verified Regulator");
+        Assert.Equal("https://example.test/datasheet.pdf", verified.DatasheetLink);
+        ComponentVendorOffer offer = Assert.Single(verified.VendorOffers);
+        Assert.Equal("Digi-Key", offer.Vendor);
+        Assert.Equal("123", offer.DistributorPartNumber);
+        Assert.True(verified.CanPlaceWithoutReview);
+        Assert.False(verified.RequiresReviewBeforePlacement);
+        Assert.Empty(verified.Warnings);
+
+        ComponentManagerRow draft = viewModel.Components.Single(row => row.DisplayName == "Generated Draft");
+        Assert.False(draft.CanPlaceWithoutReview);
+        Assert.True(draft.RequiresReviewBeforePlacement);
+        Assert.Contains(draft.Warnings, warning => warning.Contains("review", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void SelectedComponentStaysVisibleWhenFilterStillContainsIt()
     {
         ComponentCatalog catalog = new(
@@ -552,7 +702,9 @@ public sealed class ComponentManagerViewModelTests
         bool hasDatasheet = false,
         bool hasSourcing = false,
         bool hasModel3d = false,
-        bool includePreviewGeometry = false)
+        bool includePreviewGeometry = false,
+        IReadOnlyList<ComponentAttribute>? attributes = null,
+        IReadOnlyList<ComponentProvenanceRecord>? provenance = null)
     {
         ComponentFootprintId footprintId = new($"{id}:footprint");
         ComponentVariantId variantId = new($"{id}:default");
@@ -565,7 +717,7 @@ public sealed class ComponentManagerViewModelTests
             manufacturer,
             manufacturerPartNumber,
             Description: "",
-            Attributes: [],
+            Attributes: attributes ?? [],
             Pins: includePreviewGeometry ? [new ComponentPin(previewPinId, "P1", "1", ComponentPinElectricalType.Input)] : [],
             Gates: [],
             Symbols: Enumerable.Range(0, symbolCount)
@@ -605,7 +757,7 @@ public sealed class ComponentManagerViewModelTests
             PackageModels3D: hasModel3d
                 ? [new ComponentPackageModel3D("model", ComponentPackageModel3DFormat.Step, "models/part.step", variantId)]
                 : [],
-            Provenance: []);
+            Provenance: provenance ?? []);
     }
 
     private static ComponentFootprint Footprint(ComponentFootprintId footprintId, string name, int padCount) =>

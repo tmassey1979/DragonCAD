@@ -12,7 +12,13 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
     private IReadOnlyList<ComponentManagerRow> allComponents;
     private IReadOnlyList<ComponentTypeFilterOption> typeFilterOptions;
     private string searchText = "";
+    private string valueFilter = "";
+    private string packageFilter = "";
     private string selectedTypeFilterKind = "";
+    private string selectedVendorAvailabilityFilter = "";
+    private string selectedLifecycleFilter = "";
+    private string selectedVerifiedStatusFilter = "";
+    private string selectedSourceFilter = "";
     private ComponentManagerRow? selectedComponent;
 
     private ComponentManagerViewModel(IReadOnlyList<ComponentManagerRow> components)
@@ -20,6 +26,10 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
         allComponents = components;
         typeFilterOptions = BuildTypeFilterOptions(components);
         Components = new ObservableCollection<ComponentManagerRow>(components);
+        VerifiedPlaceableComponents = new ObservableCollection<ComponentManagerRow>();
+        CatalogOnlyComponents = new ObservableCollection<ComponentManagerRow>();
+        DraftComponents = new ObservableCollection<ComponentManagerRow>();
+        UpdateResultGroups(components);
         selectedComponent = Components.FirstOrDefault();
     }
 
@@ -27,9 +37,29 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
 
     public ObservableCollection<ComponentManagerRow> Components { get; }
 
+    public ObservableCollection<ComponentManagerRow> VerifiedPlaceableComponents { get; }
+
+    public ObservableCollection<ComponentManagerRow> CatalogOnlyComponents { get; }
+
+    public ObservableCollection<ComponentManagerRow> DraftComponents { get; }
+
     public IReadOnlyList<string> TypeFilterOptions => typeFilterOptions
         .Select(option => option.Label)
         .ToArray();
+
+    public IReadOnlyList<string> VendorAvailabilityFilterOptions { get; } =
+        ["All availability", "Vendor offers", "No vendor offers"];
+
+    public IReadOnlyList<string> LifecycleFilterOptions => BuildDistinctFilterOptions(
+        "All lifecycle states",
+        allComponents.Select(row => row.Lifecycle));
+
+    public IReadOnlyList<string> VerifiedStatusFilterOptions { get; } =
+        ["All verification states", "Verified", "Needs review"];
+
+    public IReadOnlyList<string> SourceFilterOptions => BuildDistinctFilterOptions(
+        "All sources",
+        allComponents.Select(row => row.Source));
 
     public string SearchText
     {
@@ -47,6 +77,18 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
         }
     }
 
+    public string ValueFilter
+    {
+        get => valueFilter;
+        set => SetTextFilter(ref valueFilter, value);
+    }
+
+    public string PackageFilter
+    {
+        get => packageFilter;
+        set => SetTextFilter(ref packageFilter, value);
+    }
+
     public string SelectedTypeFilter
     {
         get => LabelForTypeFilterKind(selectedTypeFilterKind);
@@ -62,6 +104,30 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
             ApplyFilter();
             OnPropertyChanged();
         }
+    }
+
+    public string SelectedVendorAvailabilityFilter
+    {
+        get => string.IsNullOrWhiteSpace(selectedVendorAvailabilityFilter) ? "All availability" : selectedVendorAvailabilityFilter;
+        set => SetOptionFilter(ref selectedVendorAvailabilityFilter, NormalizeOption(value, "All availability"));
+    }
+
+    public string SelectedLifecycleFilter
+    {
+        get => string.IsNullOrWhiteSpace(selectedLifecycleFilter) ? "All lifecycle states" : selectedLifecycleFilter;
+        set => SetOptionFilter(ref selectedLifecycleFilter, NormalizeOption(value, "All lifecycle states"));
+    }
+
+    public string SelectedVerifiedStatusFilter
+    {
+        get => string.IsNullOrWhiteSpace(selectedVerifiedStatusFilter) ? "All verification states" : selectedVerifiedStatusFilter;
+        set => SetOptionFilter(ref selectedVerifiedStatusFilter, NormalizeOption(value, "All verification states"));
+    }
+
+    public string SelectedSourceFilter
+    {
+        get => string.IsNullOrWhiteSpace(selectedSourceFilter) ? "All sources" : selectedSourceFilter;
+        set => SetOptionFilter(ref selectedSourceFilter, NormalizeOption(value, "All sources"));
     }
 
     public ComponentManagerRow? SelectedComponent
@@ -108,6 +174,8 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
         }
 
         OnPropertyChanged(nameof(TypeFilterOptions));
+        OnPropertyChanged(nameof(LifecycleFilterOptions));
+        OnPropertyChanged(nameof(SourceFilterOptions));
         ApplyFilter();
     }
 
@@ -129,10 +197,50 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
     {
         ComponentManagerRow? previousSelection = selectedComponent;
         string filter = searchText.Trim();
+        string value = valueFilter.Trim();
+        string package = packageFilter.Trim();
         IEnumerable<ComponentManagerRow> rows = allComponents;
         if (selectedTypeFilterKind.Length > 0)
         {
             rows = rows.Where(row => row.Kind == selectedTypeFilterKind);
+        }
+
+        if (value.Length > 0)
+        {
+            rows = rows.Where(row => Contains(row.Value, value));
+        }
+
+        if (package.Length > 0)
+        {
+            rows = rows.Where(row => row.PackageOptions.Any(option => option.Matches(package)) || Contains(row.ActivePackageLabel, package));
+        }
+
+        if (selectedVendorAvailabilityFilter == "Vendor offers")
+        {
+            rows = rows.Where(row => row.HasVendorOffers);
+        }
+        else if (selectedVendorAvailabilityFilter == "No vendor offers")
+        {
+            rows = rows.Where(row => !row.HasVendorOffers);
+        }
+
+        if (selectedLifecycleFilter.Length > 0 && selectedLifecycleFilter != "All lifecycle states")
+        {
+            rows = rows.Where(row => string.Equals(row.Lifecycle, selectedLifecycleFilter, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (selectedVerifiedStatusFilter == "Verified")
+        {
+            rows = rows.Where(row => row.IsVerified);
+        }
+        else if (selectedVerifiedStatusFilter == "Needs review")
+        {
+            rows = rows.Where(row => !row.IsVerified);
+        }
+
+        if (selectedSourceFilter.Length > 0 && selectedSourceFilter != "All sources")
+        {
+            rows = rows.Where(row => string.Equals(row.Source, selectedSourceFilter, StringComparison.OrdinalIgnoreCase));
         }
 
         if (filter.Length > 0)
@@ -140,15 +248,60 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
             rows = rows.Where(row => row.Matches(filter));
         }
 
+        ComponentManagerRow[] filteredRows = rows.ToArray();
         Components.Clear();
-        foreach (ComponentManagerRow row in rows)
+        foreach (ComponentManagerRow row in filteredRows)
         {
             Components.Add(row);
         }
 
+        UpdateResultGroups(filteredRows);
+
         SelectedComponent = previousSelection is not null && Components.Contains(previousSelection)
             ? previousSelection
             : Components.FirstOrDefault();
+    }
+
+    private void SetTextFilter(ref string field, string value)
+    {
+        value ??= "";
+        if (field == value)
+        {
+            return;
+        }
+
+        field = value;
+        ApplyFilter();
+        OnPropertyChanged();
+    }
+
+    private void SetOptionFilter(ref string field, string value)
+    {
+        if (field == value)
+        {
+            return;
+        }
+
+        field = value;
+        ApplyFilter();
+        OnPropertyChanged();
+    }
+
+    private void UpdateResultGroups(IEnumerable<ComponentManagerRow> rows)
+    {
+        ComponentManagerRow[] rowArray = rows.ToArray();
+        ReplaceRows(VerifiedPlaceableComponents, rowArray.Where(row => row.PlacementState == ComponentPlacementState.VerifiedPlaceable));
+        ReplaceRows(CatalogOnlyComponents, rowArray.Where(row => row.PlacementState == ComponentPlacementState.CatalogOnly));
+        ReplaceRows(DraftComponents, rowArray.Where(row => row.PlacementState == ComponentPlacementState.Draft));
+    }
+
+    private static void ReplaceRows(ObservableCollection<ComponentManagerRow> target, IEnumerable<ComponentManagerRow> rows)
+    {
+        target.Clear();
+        foreach (ComponentManagerRow row in rows)
+        {
+            target.Add(row);
+        }
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
@@ -193,6 +346,22 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
             _ => $"{kind}s"
         };
 
+    private static IReadOnlyList<string> BuildDistinctFilterOptions(string allLabel, IEnumerable<string> values) =>
+        new[] { allLabel }
+            .Concat(values
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(value => value, StringComparer.OrdinalIgnoreCase))
+            .ToArray();
+
+    private static string NormalizeOption(string value, string allLabel) =>
+        string.IsNullOrWhiteSpace(value) || string.Equals(value, allLabel, StringComparison.OrdinalIgnoreCase)
+            ? ""
+            : value.Trim();
+
+    private static bool Contains(string value, string searchText) =>
+        value.Contains(searchText, StringComparison.OrdinalIgnoreCase);
+
     private static void ReplaceRow(IReadOnlyList<ComponentManagerRow> rows, ComponentManagerRow oldRow, ComponentManagerRow newRow)
     {
         if (rows is ComponentManagerRow[] rowArray)
@@ -234,12 +403,40 @@ public sealed record ComponentManagerRow(
     ComponentPackageOption? SelectedPackageOption,
     IReadOnlyList<ComponentPackageOption> PackageOptions,
     ComponentSymbolPreview SymbolPreview,
-    ComponentFootprintPreview FootprintPreview)
+    ComponentFootprintPreview FootprintPreview,
+    string Value = "",
+    string Lifecycle = "Unknown",
+    string DatasheetLink = "",
+    IReadOnlyList<ComponentVendorOffer>? VendorOffersInput = null,
+    IReadOnlyList<string>? WarningsInput = null,
+    bool IsVerified = false,
+    ComponentPlacementState PlacementState = ComponentPlacementState.CatalogOnly)
 {
+    public IReadOnlyList<ComponentVendorOffer> VendorOffers { get; init; } = VendorOffersInput ?? [];
+
+    public IReadOnlyList<string> Warnings { get; init; } = WarningsInput ?? [];
+
+    public bool HasVendorOffers => VendorOffers.Count > 0;
+
+    public bool CanPlaceWithoutReview => PlacementState == ComponentPlacementState.VerifiedPlaceable;
+
+    public bool RequiresReviewBeforePlacement => !CanPlaceWithoutReview;
+
     public static ComponentManagerRow FromCatalogEntry(ComponentCatalogEntry entry)
     {
         ComponentDefinition definition = entry.Definition;
         ComponentPackageOption[] packageOptions = ComponentPackageOption.FromDefinition(definition);
+        string value = AttributeValue(definition, "Value");
+        string lifecycle = AttributeValue(definition, "Lifecycle");
+        ComponentPlacementState placementState = ResolvePlacementState(entry.Source, definition);
+        bool isVerified = placementState == ComponentPlacementState.VerifiedPlaceable;
+        ComponentVendorOffer[] vendorOffers = definition.Sourcing
+            .Select(source => new ComponentVendorOffer(
+                source.Distributor,
+                source.DistributorPartNumber,
+                source.Manufacturer,
+                source.ManufacturerPartNumber))
+            .ToArray();
         return new ComponentManagerRow(
             definition.Id.Value,
             definition.DisplayName,
@@ -259,7 +456,14 @@ public sealed record ComponentManagerRow(
             packageOptions.FirstOrDefault(),
             packageOptions,
             ComponentSymbolPreview.FromDefinition(definition),
-            ComponentFootprintPreview.FromDefinition(definition));
+            ComponentFootprintPreview.FromDefinition(definition),
+            value,
+            string.IsNullOrWhiteSpace(lifecycle) ? "Unknown" : lifecycle,
+            definition.Datasheets.FirstOrDefault()?.Location ?? "",
+            vendorOffers,
+            BuildWarnings(definition, placementState).ToArray(),
+            isVerified,
+            placementState);
     }
 
     public bool Matches(string searchText) =>
@@ -268,8 +472,12 @@ public sealed record ComponentManagerRow(
         Contains(Manufacturer, searchText) ||
         Contains(ManufacturerPartNumber, searchText) ||
         Contains(Kind, searchText) ||
+        Contains(Value, searchText) ||
+        Contains(Lifecycle, searchText) ||
+        Contains(Source, searchText) ||
         Contains(ActivePackageLabel, searchText) ||
-        PackageOptions.Any(option => option.Matches(searchText));
+        PackageOptions.Any(option => option.Matches(searchText)) ||
+        VendorOffers.Any(offer => offer.Matches(searchText));
 
     private static string BuildCapabilitySummary(ComponentDefinition definition)
     {
@@ -322,12 +530,82 @@ public sealed record ComponentManagerRow(
         };
     }
 
+    private static string AttributeValue(ComponentDefinition definition, string name) =>
+        definition.Attributes.FirstOrDefault(attribute => string.Equals(attribute.Name, name, StringComparison.OrdinalIgnoreCase))?.Value ?? "";
+
+    private static ComponentPlacementState ResolvePlacementState(ComponentCatalogSource source, ComponentDefinition definition)
+    {
+        bool hasPlacementGeometry = definition.Symbols.Count > 0 && definition.Footprints.Count > 0;
+        if (definition.Provenance.Any(record => record.Kind == ComponentProvenanceKind.DatasheetGenerated))
+        {
+            return ComponentPlacementState.Draft;
+        }
+
+        if (!hasPlacementGeometry)
+        {
+            return ComponentPlacementState.CatalogOnly;
+        }
+
+        if (source == ComponentCatalogSource.BuiltIn ||
+            definition.Provenance.Any(record => record.Kind is ComponentProvenanceKind.Native or ComponentProvenanceKind.Manual))
+        {
+            return ComponentPlacementState.VerifiedPlaceable;
+        }
+
+        return ComponentPlacementState.Draft;
+    }
+
+    private static IEnumerable<string> BuildWarnings(ComponentDefinition definition, ComponentPlacementState placementState)
+    {
+        if (placementState == ComponentPlacementState.Draft)
+        {
+            yield return "Review required before placement.";
+        }
+        else if (placementState == ComponentPlacementState.CatalogOnly)
+        {
+            yield return "Catalog-only component is missing verified placement geometry.";
+        }
+
+        if (definition.Datasheets.Count == 0)
+        {
+            yield return "Datasheet link missing.";
+        }
+
+        if (definition.Sourcing.Count == 0)
+        {
+            yield return "Vendor offers unavailable.";
+        }
+    }
+
     private static bool PackageOptionMatches(ComponentPackageOption option, ComponentPackageOption selectedOption) =>
         string.Equals(option.VariantId, selectedOption.VariantId, StringComparison.Ordinal) &&
         string.Equals(option.FootprintId, selectedOption.FootprintId, StringComparison.Ordinal);
 }
 
 public sealed record ComponentTypeFilterOption(string Kind, string Label);
+
+public enum ComponentPlacementState
+{
+    VerifiedPlaceable,
+    CatalogOnly,
+    Draft
+}
+
+public sealed record ComponentVendorOffer(
+    string Vendor,
+    string DistributorPartNumber,
+    string Manufacturer,
+    string ManufacturerPartNumber)
+{
+    public bool Matches(string searchText) =>
+        Contains(Vendor, searchText) ||
+        Contains(DistributorPartNumber, searchText) ||
+        Contains(Manufacturer, searchText) ||
+        Contains(ManufacturerPartNumber, searchText);
+
+    private static bool Contains(string value, string searchText) =>
+        value.Contains(searchText, StringComparison.OrdinalIgnoreCase);
+}
 
 public sealed record ComponentPackageSummary(
     string FootprintId,
