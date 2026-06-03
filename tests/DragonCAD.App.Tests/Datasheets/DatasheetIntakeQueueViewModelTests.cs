@@ -87,6 +87,80 @@ public sealed class DatasheetIntakeQueueViewModelTests
     }
 
     [Fact]
+    public void SubmitRejectsInvalidDatasheetUrlsWithUrlDiagnostic()
+    {
+        DatasheetIntakeQueueViewModel queue = new(new FixedDatasheetIntakeClock(DateTimeOffset.UnixEpoch));
+
+        DatasheetIntakeSubmissionResult invalidUrl = queue.Submit(new DatasheetIntakeRequest(
+            "ftp://vendor.example.test/lm1117.pdf",
+            "Alex",
+            "LM1117",
+            "",
+            "SOT-223",
+            ""));
+
+        Assert.False(invalidUrl.Accepted);
+        DatasheetIntakeDiagnostic diagnostic = Assert.Single(invalidUrl.Diagnostics);
+        Assert.Equal("invalid-datasheet-url", diagnostic.Code);
+        Assert.Empty(queue.Items);
+    }
+
+    [Fact]
+    public void SnapshotJsonSerializesIntakeQueueDeterministicallyWithoutCandidateOrTrustedLibraryState()
+    {
+        using TemporaryIntakeDirectory directory = TemporaryIntakeDirectory.Create();
+        string pdfPath = directory.WriteFile("lm7805.pdf", "%PDF-1.7");
+        var clock = new FixedDatasheetIntakeClock(new DateTimeOffset(2026, 6, 1, 8, 30, 0, TimeSpan.Zero));
+        DatasheetIntakeQueueViewModel queue = new(clock);
+        queue.Submit(new DatasheetIntakeRequest(
+            "https://www.ti.com/lit/ds/symlink/ne555.pdf",
+            "Alex",
+            "NE555P",
+            "",
+            "DIP-8",
+            "Vendor URL"));
+        queue.Submit(new DatasheetIntakeRequest(
+            pdfPath,
+            "Alex",
+            "LM7805CT",
+            "296-1415-5-ND",
+            "TO-220-3",
+            "Local archive"));
+
+        string snapshot = queue.SnapshotJson();
+
+        Assert.Equal(
+            """
+            [
+              {
+                "sourceType": "url",
+                "sourceIdentifier": "https://www.ti.com/lit/ds/symlink/ne555.pdf",
+                "submittedAt": "2026-06-01T08:30:00+00:00",
+                "manufacturerPartNumber": "NE555P",
+                "vendorProductId": "",
+                "packageName": "DIP-8",
+                "sourceNotes": "Vendor URL",
+                "reviewState": "reviewRequired"
+              },
+              {
+                "sourceType": "localPdf",
+                "sourceIdentifier": "__PDF_PATH__",
+                "submittedAt": "2026-06-01T08:30:00+00:00",
+                "manufacturerPartNumber": "LM7805CT",
+                "vendorProductId": "296-1415-5-ND",
+                "packageName": "TO-220-3",
+                "sourceNotes": "Local archive",
+                "reviewState": "reviewRequired"
+              }
+            ]
+            """.Replace("__PDF_PATH__", pdfPath.Replace("\\", "\\\\", StringComparison.Ordinal), StringComparison.Ordinal),
+            snapshot,
+            ignoreLineEndingDifferences: true);
+        Assert.DoesNotContain("generated", snapshot, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("trusted", snapshot, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void FilterAndSelectionUseIntakeReviewStateWithoutMutatingTrustedLibrary()
     {
         string pdfPath = Path.Combine(Path.GetTempPath(), $"lm7805-{Guid.NewGuid():N}.pdf");
@@ -105,5 +179,34 @@ public sealed class DatasheetIntakeQueueViewModelTests
     private sealed class FixedDatasheetIntakeClock(DateTimeOffset utcNow) : IDatasheetIntakeClock
     {
         public DateTimeOffset UtcNow { get; } = utcNow;
+    }
+
+    private sealed class TemporaryIntakeDirectory : IDisposable
+    {
+        private TemporaryIntakeDirectory(string path)
+        {
+            Path = path;
+        }
+
+        private string Path { get; }
+
+        public static TemporaryIntakeDirectory Create() =>
+            new(System.IO.Path.Combine(System.IO.Path.GetTempPath(), "dragoncad-app-intake-" + Guid.NewGuid().ToString("N")));
+
+        public string WriteFile(string fileName, string contents)
+        {
+            Directory.CreateDirectory(Path);
+            string filePath = System.IO.Path.Combine(Path, fileName);
+            File.WriteAllText(filePath, contents);
+            return filePath;
+        }
+
+        public void Dispose()
+        {
+            if (Directory.Exists(Path))
+            {
+                Directory.Delete(Path, recursive: true);
+            }
+        }
     }
 }

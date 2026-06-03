@@ -1,11 +1,15 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace DragonCAD.App.Datasheets;
 
 public sealed class DatasheetIntakeQueueViewModel : INotifyPropertyChanged
 {
+    private static readonly JsonSerializerOptions SnapshotJsonOptions = CreateSnapshotJsonOptions();
+
     private static readonly IReadOnlyList<string> ReviewStateFilterLabels =
     [
         "All",
@@ -99,6 +103,21 @@ public sealed class DatasheetIntakeQueueViewModel : INotifyPropertyChanged
         return new DatasheetIntakeSubmissionResult(true, []);
     }
 
+    public string SnapshotJson()
+    {
+        var snapshotItems = allItems.Select(item => new DatasheetIntakeSnapshotItem(
+            item.SourceType,
+            item.SourceIdentifier,
+            item.SubmittedAt,
+            item.ManufacturerPartNumber,
+            item.VendorProductId,
+            item.PackageName,
+            item.SourceNotes,
+            item.ReviewState));
+
+        return JsonSerializer.Serialize(snapshotItems, SnapshotJsonOptions);
+    }
+
     private List<DatasheetIntakeDiagnostic> Validate(DatasheetIntakeRequest request)
     {
         List<DatasheetIntakeDiagnostic> diagnostics = [];
@@ -111,6 +130,12 @@ public sealed class DatasheetIntakeQueueViewModel : INotifyPropertyChanged
         }
 
         DatasheetIntakeSourceType sourceType = ResolveSourceType(sourceIdentifier);
+        if (sourceType == DatasheetIntakeSourceType.Unsupported && LooksLikeUrl(sourceIdentifier))
+        {
+            diagnostics.Add(new DatasheetIntakeDiagnostic("invalid-datasheet-url", "Datasheet URLs must be absolute HTTP or HTTPS URLs."));
+            return diagnostics;
+        }
+
         if (sourceType == DatasheetIntakeSourceType.Unsupported)
         {
             diagnostics.Add(new DatasheetIntakeDiagnostic("unsupported-datasheet-source", "Only local PDF files and HTTP/HTTPS datasheet URLs are supported for intake."));
@@ -158,10 +183,12 @@ public sealed class DatasheetIntakeQueueViewModel : INotifyPropertyChanged
 
     private static DatasheetIntakeSourceType ResolveSourceType(string sourceIdentifier)
     {
-        if (Uri.TryCreate(sourceIdentifier, UriKind.Absolute, out Uri? uri) &&
-            (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps))
+        if (sourceIdentifier.Contains("://", StringComparison.Ordinal) &&
+            Uri.TryCreate(sourceIdentifier, UriKind.Absolute, out Uri? uri))
         {
-            return DatasheetIntakeSourceType.Url;
+            return uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps
+                ? DatasheetIntakeSourceType.Url
+                : DatasheetIntakeSourceType.Unsupported;
         }
 
         return string.Equals(Path.GetExtension(sourceIdentifier), ".pdf", StringComparison.OrdinalIgnoreCase)
@@ -169,9 +196,34 @@ public sealed class DatasheetIntakeQueueViewModel : INotifyPropertyChanged
             : DatasheetIntakeSourceType.Unsupported;
     }
 
+    private static bool LooksLikeUrl(string sourceIdentifier) =>
+        sourceIdentifier.Contains("://", StringComparison.Ordinal) ||
+        sourceIdentifier.StartsWith("www.", StringComparison.OrdinalIgnoreCase);
+
+    private static JsonSerializerOptions CreateSnapshotJsonOptions()
+    {
+        JsonSerializerOptions options = new()
+        {
+            WriteIndented = true,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        };
+        options.Converters.Add(new JsonStringEnumConverter(JsonNamingPolicy.CamelCase));
+        return options;
+    }
+
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
+
+public sealed record DatasheetIntakeSnapshotItem(
+    DatasheetIntakeSourceType SourceType,
+    string SourceIdentifier,
+    DateTimeOffset SubmittedAt,
+    string ManufacturerPartNumber,
+    string VendorProductId,
+    string PackageName,
+    string SourceNotes,
+    DatasheetIntakeReviewState ReviewState);
 
 public sealed record DatasheetIntakeRequest(
     string SourceIdentifier,
