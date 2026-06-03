@@ -1,3 +1,4 @@
+using DragonCAD.App.BoardEditor;
 using DragonCAD.App.ComponentManager;
 using DragonCAD.App.Placement;
 using DragonCAD.App.SchematicEditor;
@@ -553,6 +554,96 @@ public sealed class SchematicEditorViewModelTests
         Assert.Same(moved, editor.SelectedNetLabel);
         Assert.Equal(moved, Assert.Single(editor.NetLabels));
         Assert.Equal("Moved net label RESET to 3.000 mm, -2.000 mm.", editor.StatusText);
+    }
+
+    [Fact]
+    public void PlaceNetLabelOnWireAssignsTheAssociatedNetAndBoardAirwireName()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+
+        SchematicNetLabel label = editor.PlaceNetLabel("  +5V  ", new CadPoint(2_000_000, 1_000_000));
+
+        SchematicWire wire = Assert.Single(editor.Wires);
+        Assert.Equal("+5V", label.NetName);
+        Assert.Equal("+5V", wire.NetName);
+        Assert.Equal("+5V", wire.ManualNetName);
+        Assert.Equal("+5V", Assert.Single(editor.Nets).Name);
+
+        BoardEditorViewModel board = new();
+        board.SynchronizeFromSchematic(editor.Components, editor.Wires);
+        Assert.Equal("+5V", Assert.Single(board.Airwires).NetName);
+    }
+
+    [Fact]
+    public void RenameSelectedNetLabelUpdatesTheAssociatedNet()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+        editor.PlaceNetLabel("RESET", new CadPoint(2_000_000, 1_000_000));
+
+        SchematicNetLabel renamed = editor.RenameSelectedNetLabel("  ENABLE  ");
+
+        SchematicWire wire = Assert.Single(editor.Wires);
+        Assert.Equal("ENABLE", renamed.NetName);
+        Assert.Equal("ENABLE", wire.NetName);
+        Assert.Equal("ENABLE", wire.ManualNetName);
+        Assert.Equal("ENABLE", Assert.Single(editor.Nets).Name);
+        Assert.Same(renamed, editor.SelectedNetLabel);
+        Assert.Equal("Renamed net label to ENABLE.", editor.StatusText);
+    }
+
+    [Fact]
+    public void MoveSelectedNetLabelToAnotherWireMovesTheNetAssignment()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithTwoDisconnectedWires();
+        SchematicWire firstWire = editor.Wires[0];
+        SchematicWire secondWire = editor.Wires[1];
+        editor.PlaceNetLabel("SCL", new CadPoint(2_000_000, 1_000_000));
+
+        SchematicNetLabel moved = editor.MoveSelectedNetLabelTo(new CadPoint(12_000_000, 1_000_000));
+
+        Assert.Equal(new CadPoint(12_000_000, 1_000_000), moved.Position);
+        Assert.Equal("N$1", editor.Wires.Single(wire => wire.WireId == firstWire.WireId).NetName);
+        Assert.Equal("", editor.Wires.Single(wire => wire.WireId == firstWire.WireId).ManualNetName);
+        Assert.Equal("SCL", editor.Wires.Single(wire => wire.WireId == secondWire.WireId).NetName);
+        Assert.Equal("SCL", editor.Wires.Single(wire => wire.WireId == secondWire.WireId).ManualNetName);
+    }
+
+    [Fact]
+    public void DeleteSelectedNetLabelClearsTheAssociatedManualNetName()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+        editor.PlaceNetLabel("RESET", new CadPoint(2_000_000, 1_000_000));
+
+        Assert.True(editor.DeleteSelectedNetLabel());
+
+        SchematicWire wire = Assert.Single(editor.Wires);
+        Assert.Empty(editor.NetLabels);
+        Assert.Null(editor.SelectedNetLabel);
+        Assert.Equal("N$1", wire.NetName);
+        Assert.Equal("", wire.ManualNetName);
+        Assert.Empty(editor.NetLabelDiagnostics);
+        Assert.Equal("Deleted net label RESET.", editor.StatusText);
+    }
+
+    [Fact]
+    public void DuplicateNetLabelsOnDisconnectedNetsReportDiagnosticWithoutMerging()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithTwoDisconnectedWires();
+
+        SchematicNetLabel firstLabel = editor.PlaceNetLabel("SDA", new CadPoint(2_000_000, 1_000_000));
+        SchematicNetLabel secondLabel = editor.PlaceNetLabel("SDA", new CadPoint(12_000_000, 1_000_000));
+
+        Assert.Equal(2, editor.Nets.Count);
+        Assert.All(editor.Nets, net => Assert.Equal("SDA", net.Name));
+        Assert.Contains(editor.Nets, net => net.PinNames.SequenceEqual(["U1.OUT", "U2.IN"]));
+        Assert.Contains(editor.Nets, net => net.PinNames.SequenceEqual(["U3.OUT", "U4.IN"]));
+
+        SchematicNetLabelDiagnostic diagnostic = Assert.Single(editor.NetLabelDiagnostics);
+        Assert.Equal("DragonCAD.Schematic.DuplicateNetLabel", diagnostic.Code);
+        Assert.Equal("SDA", diagnostic.NetName);
+        Assert.Contains(firstLabel.LabelId, diagnostic.LabelIds);
+        Assert.Contains(secondLabel.LabelId, diagnostic.LabelIds);
+        Assert.Contains("SDA", diagnostic.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -1134,6 +1225,21 @@ public sealed class SchematicEditorViewModelTests
         editor.TraceClickAt(new CadPoint(1_000_000, 0));
         editor.TraceClickAt(new CadPoint(2_000_000, 2_000_000));
         editor.TraceClickAt(new CadPoint(4_000_000, 0));
+        return editor;
+    }
+
+    private static SchematicEditorViewModel CreateEditorWithTwoDisconnectedWires()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+        editor.PlaceComponent(
+            IntentWithPin("hawkcad:third", "Third", "OUT", new CadPoint(1_000_000, 0)),
+            new CadPoint(10_000_000, 0));
+        editor.PlaceComponent(
+            IntentWithPin("hawkcad:fourth", "Fourth", "IN", new CadPoint(-1_000_000, 0)),
+            new CadPoint(15_000_000, 0));
+        editor.TraceClickAt(new CadPoint(11_000_000, 0));
+        editor.TraceClickAt(new CadPoint(12_000_000, 2_000_000));
+        editor.TraceClickAt(new CadPoint(14_000_000, 0));
         return editor;
     }
 

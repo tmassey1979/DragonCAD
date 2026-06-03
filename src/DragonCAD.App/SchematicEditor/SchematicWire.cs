@@ -14,7 +14,8 @@ public sealed record SchematicWire(
     SchematicPinEndpoint End,
     IReadOnlyList<CadPoint> RoutePoints,
     string NetName = "",
-    string ManualNetName = "");
+    string ManualNetName = "",
+    string LabelNetName = "");
 
 public sealed record SchematicWireVertexHandle(
     string WireId,
@@ -31,7 +32,14 @@ public sealed record SchematicNet(
 public sealed record SchematicNetLabel(
     string LabelId,
     string NetName,
-    CadPoint Position);
+    CadPoint Position,
+    string AssociatedWireId = "");
+
+public sealed record SchematicNetLabelDiagnostic(
+    string Code,
+    string NetName,
+    string Message,
+    IReadOnlyList<string> LabelIds);
 
 public sealed record SchematicNetLabelRenderItem(
     string LabelId,

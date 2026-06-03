@@ -47,6 +47,8 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
     public ObservableCollection<SchematicNet> Nets { get; } = [];
 
+    public ObservableCollection<SchematicNetLabelDiagnostic> NetLabelDiagnostics { get; } = [];
+
     public IEnumerable<SchematicWireVertexHandle> SelectedWireVertexHandles
     {
         get
@@ -416,6 +418,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         Wires.Clear();
         NetLabels.Clear();
         Nets.Clear();
+        NetLabelDiagnostics.Clear();
         ClearPendingRoutePoints();
         PendingWireStart = null;
         PendingWirePreviewPoint = null;
@@ -481,10 +484,12 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             throw new InvalidOperationException("Net label name is required.");
         }
 
+        CadPoint snappedPosition = placementGrid.Snap(requestedPosition);
         SchematicNetLabel label = new(
             Guid.NewGuid().ToString("N"),
             normalizedNetName,
-            placementGrid.Snap(requestedPosition));
+            snappedPosition,
+            FindAttachedWireId(snappedPosition));
         NetLabels.Add(label);
         SelectedNetLabel = label;
         SelectedComponent = null;
@@ -492,6 +497,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         SelectedWireSegmentIndex = null;
         SelectedWireVertexIndex = null;
         SelectedPinEndpoint = null;
+        RebuildNets();
         StatusText = $"Placed net label {label.NetName} at {FormatMillimeters(label.Position.X)} mm, {FormatMillimeters(label.Position.Y)} mm.";
         return label;
     }
@@ -555,10 +561,55 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         {
             Position = placementGrid.Snap(requestedPosition)
         };
+        moved = moved with { AssociatedWireId = FindAttachedWireId(moved.Position) };
         NetLabels[index] = moved;
         SelectedNetLabel = moved;
+        RebuildNets();
         StatusText = $"Moved net label {moved.NetName} to {FormatMillimeters(moved.Position.X)} mm, {FormatMillimeters(moved.Position.Y)} mm.";
         return moved;
+    }
+
+    public SchematicNetLabel RenameSelectedNetLabel(string netName)
+    {
+        if (SelectedNetLabel is null)
+        {
+            throw new InvalidOperationException("No schematic net label is selected.");
+        }
+
+        string normalizedNetName = netName.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedNetName))
+        {
+            throw new InvalidOperationException("Net label name is required.");
+        }
+
+        int index = NetLabels.IndexOf(SelectedNetLabel);
+        if (index < 0)
+        {
+            throw new InvalidOperationException("The selected schematic net label is no longer in the document.");
+        }
+
+        SchematicNetLabel renamed = SelectedNetLabel with { NetName = normalizedNetName };
+        NetLabels[index] = renamed;
+        SelectedNetLabel = renamed;
+        RebuildNets();
+        StatusText = $"Renamed net label to {renamed.NetName}.";
+        return renamed;
+    }
+
+    public bool DeleteSelectedNetLabel()
+    {
+        if (SelectedNetLabel is null)
+        {
+            StatusText = "Select a net label before deleting it.";
+            return false;
+        }
+
+        string deletedName = SelectedNetLabel.NetName;
+        NetLabels.Remove(SelectedNetLabel);
+        SelectedNetLabel = null;
+        RebuildNets();
+        StatusText = $"Deleted net label {deletedName}.";
+        return true;
     }
 
     public SchematicComponentInstance MoveSelectedComponentTo(CadPoint requestedPosition)
@@ -1749,6 +1800,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
     private void RebuildNets()
     {
         Nets.Clear();
+        NetLabelDiagnostics.Clear();
         if (Wires.Count == 0)
         {
             return;
@@ -1791,22 +1843,27 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
                 }
             }
 
-            string netName = Wires
-                .Where(wire => componentPins.Contains(PinKey(wire.Start), StringComparer.Ordinal) ||
-                               componentPins.Contains(PinKey(wire.End), StringComparer.Ordinal))
-                .Select(wire => wire.ManualNetName)
-                .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? $"N${netNumber++}";
-            foreach (string componentPin in componentPins)
-            {
-                netByPinKey[componentPin] = netName;
-            }
-
             string[] wireIds = Wires
                 .Where(wire => componentPins.Contains(PinKey(wire.Start), StringComparer.Ordinal) ||
                                componentPins.Contains(PinKey(wire.End), StringComparer.Ordinal))
                 .Select(wire => wire.WireId)
                 .Distinct(StringComparer.Ordinal)
                 .ToArray();
+            string? labelNetName = NetLabels
+                .Where(label => wireIds.Contains(label.AssociatedWireId, StringComparer.Ordinal))
+                .Select(label => label.NetName)
+                .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name));
+            string netName = labelNetName ??
+                Wires
+                    .Where(wire => wireIds.Contains(wire.WireId, StringComparer.Ordinal))
+                    .Select(EffectiveManualNetName)
+                    .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ??
+                $"N${netNumber++}";
+            foreach (string componentPin in componentPins)
+            {
+                netByPinKey[componentPin] = netName;
+            }
+
             string[] pinNames = componentPins
                 .Select(pin => EndpointLabel(endpointsByKey[pin]))
                 .Order(StringComparer.Ordinal)
@@ -1817,9 +1874,54 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         for (int index = 0; index < Wires.Count; index++)
         {
             SchematicWire wire = Wires[index];
-            Wires[index] = wire with { NetName = netByPinKey[PinKey(wire.Start)] };
+            string? labelNetName = NetLabels
+                .Where(label => label.AssociatedWireId == wire.WireId)
+                .Select(label => label.NetName)
+                .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name));
+            Wires[index] = wire with
+            {
+                NetName = netByPinKey[PinKey(wire.Start)],
+                ManualNetName = labelNetName ?? (string.IsNullOrWhiteSpace(wire.LabelNetName) ? wire.ManualNetName : ""),
+                LabelNetName = labelNetName ?? ""
+            };
+        }
+
+        RebuildNetLabelDiagnostics();
+    }
+
+    private void RebuildNetLabelDiagnostics()
+    {
+        IEnumerable<IGrouping<string, SchematicNetLabel>> duplicateGroups = NetLabels
+            .Where(label => !string.IsNullOrWhiteSpace(label.AssociatedWireId))
+            .GroupBy(label => label.NetName, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group
+                .Select(NetIdentityForLabel)
+                .Where(identity => !string.IsNullOrWhiteSpace(identity))
+                .Distinct(StringComparer.Ordinal)
+                .Count() > 1);
+
+        foreach (IGrouping<string, SchematicNetLabel> group in duplicateGroups)
+        {
+            string netName = group.First().NetName;
+            NetLabelDiagnostics.Add(new SchematicNetLabelDiagnostic(
+                "DragonCAD.Schematic.DuplicateNetLabel",
+                netName,
+                $"Net label {netName} appears on disconnected nets.",
+                group.Select(label => label.LabelId).ToArray()));
         }
     }
+
+    private string NetIdentityForLabel(SchematicNetLabel label)
+    {
+        return Nets.FirstOrDefault(net => net.WireIds.Contains(label.AssociatedWireId, StringComparer.Ordinal)) is { } net
+            ? string.Join("|", net.WireIds.Order(StringComparer.Ordinal))
+            : "";
+    }
+
+    private static string EffectiveManualNetName(SchematicWire wire) =>
+        !string.IsNullOrWhiteSpace(wire.LabelNetName) && wire.ManualNetName == wire.LabelNetName
+            ? ""
+            : wire.ManualNetName;
 
     private static void AddEdge(Dictionary<string, List<string>> adjacency, string start, string end)
     {
@@ -1837,6 +1939,24 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
     private static string EndpointLabel(SchematicPinEndpoint endpoint) =>
         $"{endpoint.ReferenceDesignator}.{endpoint.PinName}";
+
+    private string FindAttachedWireId(CadPoint point)
+    {
+        double nearestDistance = double.MaxValue;
+        string attachedWireId = "";
+        for (int wireIndex = Wires.Count - 1; wireIndex >= 0; wireIndex--)
+        {
+            SchematicWire wire = Wires[wireIndex];
+            if (NearestSegmentIndex(point, wire.RoutePoints, WireSegmentHitTolerance, out double distance) is not null &&
+                distance < nearestDistance)
+            {
+                nearestDistance = distance;
+                attachedWireId = wire.WireId;
+            }
+        }
+
+        return attachedWireId;
+    }
 
     private static int? NearestSegmentIndex(CadPoint point, IReadOnlyList<CadPoint> routePoints, double tolerance, out double nearestDistance)
     {
