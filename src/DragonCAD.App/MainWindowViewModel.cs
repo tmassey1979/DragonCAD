@@ -3412,6 +3412,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     private void AddBoardSampleTrace(CadPoint start, CadPoint end, IReadOnlyList<CadPoint> viaPoints)
     {
         BoardEditor.ActivateRouteTool();
+        BoardEditor.SetFreeRouteMode(true);
         BoardEditor.TraceClickAt(start);
         foreach (CadPoint viaPoint in viaPoints)
         {
@@ -3979,6 +3980,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     private void ActivateBoardRouteTool()
     {
         BoardEditor.ActivateRouteTool();
+        BoardEditor.SetFreeRouteMode(true);
         ActiveWorkspaceTab = "PcbLayout";
         PlacementStatus = BoardEditor.StatusText;
         OnPropertyChanged(nameof(ActiveBoardTool));

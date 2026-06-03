@@ -2231,6 +2231,7 @@ public sealed class MainWindowViewModelTests
             MainWindowViewModel.CuratedHawkCadStarterLibraryJsonForFallback,
             maxBuiltInDevices: 1);
         viewModel.BoardEditor.ActivateRouteTool();
+        viewModel.BoardEditor.SetFreeRouteMode(true);
         viewModel.BoardEditor.TraceClickAt(new CadPoint(0, 0));
         viewModel.BoardEditor.TraceClickAt(new CadPoint(2_000_000, 2_000_000));
         viewModel.BoardEditor.CompleteTraceAt(new CadPoint(6_000_000, 2_000_000));
