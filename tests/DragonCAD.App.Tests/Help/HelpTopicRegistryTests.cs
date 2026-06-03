@@ -161,7 +161,7 @@ public sealed class HelpTopicRegistryTests
         Assert.Contains("Source: `docs/help/getting-started/workspace.md`", workspacePage);
         Assert.Contains("[Help Home](Home.md)", workspacePage);
         Assert.Contains("[Board editing basics](Board-Editing-Basics.md)", workspacePage);
-        Assert.Contains("Generated pages: 12", result.Summary);
+        Assert.Contains("Generated pages: 13", result.Summary);
     }
 
     [Fact]
@@ -187,7 +187,7 @@ public sealed class HelpTopicRegistryTests
         HelpWikiSyncResult result = HelpWikiSyncCommand.SyncDryRun(HelpTopicRegistry.CreateDefault(), workspace.RootPath);
 
         Assert.True(result.Validation.IsValid);
-        Assert.Equal(10, result.Created.Count);
+        Assert.Equal(11, result.Created.Count);
         Assert.Contains("Workspace-Basics", result.Updated);
         Assert.Contains("Vendor-Catalogs", result.Unchanged);
         Assert.Contains("Removed-Generated", result.Removed);

@@ -175,9 +175,18 @@ public sealed class HelpTopicRegistry
                     Title: "Command and shortcut reference",
                     Summary: "Review common DragonCAD commands, shortcut conventions, and command availability by workspace context.",
                     DocumentPath: "docs/help/command-reference/shortcuts.md",
-                    RelatedTopicIds: ["getting-started.workspace", "troubleshooting.common-issues"],
+                    RelatedTopicIds: ["getting-started.workspace", "troubleshooting.common-issues", "command-reference.catalog"],
                     WikiSlug: "Command-and-Shortcut-Reference",
-                    Keywords: ["command", "shortcut", "keyboard", "reference"])
+                    Keywords: ["command", "shortcut", "keyboard", "reference"]),
+                new(
+                    Id: "command-reference.catalog",
+                    GroupId: "command-reference",
+                    Title: "Tool and shortcut catalog",
+                    Summary: "Review DragonCAD tool commands, keyboard shortcuts, aliases, implementation status, and tracked gaps.",
+                    DocumentPath: "docs/help/reference/command-catalog.md",
+                    RelatedTopicIds: ["command-reference.shortcuts", "getting-started.workspace", "troubleshooting.common-issues"],
+                    WikiSlug: "Tool-and-Shortcut-Catalog",
+                    Keywords: ["tool", "command", "shortcut", "alias", "keyboard", "catalog", "status"])
             ]);
 
     public HelpTopic GetTopicOrFallback(string? topicId)
