@@ -29,6 +29,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
     private SchematicComponentInstance? hoveredComponent;
     private SchematicWire? hoveredWire;
     private int? hoveredWireSegmentIndex;
+    private SchematicNetLabel? hoveredNetLabel;
     private string hoverTargetText = "No hover target";
     private SchematicPinEndpoint? selectedPinEndpoint;
     private SchematicNetLabel? selectedNetLabel;
@@ -75,7 +76,8 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             label.LabelId,
             label.NetName,
             label.Position,
-            label.LabelId == SelectedNetLabel?.LabelId));
+            label.LabelId == SelectedNetLabel?.LabelId,
+            label.LabelId == HoveredNetLabel?.LabelId));
 
     public CadRectangle SheetBounds { get; } =
         new(-140_000_000, -100_000_000, 140_000_000, 100_000_000);
@@ -326,6 +328,21 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         }
     }
 
+    public SchematicNetLabel? HoveredNetLabel
+    {
+        get => hoveredNetLabel;
+        private set
+        {
+            if (hoveredNetLabel == value)
+            {
+                return;
+            }
+
+            hoveredNetLabel = value;
+            OnPropertyChanged();
+        }
+    }
+
     public string HoverTargetText
     {
         get => hoverTargetText;
@@ -423,6 +440,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         PendingWireStart = null;
         PendingWirePreviewPoint = null;
         HoveredPin = null;
+        HoveredNetLabel = null;
         SelectedPinEndpoint = null;
         SelectedNetLabel = null;
         SelectedComponent = null;
@@ -455,7 +473,11 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         SelectedPinEndpoint = null;
         SelectedNetLabel = null;
         SelectedWireVertexIndex = null;
-        SelectWireAt(point);
+        if (SelectNetLabelAt(point) is null)
+        {
+            SelectWireAt(point);
+        }
+
         return null;
     }
 
@@ -504,30 +526,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
     public SchematicNetLabel? SelectNetLabelAt(CadPoint point)
     {
-        const long tolerance = 500_000;
-        SchematicNetLabel? nearest = null;
-        long nearestDistanceSquared = long.MaxValue;
-        for (int index = NetLabels.Count - 1; index >= 0; index--)
-        {
-            SchematicNetLabel label = NetLabels[index];
-            if (Math.Abs(label.Position.X - point.X) > tolerance ||
-                Math.Abs(label.Position.Y - point.Y) > tolerance)
-            {
-                continue;
-            }
-
-            long dx = label.Position.X - point.X;
-            long dy = label.Position.Y - point.Y;
-            long distanceSquared = (dx * dx) + (dy * dy);
-            if (distanceSquared >= nearestDistanceSquared)
-            {
-                continue;
-            }
-
-            nearestDistanceSquared = distanceSquared;
-            nearest = label;
-        }
-
+        SchematicNetLabel? nearest = FindNetLabelAt(point);
         SelectedNetLabel = nearest;
         if (nearest is null)
         {
@@ -899,6 +898,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             HoveredComponent = null;
             HoveredWire = null;
             HoveredWireSegmentIndex = null;
+            HoveredNetLabel = null;
             HoverTargetText = $"Pin {HoveredPin.ReferenceDesignator}.{HoveredPin.PinName}";
         }
         else
@@ -906,6 +906,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             HoveredComponent = null;
             HoveredWire = null;
             HoveredWireSegmentIndex = null;
+            HoveredNetLabel = null;
             HoverTargetText = "No hover target";
         }
 
@@ -922,6 +923,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         HoveredComponent = null;
         HoveredWire = null;
         HoveredWireSegmentIndex = null;
+        HoveredNetLabel = null;
 
         for (int componentIndex = Components.Count - 1; componentIndex >= 0; componentIndex--)
         {
@@ -933,6 +935,14 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
                 StatusText = HoverTargetText;
                 return HoverTargetText;
             }
+        }
+
+        if (FindNetLabelAt(point) is { } hoveredLabel)
+        {
+            HoveredNetLabel = hoveredLabel;
+            HoverTargetText = $"Net label {hoveredLabel.NetName}";
+            StatusText = HoverTargetText;
+            return HoverTargetText;
         }
 
         double nearestDistance = double.MaxValue;
@@ -1956,6 +1966,35 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         }
 
         return attachedWireId;
+    }
+
+    private SchematicNetLabel? FindNetLabelAt(CadPoint point)
+    {
+        const long tolerance = 500_000;
+        SchematicNetLabel? nearest = null;
+        long nearestDistanceSquared = long.MaxValue;
+        for (int index = NetLabels.Count - 1; index >= 0; index--)
+        {
+            SchematicNetLabel label = NetLabels[index];
+            if (Math.Abs(label.Position.X - point.X) > tolerance ||
+                Math.Abs(label.Position.Y - point.Y) > tolerance)
+            {
+                continue;
+            }
+
+            long dx = label.Position.X - point.X;
+            long dy = label.Position.Y - point.Y;
+            long distanceSquared = (dx * dx) + (dy * dy);
+            if (distanceSquared >= nearestDistanceSquared)
+            {
+                continue;
+            }
+
+            nearestDistanceSquared = distanceSquared;
+            nearest = label;
+        }
+
+        return nearest;
     }
 
     private static int? NearestSegmentIndex(CadPoint point, IReadOnlyList<CadPoint> routePoints, double tolerance, out double nearestDistance)

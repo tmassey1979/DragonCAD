@@ -29,6 +29,7 @@ public sealed class SchematicCanvasControl : Control
     private static readonly Pen WireSelectionPen = new(new SolidColorBrush(Color.FromRgb(255, 176, 52)), 3.0);
     private static readonly Pen HoverWirePen = new(new SolidColorBrush(Color.FromRgb(70, 180, 255)), 3.2);
     private static readonly Pen NetLabelSelectionPen = new(new SolidColorBrush(Color.FromRgb(255, 176, 52)), 1.4);
+    private static readonly Pen NetLabelHoverPen = new(new SolidColorBrush(Color.FromRgb(70, 180, 255)), 1.3);
     private static readonly Pen WireVertexHandlePen = new(new SolidColorBrush(Color.FromRgb(27, 59, 96)), 1.4);
     private static readonly Pen SelectedWireVertexHandlePen = new(new SolidColorBrush(Color.FromRgb(255, 176, 52)), 2.0);
     private static readonly IBrush HoverPinBrush = new SolidColorBrush(Color.FromRgb(255, 213, 74));
@@ -40,6 +41,8 @@ public sealed class SchematicCanvasControl : Control
     private static readonly IBrush PinLabelBrush = new SolidColorBrush(Color.FromRgb(73, 43, 32));
     private bool isPanningViewport;
     private bool isDraggingSchematicWireVertexHandle;
+    private bool isDraggingSchematicNetLabel;
+    private CadVector schematicNetLabelDragOffset;
     private Point lastPanScreenPoint;
 
     static SchematicCanvasControl()
@@ -151,6 +154,13 @@ public sealed class SchematicCanvasControl : Control
             Cursor = new Cursor(StandardCursorType.SizeAll);
             e.Pointer.Capture(this);
         }
+        else if (PlacementTarget.CanPanSchematicViewport && Editor?.SelectedNetLabel is { } selectedNetLabel)
+        {
+            schematicNetLabelDragOffset = selectedNetLabel.Position - point;
+            isDraggingSchematicNetLabel = true;
+            Cursor = new Cursor(StandardCursorType.SizeAll);
+            e.Pointer.Capture(this);
+        }
         else if (PlacementTarget.CanPanSchematicViewport &&
             Editor?.SelectedComponent is null &&
             Editor?.SelectedWire is null &&
@@ -196,6 +206,15 @@ public sealed class SchematicCanvasControl : Control
             return;
         }
 
+        if (isDraggingSchematicNetLabel && Editor is not null)
+        {
+            CadPoint dragPoint = CreateViewport().ScreenToCad(e.GetPosition(this), Bounds.Center);
+            Editor.MoveSelectedNetLabelTo(dragPoint + schematicNetLabelDragOffset);
+            Cursor = new Cursor(StandardCursorType.SizeAll);
+            e.Handled = true;
+            return;
+        }
+
         CadPoint point = CreateViewport().ScreenToCad(e.GetPosition(this), Bounds.Center);
         PlacementTarget.HandleSchematicPointerMoved(point);
         Cursor = PlacementTarget.IsDraggingSchematicComponent || PlacementTarget.IsDraggingSchematicWireSegment
@@ -234,6 +253,17 @@ public sealed class SchematicCanvasControl : Control
             }
 
             isDraggingSchematicWireVertexHandle = false;
+            Cursor = null;
+            e.Pointer.Capture(null);
+            e.Handled = true;
+            return;
+        }
+
+        if (isDraggingSchematicNetLabel && Editor is not null)
+        {
+            CadPoint releasePoint = CreateViewport().ScreenToCad(e.GetPosition(this), Bounds.Center);
+            Editor.MoveSelectedNetLabelTo(releasePoint + schematicNetLabelDragOffset);
+            isDraggingSchematicNetLabel = false;
             Cursor = null;
             e.Pointer.Capture(null);
             e.Handled = true;
@@ -408,12 +438,12 @@ public sealed class SchematicCanvasControl : Control
             12,
             NetLabelBrush);
         Point origin = new(mapped.X + 6, mapped.Y - (text.Height / 2));
-        if (label.IsSelected)
+        if (label.IsSelected || label.IsHovered)
         {
             Rect highlightBounds = new(
                 new Point(origin.X - 4, origin.Y - 2),
                 new Size(text.Width + 8, text.Height + 4));
-            context.DrawRectangle(null, NetLabelSelectionPen, highlightBounds);
+            context.DrawRectangle(null, label.IsSelected ? NetLabelSelectionPen : NetLabelHoverPen, highlightBounds);
         }
 
         context.DrawLine(PinPen, new Point(mapped.X - 4, mapped.Y), new Point(mapped.X + 4, mapped.Y));
@@ -702,6 +732,7 @@ public sealed class SchematicCanvasControl : Control
             nameof(SchematicEditorViewModel.HoveredComponent) or
             nameof(SchematicEditorViewModel.HoveredWire) or
             nameof(SchematicEditorViewModel.HoveredWireSegmentIndex) or
+            nameof(SchematicEditorViewModel.HoveredNetLabel) or
             nameof(SchematicEditorViewModel.PendingWireRoutePoints) or
             nameof(SchematicEditorViewModel.PendingWirePreviewPoint) or
             nameof(SchematicEditorViewModel.PendingWirePreviewRoutePoints))
@@ -739,7 +770,8 @@ public sealed class SchematicCanvasControl : Control
         }
 
         if (Editor?.HoveredComponent is not null ||
-            Editor?.HoveredWire is not null)
+            Editor?.HoveredWire is not null ||
+            Editor?.HoveredNetLabel is not null)
         {
             return new Cursor(StandardCursorType.SizeAll);
         }

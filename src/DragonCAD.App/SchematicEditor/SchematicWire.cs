@@ -45,4 +45,5 @@ public sealed record SchematicNetLabelRenderItem(
     string LabelId,
     string NetName,
     CadPoint Position,
-    bool IsSelected);
+    bool IsSelected,
+    bool IsHovered);

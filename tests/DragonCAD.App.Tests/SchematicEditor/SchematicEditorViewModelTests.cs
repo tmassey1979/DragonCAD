@@ -466,6 +466,22 @@ public sealed class SchematicEditorViewModelTests
     }
 
     [Fact]
+    public void UpdateHoverTargetReportsNetLabelsBeforeWires()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+        SchematicNetLabel label = editor.PlaceNetLabel("RESET", new CadPoint(2_000_000, 1_000_000));
+        editor.SelectComponentAt(new CadPoint(20_000_000, 20_000_000));
+
+        string hover = editor.UpdateHoverTargetAt(new CadPoint(2_250_000, 1_250_000));
+
+        Assert.Equal("Net label RESET", hover);
+        Assert.Equal(hover, editor.HoverTargetText);
+        Assert.Equal(label, editor.HoveredNetLabel);
+        Assert.Null(editor.HoveredWire);
+        Assert.Null(editor.SelectedNetLabel);
+    }
+
+    [Fact]
     public void SelectPinEndpointAtSelectsNearestPinWithoutSelectingComponent()
     {
         SchematicEditorViewModel editor = new();
@@ -647,12 +663,13 @@ public sealed class SchematicEditorViewModelTests
     }
 
     [Fact]
-    public void RenderableNetLabelsExposeSelectionStateForCanvasRendering()
+    public void RenderableNetLabelsExposeSelectionAndHoverStateForCanvasRendering()
     {
         SchematicEditorViewModel editor = new();
         SchematicNetLabel power = editor.PlaceNetLabel("+5V", new CadPoint(0, 0));
         SchematicNetLabel ground = editor.PlaceNetLabel("GND", new CadPoint(4_000_000, 0));
         editor.SelectNetLabelAt(ground.Position);
+        editor.UpdateHoverTargetAt(power.Position);
 
         SchematicNetLabelRenderItem[] labels = editor.RenderableNetLabels.ToArray();
 
@@ -664,6 +681,7 @@ public sealed class SchematicEditorViewModelTests
                 Assert.Equal("+5V", label.NetName);
                 Assert.Equal(power.Position, label.Position);
                 Assert.False(label.IsSelected);
+                Assert.True(label.IsHovered);
             },
             label =>
             {
@@ -671,7 +689,28 @@ public sealed class SchematicEditorViewModelTests
                 Assert.Equal("GND", label.NetName);
                 Assert.Equal(ground.Position, label.Position);
                 Assert.True(label.IsSelected);
+                Assert.False(label.IsHovered);
             });
+    }
+
+    [Fact]
+    public void NetLabelStateStaysStableWhenComponentsMoveAndWireSegmentsChange()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+        SchematicComponentInstance component = editor.Components[0];
+        SchematicWire originalWire = Assert.Single(editor.Wires);
+        SchematicNetLabel label = editor.PlaceNetLabel("RESET", new CadPoint(2_000_000, 1_000_000));
+        editor.SelectedComponent = component;
+
+        editor.MoveSelectedComponentTo(new CadPoint(-2_000_000, 0));
+        editor.SelectWireAt(new CadPoint(2_000_000, 1_000_000));
+        editor.MoveSelectedWireSegmentTo(new CadPoint(3_000_000, 1_000_000));
+
+        SchematicNetLabel unchanged = Assert.Single(editor.NetLabels);
+        Assert.Equal(label.LabelId, unchanged.LabelId);
+        Assert.Equal("RESET", unchanged.NetName);
+        Assert.Equal(new CadPoint(2_000_000, 1_000_000), unchanged.Position);
+        Assert.Equal(originalWire.WireId, unchanged.AssociatedWireId);
     }
 
     [Fact]
