@@ -46,7 +46,7 @@ public static class ProviderCredentialPlanner
                 requirement.ProviderName,
                 requiredKey,
                 ProviderCredentialDiagnosticSeverity.Error,
-                $"{requirement.ProviderName}: missing required credential '{requiredKey}'"))
+                $"{requirement.ProviderName}: missing required credential '{requiredKey}'. Configure it in a user credential store or environment reference outside the project file."))
             .ToArray();
     }
 

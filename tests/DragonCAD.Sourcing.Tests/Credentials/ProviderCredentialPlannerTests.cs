@@ -1,9 +1,18 @@
+using System.Text.Json;
 using DragonCAD.Sourcing.Credentials;
 
 namespace DragonCAD.Sourcing.Tests.Credentials;
 
 public sealed class ProviderCredentialPlannerTests
 {
+    [Fact]
+    public void KnownProvidersIncludeVendorAndFabricationCredentialBoundaries()
+    {
+        Assert.Equal(
+            ["Digi-Key", "Mouser", "Adafruit", "SparkFun", "Jameco", "OSH Park", "PCBCart"],
+            ProviderCredentialRequirement.KnownProviders.Keys);
+    }
+
     [Fact]
     public void DigiKeyRequiresClientIdAndClientSecret()
     {
@@ -64,8 +73,47 @@ public sealed class ProviderCredentialPlannerTests
         Assert.Equal("Digi-Key", diagnostic.ProviderName);
         Assert.Equal("client_secret", diagnostic.KeyName);
         Assert.Equal(ProviderCredentialDiagnosticSeverity.Error, diagnostic.Severity);
+        Assert.Contains("Configure", diagnostic.LogSafeMessage, StringComparison.Ordinal);
+        Assert.Contains("outside the project file", diagnostic.LogSafeMessage, StringComparison.Ordinal);
         Assert.DoesNotContain("visible-secret-value", diagnostic.LogSafeMessage);
         Assert.DoesNotContain("visible-secret-value", plan.LogSafeSummary);
+    }
+
+    [Fact]
+    public void ProjectRecordSerializesProviderChoicesWithoutCredentialReferences()
+    {
+        var plan = ProviderCredentialPlanner.Plan(
+            ProviderCredentialRequirement.KnownProviders["Digi-Key"],
+            [
+                Configured("Digi-Key", "client_id", "DRAGONCAD_DIGIKEY_CLIENT_ID"),
+                Configured("Digi-Key", "client_secret", "real-client-secret-value"),
+            ]);
+
+        var json = JsonSerializer.Serialize(plan.ToProjectRecord());
+
+        Assert.Contains("Digi-Key", json, StringComparison.Ordinal);
+        Assert.Contains("client_id", json, StringComparison.Ordinal);
+        Assert.Contains("client_secret", json, StringComparison.Ordinal);
+        Assert.Contains("OSCredentialVault", json, StringComparison.Ordinal);
+        Assert.Contains("Configured", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("DRAGONCAD_DIGIKEY_CLIENT_ID", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("real-client-secret-value", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("StorageReferenceName", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StoreBoundaryFeedsPlannerWithoutExposingCredentialValues()
+    {
+        IProviderCredentialStore store = new InMemoryProviderCredentialStore(
+            [Configured("Mouser", "api_key", "mouser-secret-storage-reference")]);
+
+        var plan = ProviderCredentialPlanner.Plan(
+            ProviderCredentialRequirement.KnownProviders["Mouser"],
+            await store.ListAsync("Mouser", CancellationToken.None));
+
+        Assert.True(plan.IsReady);
+        Assert.DoesNotContain("mouser-secret-storage-reference", plan.LogSafeSummary, StringComparison.Ordinal);
+        Assert.DoesNotContain("mouser-secret-storage-reference", JsonSerializer.Serialize(plan.ToProjectRecord()), StringComparison.Ordinal);
     }
 
     private static ProviderCredentialMetadata Configured(
@@ -79,4 +127,19 @@ public sealed class ProviderCredentialPlannerTests
             secretValue,
             ProviderCredentialState.Configured,
             LastValidatedAt: new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero));
+
+    private sealed class InMemoryProviderCredentialStore(IReadOnlyList<ProviderCredentialMetadata> credentials)
+        : IProviderCredentialStore
+    {
+        public ValueTask<IReadOnlyList<ProviderCredentialMetadata>> ListAsync(
+            string providerName,
+            CancellationToken cancellationToken)
+        {
+            var matches = credentials
+                .Where(credential => credential.ProviderName.Equals(providerName, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+            return ValueTask.FromResult<IReadOnlyList<ProviderCredentialMetadata>>(matches);
+        }
+    }
 }

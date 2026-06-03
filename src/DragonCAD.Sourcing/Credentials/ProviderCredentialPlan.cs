@@ -12,6 +12,17 @@ public sealed record ProviderCredentialPlan(
         .Select(diagnostic => diagnostic.KeyName)
         .ToArray();
 
+    public ProviderCredentialProjectRecord ToProjectRecord() =>
+        new(
+            ProviderName,
+            Credentials
+                .Select(credential => new ProviderCredentialProjectChoice(
+                    credential.ProviderName,
+                    credential.KeyName,
+                    credential.StorageLocation.ToString(),
+                    credential.State.ToString()))
+                .ToArray());
+
     public string LogSafeSummary
     {
         get
@@ -28,3 +39,13 @@ public sealed record ProviderCredentialPlan(
         }
     }
 }
+
+public sealed record ProviderCredentialProjectRecord(
+    string ProviderName,
+    IReadOnlyList<ProviderCredentialProjectChoice> Choices);
+
+public sealed record ProviderCredentialProjectChoice(
+    string ProviderName,
+    string KeyName,
+    string StorageLocation,
+    string State);
