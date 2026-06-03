@@ -33,6 +33,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     private bool isFreeRouteModeActive;
     private string routeCornerMode = "90";
     private readonly List<CadPoint> pendingTraceRoutePoints = [];
+    private readonly Dictionary<string, BoardAirwire> retiredAirwiresByTraceId = new(StringComparer.Ordinal);
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -386,6 +387,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         Airwires.Clear();
         Traces.Clear();
         Vias.Clear();
+        retiredAirwiresByTraceId.Clear();
         pendingTraceRoutePoints.Clear();
         PendingTraceStart = null;
         SelectedComponent = null;
@@ -452,6 +454,8 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
                 wire.End.PinName,
                 BoardPositionForWireEndpoint(wire.End.InstanceId, wire.End.PinName)));
         }
+
+        RetireAirwiresForExistingTraces();
 
         string componentText = $"{Components.Count} board component{(Components.Count == 1 ? "" : "s")}";
         if (Airwires.Count == 0)
@@ -969,13 +973,9 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
             return false;
         }
 
-        if (retiredAirwire is not null)
-        {
-            Airwires.Remove(retiredAirwire);
-        }
-
+        string traceId = Guid.NewGuid().ToString("N");
         Traces.Add(new BoardTrace(
-            Guid.NewGuid().ToString("N"),
+            traceId,
             ActiveLayerName,
             [.. pendingTraceRoutePoints],
             StartPadSyncId: pendingTraceStartPad?.SyncId,
@@ -984,6 +984,12 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
             EndPadSyncId: endPad?.SyncId,
             EndPadReferenceDesignator: endPad?.ReferenceDesignator,
             EndPadName: endPad?.PadName));
+        if (retiredAirwire is not null)
+        {
+            Airwires.Remove(retiredAirwire);
+            retiredAirwiresByTraceId[traceId] = retiredAirwire;
+        }
+
         pendingTraceRoutePoints.Clear();
         PendingTraceStart = null;
         pendingTraceStartPad = null;
@@ -1096,9 +1102,11 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
 
         if (SelectedTrace is not null)
         {
+            BoardTrace deletedTrace = SelectedTrace;
             Traces.Remove(SelectedTrace);
             SelectedTrace = null;
             SelectedTraceSegmentIndex = null;
+            RestoreAirwireForTrace(deletedTrace);
             OnPropertyChanged(nameof(VisibleTraces));
             StatusText = "Deleted selected board trace.";
             return true;
@@ -1288,14 +1296,16 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     {
         for (int index = 0; index < Airwires.Count; index++)
         {
-            BoardAirwire airwire = Airwires[index];
-            Airwires[index] = airwire with
-            {
-                StartPosition = BoardPositionForWireEndpoint(airwire.StartSyncId, airwire.StartPinName),
-                EndPosition = BoardPositionForWireEndpoint(airwire.EndSyncId, airwire.EndPinName)
-            };
+            Airwires[index] = RefreshAirwireEndpoints(Airwires[index]);
         }
     }
+
+    private BoardAirwire RefreshAirwireEndpoints(BoardAirwire airwire) =>
+        airwire with
+        {
+            StartPosition = BoardPositionForWireEndpoint(airwire.StartSyncId, airwire.StartPinName),
+            EndPosition = BoardPositionForWireEndpoint(airwire.EndSyncId, airwire.EndPinName)
+        };
 
     private static CadRectangle ComponentBounds(BoardComponentInstance component) =>
         component.FootprintBounds.Width > 0 || component.FootprintBounds.Height > 0
@@ -1405,15 +1415,71 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         return null;
     }
 
+    private BoardAirwire? FindAirwireBetween(BoardTrace trace)
+    {
+        if (trace.StartPadSyncId is null || trace.StartPadName is null ||
+            trace.EndPadSyncId is null || trace.EndPadName is null)
+        {
+            return null;
+        }
+
+        for (int index = Airwires.Count - 1; index >= 0; index--)
+        {
+            BoardAirwire airwire = Airwires[index];
+            if (AirwireMatches(airwire, trace))
+            {
+                return airwire;
+            }
+        }
+
+        return null;
+    }
+
+    private void RetireAirwiresForExistingTraces()
+    {
+        retiredAirwiresByTraceId.Clear();
+        foreach (BoardTrace trace in Traces)
+        {
+            BoardAirwire? airwire = FindAirwireBetween(trace);
+            if (airwire is null)
+            {
+                continue;
+            }
+
+            Airwires.Remove(airwire);
+            retiredAirwiresByTraceId[trace.TraceId] = airwire;
+        }
+    }
+
+    private void RestoreAirwireForTrace(BoardTrace trace)
+    {
+        if (!retiredAirwiresByTraceId.Remove(trace.TraceId, out BoardAirwire? airwire))
+        {
+            return;
+        }
+
+        Airwires.Add(RefreshAirwireEndpoints(airwire));
+    }
+
     private static bool AirwireMatches(BoardAirwire airwire, BoardPadHit startPad, BoardPadHit endPad) =>
         (EndpointMatches(airwire.StartSyncId, airwire.StartPinName, startPad) &&
             EndpointMatches(airwire.EndSyncId, airwire.EndPinName, endPad)) ||
         (EndpointMatches(airwire.StartSyncId, airwire.StartPinName, endPad) &&
             EndpointMatches(airwire.EndSyncId, airwire.EndPinName, startPad));
 
+    private static bool AirwireMatches(BoardAirwire airwire, BoardTrace trace) =>
+        EndpointMatches(airwire.StartSyncId, airwire.StartPinName, trace.StartPadSyncId, trace.StartPadName) &&
+            EndpointMatches(airwire.EndSyncId, airwire.EndPinName, trace.EndPadSyncId, trace.EndPadName) ||
+        EndpointMatches(airwire.StartSyncId, airwire.StartPinName, trace.EndPadSyncId, trace.EndPadName) &&
+            EndpointMatches(airwire.EndSyncId, airwire.EndPinName, trace.StartPadSyncId, trace.StartPadName);
+
     private static bool EndpointMatches(string syncId, string pinName, BoardPadHit pad) =>
         string.Equals(syncId, pad.SyncId, StringComparison.Ordinal) &&
         string.Equals(pinName, pad.PadName, StringComparison.OrdinalIgnoreCase);
+
+    private static bool EndpointMatches(string syncId, string pinName, string? traceSyncId, string? tracePadName) =>
+        string.Equals(syncId, traceSyncId, StringComparison.Ordinal) &&
+        string.Equals(pinName, tracePadName, StringComparison.OrdinalIgnoreCase);
 
     private static bool IsEndpointHit(CadPoint endpoint, CadPoint point, long tolerance) =>
         Math.Abs(endpoint.X - point.X) <= tolerance &&

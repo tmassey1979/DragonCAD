@@ -366,6 +366,88 @@ public sealed class BoardEditorViewModelTests
     }
 
     [Fact]
+    public void DeleteSelectedRetiredTraceRestoresMatchingAirwire()
+    {
+        BoardEditorViewModel board = BoardWithOneAirwireBetweenNamedPads();
+        board.ActivateRouteTool();
+        board.TraceClickAt(new CadPoint(-450_000, 80_000));
+        board.CompleteTraceAt(new CadPoint(7_560_000, -40_000));
+
+        board.ActivateSelectTool();
+        Assert.True(board.SelectAt(new CadPoint(3_500_000, 100_000)));
+        Assert.True(board.DeleteSelectedBoardObject());
+
+        BoardAirwire restored = Assert.Single(board.Airwires);
+        Assert.Equal("N$1", restored.NetName);
+        Assert.Equal("sync-1", restored.StartSyncId);
+        Assert.Equal("OUT", restored.StartPinName);
+        Assert.Equal("sync-2", restored.EndSyncId);
+        Assert.Equal("IN", restored.EndPinName);
+        Assert.Empty(board.Traces);
+    }
+
+    [Fact]
+    public void PartialTraceBetweenMatchingPadsDoesNotRetireAirwire()
+    {
+        BoardEditorViewModel board = BoardWithOneAirwireBetweenNamedPads();
+
+        board.ActivateRouteTool();
+        board.TraceClickAt(new CadPoint(-450_000, 80_000));
+        Assert.True(board.TraceClickAt(new CadPoint(3_200_000, 1_100_000)));
+
+        BoardAirwire airwire = Assert.Single(board.Airwires);
+        Assert.Equal("N$1", airwire.NetName);
+        Assert.Empty(board.Traces);
+        Assert.Equal(
+            [
+                new CadPoint(-500_000, 0),
+                new CadPoint(3_000_000, 1_000_000)
+            ],
+            board.PendingTraceRoutePoints);
+    }
+
+    [Fact]
+    public void CompleteTraceAtMatchingPadPreservesUnrelatedAirwires()
+    {
+        BoardEditorViewModel board = BoardWithThreeNamedPadComponents(
+            Wire("wire-1", "sync-1", "U1", "OUT", "sync-2", "U2", "IN", "N$1"),
+            Wire("wire-2", "sync-1", "U1", "GND", "sync-3", "U3", "GND", "GND"));
+
+        board.ActivateRouteTool();
+        board.TraceClickAt(new CadPoint(-450_000, 80_000));
+        Assert.True(board.CompleteTraceAt(new CadPoint(7_560_000, -40_000)));
+
+        BoardAirwire remaining = Assert.Single(board.Airwires);
+        Assert.Equal("GND", remaining.NetName);
+        Assert.Equal("sync-1", remaining.StartSyncId);
+        Assert.Equal("GND", remaining.StartPinName);
+        Assert.Equal("sync-3", remaining.EndSyncId);
+        Assert.Equal("GND", remaining.EndPinName);
+    }
+
+    [Fact]
+    public void CompleteTraceAtMatchingPadRetiresOnlyOneDuplicateParallelAirwire()
+    {
+        BoardEditorViewModel board = BoardWithNamedPadAirwires(
+            Wire("wire-1", "sync-1", "U1", "OUT", "sync-2", "U2", "IN", "N$1"),
+            Wire("wire-2", "sync-1", "U1", "OUT", "sync-2", "U2", "IN", "N$1_DUP"));
+
+        board.ActivateRouteTool();
+        board.TraceClickAt(new CadPoint(-450_000, 80_000));
+        Assert.True(board.CompleteTraceAt(new CadPoint(7_560_000, -40_000)));
+
+        BoardAirwire remaining = Assert.Single(board.Airwires);
+        Assert.Equal("N$1", remaining.NetName);
+        Assert.Single(board.Traces);
+
+        board.ActivateSelectTool();
+        Assert.True(board.SelectAt(new CadPoint(3_500_000, 100_000)));
+        Assert.True(board.DeleteSelectedBoardObject());
+
+        Assert.Equal(["N$1", "N$1_DUP"], board.Airwires.Select(airwire => airwire.NetName).Order());
+    }
+
+    [Fact]
     public void CompleteTraceAtUnmatchedPadKeepsRoutePendingAndReportsDiagnostic()
     {
         BoardEditorViewModel board = BoardWithOneAirwireBetweenNamedPads();
@@ -841,7 +923,10 @@ public sealed class BoardEditorViewModelTests
                 new ComponentFootprintPadPreview("2", new CadPoint(500_000, 0), new CadVector(400_000, 300_000), "Round", "ThroughHole")
             ]);
 
-    private static BoardEditorViewModel BoardWithOneAirwireBetweenNamedPads()
+    private static BoardEditorViewModel BoardWithOneAirwireBetweenNamedPads() =>
+        BoardWithNamedPadAirwires(Wire("wire-1", "sync-1", "U1", "OUT", "sync-2", "U2", "IN", "N$1"));
+
+    private static BoardEditorViewModel BoardWithNamedPadAirwires(params SchematicWire[] wires)
     {
         BoardEditorViewModel board = new();
         SchematicComponentInstance first = new(
@@ -860,15 +945,56 @@ public sealed class BoardEditorViewModelTests
             new CadPoint(0, 0),
             ComponentSymbolPreview.Empty,
             FootprintWithNamedPads("IN", "GND"));
-        SchematicWire wire = new(
-            "wire-1",
-            new SchematicPinEndpoint("sync-1", "U1", "OUT", new CadPoint(0, 0)),
-            new SchematicPinEndpoint("sync-2", "U2", "IN", new CadPoint(0, 0)),
-            [new CadPoint(0, 0), new CadPoint(1, 0)],
-            "N$1");
-        board.SynchronizeFromSchematic([first, second], [wire]);
+        board.SynchronizeFromSchematic([first, second], wires);
         return board;
     }
+
+    private static BoardEditorViewModel BoardWithThreeNamedPadComponents(params SchematicWire[] wires)
+    {
+        BoardEditorViewModel board = new();
+        SchematicComponentInstance first = new(
+            "sync-1",
+            "U1",
+            "hawkcad:first",
+            "First",
+            new CadPoint(0, 0),
+            ComponentSymbolPreview.Empty,
+            FootprintWithNamedPads("OUT", "GND"));
+        SchematicComponentInstance second = new(
+            "sync-2",
+            "U2",
+            "hawkcad:second",
+            "Second",
+            new CadPoint(0, 0),
+            ComponentSymbolPreview.Empty,
+            FootprintWithNamedPads("IN", "GND"));
+        SchematicComponentInstance third = new(
+            "sync-3",
+            "U3",
+            "hawkcad:third",
+            "Third",
+            new CadPoint(0, 0),
+            ComponentSymbolPreview.Empty,
+            FootprintWithNamedPads("IN", "GND"));
+        board.SynchronizeFromSchematic([first, second, third], wires);
+        return board;
+    }
+
+    private static SchematicWire Wire(
+        string wireId,
+        string startSyncId,
+        string startReferenceDesignator,
+        string startPinName,
+        string endSyncId,
+        string endReferenceDesignator,
+        string endPinName,
+        string netName) =>
+        new(
+            wireId,
+            new SchematicPinEndpoint(startSyncId, startReferenceDesignator, startPinName, new CadPoint(0, 0)),
+            new SchematicPinEndpoint(endSyncId, endReferenceDesignator, endPinName, new CadPoint(0, 0)),
+            [new CadPoint(0, 0), new CadPoint(1, 0)],
+            netName);
 
     private static ComponentFootprintPreview FootprintWithNamedPads(string leftPadName, string rightPadName) =>
         new(
