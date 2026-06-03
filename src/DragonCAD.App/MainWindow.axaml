@@ -9,6 +9,7 @@
         xmlns:fb="clr-namespace:DragonCAD.App.Fabrication"
         xmlns:fe="clr-namespace:DragonCAD.App.Fabrication.Export"
         xmlns:fo="clr-namespace:DragonCAD.App.Fabrication.Ordering"
+        xmlns:h="clr-namespace:DragonCAD.App.Help"
         xmlns:mp="clr-namespace:DragonCAD.App.Marketplace"
         xmlns:ma="clr-namespace:DragonCAD.App.Marketplace.Audit"
         xmlns:mb="clr-namespace:DragonCAD.App.Marketplace.Bom"
@@ -3427,52 +3428,137 @@
                       RowDefinitions="Auto,*"
                       IsVisible="{Binding IsHelpTabActive}">
                     <StackPanel Spacing="6">
-                        <TextBlock Text="Help"
+                        <TextBlock Text="{Binding SelectedHelpTopic.Title}"
                                    FontSize="24"
                                    FontWeight="SemiBold"
                                    Foreground="{StaticResource DragonText}" />
-                        <TextBlock Text="Editor documentation is rendered as local markdown-style sections so workflows can be reviewed without leaving DragonCAD."
+                        <TextBlock Text="{Binding SelectedHelpTopic.Summary}"
                                    TextWrapping="Wrap"
                                    Foreground="{StaticResource DragonMutedText}" />
                     </StackPanel>
 
-                    <ScrollViewer x:Name="HelpMarkdownViewer"
-                                  Grid.Row="1"
-                                  Margin="0,14,0,0"
-                                  VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding HelpSections}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="app:HelpSection"
-                                              x:DataType="app:HelpSection">
-                                    <Border Background="{StaticResource DragonPanelBackground}"
-                                            BorderBrush="{StaticResource DragonBorder}"
-                                            BorderThickness="1"
-                                            CornerRadius="6"
-                                            Padding="16"
-                                            Margin="0,0,0,12">
-                                        <StackPanel Spacing="8">
-                                            <TextBlock Text="{Binding Title}"
-                                                       FontSize="18"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{StaticResource DragonText}" />
-                                            <TextBlock Text="{Binding Body}"
-                                                       TextWrapping="Wrap"
-                                                       Foreground="{StaticResource DragonMutedText}" />
-                                            <Border Background="#132033"
-                                                    BorderBrush="{StaticResource DragonBorder}"
-                                                    BorderThickness="1"
-                                                    CornerRadius="4"
-                                                    Padding="10">
-                                                <TextBlock Text="{Binding Action}"
-                                                           TextWrapping="Wrap"
-                                                           Foreground="{StaticResource DragonGreen}" />
-                                            </Border>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
+                    <Grid Grid.Row="1"
+                          Margin="0,14,0,0"
+                          ColumnDefinitions="280,*"
+                          ColumnSpacing="14">
+                        <Border Background="{StaticResource DragonPanelBackground}"
+                                BorderBrush="{StaticResource DragonBorder}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="12">
+                            <DockPanel LastChildFill="True">
+                                <TextBox DockPanel.Dock="Top"
+                                         PlaceholderText="Search help"
+                                         Text="{Binding HelpSearchText, Mode=TwoWay}" />
+                                <ScrollViewer Margin="0,10,0,0"
+                                              VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding HelpTopics}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="h:HelpTopic"
+                                                          x:DataType="h:HelpTopic">
+                                                <Button Classes="tree-nav"
+                                                        Margin="0,0,0,4"
+                                                        Command="{Binding $parent[Window].DataContext.SelectHelpTopicCommand}"
+                                                        CommandParameter="{Binding}">
+                                                    <StackPanel Spacing="2">
+                                                        <TextBlock Text="{Binding Title}"
+                                                                   FontWeight="SemiBold"
+                                                                   TextWrapping="Wrap" />
+                                                        <TextBlock Text="{Binding Summary}"
+                                                                   FontSize="12"
+                                                                   TextWrapping="Wrap"
+                                                                   Foreground="{StaticResource DragonMutedText}" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </DockPanel>
+                        </Border>
+
+                        <Border Grid.Column="1"
+                                Background="{StaticResource DragonPanelBackground}"
+                                BorderBrush="{StaticResource DragonBorder}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="18">
+                            <Grid>
+                                <ItemsControl ItemsSource="{Binding HelpSections}"
+                                              IsVisible="False"
+                                              IsHitTestVisible="False">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="app:HelpSection"
+                                                      x:DataType="app:HelpSection">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Title}" />
+                                                <TextBlock Text="{Binding Body}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <ScrollViewer x:Name="HelpMarkdownViewer"
+                                              VerticalScrollBarVisibility="Auto">
+                                    <ItemsControl ItemsSource="{Binding RenderedHelpBlocks}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="h:HelpMarkdownBlock"
+                                                          x:DataType="h:HelpMarkdownBlock">
+                                                <StackPanel Margin="0,0,0,12"
+                                                            Spacing="8">
+                                                    <TextBlock Text="{Binding Text}"
+                                                               IsVisible="{Binding IsHeading}"
+                                                               FontSize="{Binding HeadingFontSize}"
+                                                               FontWeight="SemiBold"
+                                                               TextWrapping="Wrap"
+                                                               Foreground="{StaticResource DragonText}" />
+                                                    <TextBlock Text="{Binding Text}"
+                                                               IsVisible="{Binding IsParagraph}"
+                                                               TextWrapping="Wrap"
+                                                               Foreground="{StaticResource DragonMutedText}" />
+                                                    <Grid IsVisible="{Binding IsListItem}"
+                                                          ColumnDefinitions="Auto,*"
+                                                          ColumnSpacing="8">
+                                                        <TextBlock Text="-"
+                                                                   Foreground="{StaticResource DragonGreen}" />
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding Text}"
+                                                                   TextWrapping="Wrap"
+                                                                   Foreground="{StaticResource DragonMutedText}" />
+                                                    </Grid>
+                                                    <Border IsVisible="{Binding IsCodeBlock}"
+                                                            Background="#132033"
+                                                            BorderBrush="{StaticResource DragonBorder}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="4"
+                                                            Padding="10">
+                                                        <TextBlock Text="{Binding Text}"
+                                                                   FontFamily="Consolas"
+                                                                   TextWrapping="Wrap"
+                                                                   Foreground="{StaticResource DragonGreen}" />
+                                                    </Border>
+                                                    <ItemsControl ItemsSource="{Binding Links}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate DataType="h:HelpMarkdownLink"
+                                                                          x:DataType="h:HelpMarkdownLink">
+                                                                <Button Classes="tree-nav"
+                                                                        Command="{Binding $parent[Window].DataContext.NavigateHelpLinkCommand}"
+                                                                        CommandParameter="{Binding Target}">
+                                                                    <TextBlock Text="{Binding Text}"
+                                                                               TextWrapping="Wrap"
+                                                                               Foreground="{StaticResource DragonGreen}" />
+                                                                </Button>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Grid>
+                        </Border>
+                    </Grid>
                 </Grid>
 
                 <Grid Grid.Row="2"

@@ -62,6 +62,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     private const double DefaultFitViewportPaddingPixels = 40;
     private readonly BuiltInHawkCadLibraryService builtInLibraryService;
     private readonly HelpTopicRegistry helpTopicRegistry = HelpTopicRegistry.CreateDefault();
+    private readonly HelpTopicNavigator helpTopicNavigator;
     private readonly DragonProjectFolderStore projectFolderStore = new();
     private readonly ProjectShellStateStore projectShellStateStore = new();
     private readonly ProjectCenterViewModel projectCenter = new();
@@ -131,6 +132,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         this.builtInLibraryService = builtInLibraryService;
         this.datasheetPromotionArtifactDirectory = datasheetPromotionArtifactDirectory;
         this.vendorCatalogSyncSearchService = vendorCatalogSyncSearchService;
+        helpTopicNavigator = new HelpTopicNavigator(helpTopicRegistry);
         selectedHelpTopic = helpTopicRegistry.Topics[0];
         inUseVendorCatalogSyncStateStore = new InUseVendorCatalogSyncStateStore(DefaultInUseVendorCatalogSyncStatePath(datasheetPromotionArtifactDirectory));
         inUseVendorCatalogFreshnessPolicyStore = new InUseVendorCatalogFreshnessPolicyStore(DefaultInUseVendorCatalogFreshnessPolicyPath(datasheetPromotionArtifactDirectory));
@@ -144,6 +146,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         CancelPlacementCommand = new DelegateCommand(CancelPlacement);
         CancelActiveOperationCommand = new DelegateCommand(CancelActiveOperation);
         PlaceArmedComponentOnSchematicCommand = new DelegateCommand(PlaceArmedComponentOnSchematic);
+        SelectHelpTopicCommand = new DelegateCommand(parameter => SelectHelpTopic((parameter as HelpTopic)?.Id ?? parameter as string));
+        NavigateHelpLinkCommand = new DelegateCommand(parameter => NavigateHelpLink(parameter as string));
         NewProjectCommand = new DelegateCommand(NewProject);
         OpenProjectFolderCommand = new DelegateCommand(OpenProjectFolder);
         SaveProjectCommand = new DelegateCommand(SaveProject);
@@ -889,8 +893,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
             selectedHelpTopic = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectedHelpDocument));
+            OnPropertyChanged(nameof(RenderedHelpBlocks));
         }
     }
+
+    public HelpDocument SelectedHelpDocument => helpTopicNavigator.SelectedDocument;
+
+    public IReadOnlyList<HelpMarkdownBlock> RenderedHelpBlocks => SelectedHelpDocument.Blocks;
 
     public string HelpSearchText
     {
@@ -900,7 +910,19 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
 
     public void SelectHelpTopic(string? topicId)
     {
-        SelectedHelpTopic = helpTopicRegistry.GetTopicOrFallback(topicId);
+        helpTopicNavigator.SelectTopic(topicId);
+        SelectedHelpTopic = helpTopicNavigator.SelectedTopic;
+        ActiveWorkspaceTab = "Help";
+    }
+
+    public void NavigateHelpLink(string? linkTarget)
+    {
+        if (!helpTopicNavigator.TryNavigateInternalLink(linkTarget))
+        {
+            return;
+        }
+
+        SelectedHelpTopic = helpTopicNavigator.SelectedTopic;
         ActiveWorkspaceTab = "Help";
     }
 
@@ -913,6 +935,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         }
 
         helpSearchText = normalizedText;
+        helpTopicNavigator.SearchText = normalizedText;
+        if (helpTopicNavigator.FilteredTopics.Count > 0)
+        {
+            SelectedHelpTopic = helpTopicNavigator.SelectedTopic;
+        }
+
         OnPropertyChanged(nameof(HelpSearchText));
         OnPropertyChanged(nameof(HelpTopics));
     }
@@ -960,6 +988,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
     public DelegateCommand CancelActiveOperationCommand { get; }
 
     public DelegateCommand PlaceArmedComponentOnSchematicCommand { get; }
+
+    public DelegateCommand SelectHelpTopicCommand { get; }
+
+    public DelegateCommand NavigateHelpLinkCommand { get; }
 
     public DelegateCommand NewProjectCommand { get; }
 
