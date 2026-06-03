@@ -1,0 +1,17 @@
+{
+  "Product": {
+    "DigiKeyProductNumber": "296-1389-5-ND",
+    "ManufacturerProductNumber": "NE555P",
+    "Description": { "ProductDescription": "Timer IC" },
+    "Manufacturer": { "Name": "Texas Instruments" },
+    "DatasheetUrl": "https://example.test/ne555.pdf",
+    "ProductUrl": "https://www.digikey.com/en/products/detail/texas-instruments/NE555P/277038",
+    "QuantityAvailable": 5000,
+    "StandardPricing": [
+      { "BreakQuantity": 1, "UnitPrice": 0.48 },
+      { "BreakQuantity": 100, "UnitPrice": 0.22 }
+    ],
+    "Category": { "Name": "Clock and Timing" },
+    "ProductStatus": { "Status": "Active" }
+  }
+}

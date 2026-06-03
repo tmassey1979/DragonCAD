@@ -1,0 +1,17 @@
+{
+  "products": [
+    {
+      "id": 50,
+      "sku": "ID-50",
+      "title": "555 Timer Chip",
+      "mpn": "NE555P",
+      "manufacturer": "Texas Instruments",
+      "description": "Classic DIP-8 timer.",
+      "url": "https://www.adafruit.com/product/50",
+      "datasheet_url": "https://cdn-shop.adafruit.com/datasheets/ne555.pdf",
+      "learn_url": "https://learn.adafruit.com/555-timer",
+      "stock_quantity": 278,
+      "price": 1.95
+    }
+  ]
+}

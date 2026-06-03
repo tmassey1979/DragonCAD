@@ -1,0 +1,25 @@
+{
+  "Products": [
+    {
+      "DigiKeyProductNumber": "296-12345-1-ND",
+      "ManufacturerProductNumber": "LM7805CT/NOPB",
+      "Description": { "ProductDescription": "5V linear regulator" },
+      "Manufacturer": { "Name": "Texas Instruments" },
+      "DatasheetUrl": "https://example.test/lm7805.pdf",
+      "ProductUrl": "https://www.digikey.com/en/products/detail/texas-instruments/LM7805CT-NOPB/12345",
+      "QuantityAvailable": 1234,
+      "StandardPricing": [
+        { "BreakQuantity": 1, "UnitPrice": 0.72 },
+        { "BreakQuantity": 10, "UnitPrice": 0.51 }
+      ],
+      "ProductStatus": { "Status": "Active" },
+      "ProductVariations": [
+        {
+          "DigiKeyProductNumber": "296-12345-1-ND",
+          "PackageType": { "Name": "Tube" },
+          "MinimumOrderQuantity": 1
+        }
+      ]
+    }
+  ]
+}

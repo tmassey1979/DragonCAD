@@ -1,0 +1,22 @@
+{
+  "SearchResults": {
+    "NumberOfResult": 1,
+    "Parts": [
+      {
+        "MouserPartNumber": "595-LM7805CT",
+        "ManufacturerPartNumber": "LM7805CT/NOPB",
+        "Manufacturer": "Texas Instruments",
+        "Description": "Linear Voltage Regulators 5V",
+        "AvailabilityInStock": "1,234 In Stock",
+        "DataSheetUrl": "https://example.test/lm7805.pdf",
+        "ProductDetailUrl": "https://www.mouser.com/ProductDetail/595-LM7805CT",
+        "Category": "Power Management ICs",
+        "LifecycleStatus": "New Product",
+        "PriceBreaks": [
+          { "Quantity": 1, "Price": "$0.72", "Currency": "USD" },
+          { "Quantity": 10, "Price": "$0.51", "Currency": "USD" }
+        ]
+      }
+    ]
+  }
+}

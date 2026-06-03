@@ -1,0 +1,16 @@
+{
+  "Part": {
+    "MouserPartNumber": "595-NE555P",
+    "ManufacturerPartNumber": "NE555P",
+    "Manufacturer": "Texas Instruments",
+    "Description": "Timers & Support Products Precision Timer",
+    "AvailabilityInStock": "900 In Stock",
+    "DataSheetUrl": "https://example.test/ne555.pdf",
+    "ProductDetailUrl": "https://www.mouser.com/ProductDetail/595-NE555P",
+    "Packaging": "Tube",
+    "PriceBreaks": [
+      { "Quantity": 1, "Price": "$0.40", "Currency": "USD" },
+      { "Quantity": 100, "Price": "$0.19", "Currency": "USD" }
+    ]
+  }
+}
