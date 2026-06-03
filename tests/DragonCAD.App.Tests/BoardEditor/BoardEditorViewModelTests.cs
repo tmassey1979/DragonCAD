@@ -401,6 +401,7 @@ public sealed class BoardEditorViewModelTests
         Assert.Equal(
             [
                 new CadPoint(-500_000, 0),
+                new CadPoint(3_000_000, 0),
                 new CadPoint(3_000_000, 1_000_000)
             ],
             board.PendingTraceRoutePoints);
