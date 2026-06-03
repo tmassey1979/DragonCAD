@@ -117,4 +117,7 @@ internal static class ComponentIdentityValue
 
         return trimmed;
     }
+
+    public static string? NormalizeOptional(string? value, string parameterName) =>
+        value is null ? null : Normalize(value, parameterName);
 }
