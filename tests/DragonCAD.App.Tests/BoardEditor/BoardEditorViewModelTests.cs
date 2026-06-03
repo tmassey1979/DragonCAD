@@ -268,6 +268,7 @@ public sealed class BoardEditorViewModelTests
         Assert.Contains(board.Layers, layer => layer.Name == "Bottom" && layer.IsVisible);
 
         board.ActivateRouteTool();
+        board.SetFreeRouteMode(true);
         Assert.Equal("Route", board.ActiveTool);
         Assert.True(board.TraceClickAt(new CadPoint(1_200_000, 1_600_000)));
         Assert.NotNull(board.PendingTraceStart);
@@ -354,23 +355,67 @@ public sealed class BoardEditorViewModelTests
                 new CadPoint(7_500_000, 0)
             ],
             trace.RoutePoints);
+        Assert.Equal("sync-1", trace.StartPadSyncId);
+        Assert.Equal("U1", trace.StartPadReferenceDesignator);
+        Assert.Equal("OUT", trace.StartPadName);
+        Assert.Equal("sync-2", trace.EndPadSyncId);
+        Assert.Equal("U2", trace.EndPadReferenceDesignator);
+        Assert.Equal("IN", trace.EndPadName);
         Assert.Null(board.PendingTraceStart);
         Assert.Equal("Routed board trace on Top and retired airwire N$1.", board.StatusText);
     }
 
     [Fact]
-    public void CompleteTraceAtUnmatchedPadKeepsAirwire()
+    public void CompleteTraceAtUnmatchedPadKeepsRoutePendingAndReportsDiagnostic()
     {
         BoardEditorViewModel board = BoardWithOneAirwireBetweenNamedPads();
 
         board.ActivateRouteTool();
         board.TraceClickAt(new CadPoint(-450_000, 80_000));
 
-        Assert.True(board.CompleteTraceAt(new CadPoint(8_500_000, 0)));
+        Assert.False(board.CompleteTraceAt(new CadPoint(8_500_000, 0)));
 
         Assert.Single(board.Airwires);
-        Assert.Single(board.Traces);
-        Assert.Equal("Routed board trace on Top.", board.StatusText);
+        Assert.Empty(board.Traces);
+        Assert.Equal(new CadPoint(-500_000, 0), board.PendingTraceStart);
+        Assert.Equal([new CadPoint(-500_000, 0)], board.PendingTraceRoutePoints);
+        Assert.Equal("Finish at a pad on the same airwire as U1.OUT.", board.StatusText);
+    }
+
+    [Fact]
+    public void RouteClickAtFreeSpaceIsBlockedUnlessFreeRouteModeIsActive()
+    {
+        BoardEditorViewModel board = new();
+
+        board.ActivateRouteTool();
+
+        Assert.False(board.TraceClickAt(new CadPoint(1_200_000, 1_600_000)));
+        Assert.Null(board.PendingTraceStart);
+        Assert.Empty(board.PendingTraceRoutePoints);
+        Assert.Equal("Start a board trace from a pad or existing trace endpoint.", board.StatusText);
+
+        board.SetFreeRouteMode(true);
+
+        Assert.True(board.TraceClickAt(new CadPoint(1_200_000, 1_600_000)));
+        Assert.Equal(new CadPoint(1_000_000, 2_000_000), board.PendingTraceStart);
+        Assert.Equal("Started board trace at 1.000 mm, 2.000 mm.", board.StatusText);
+    }
+
+    [Fact]
+    public void RouteClickAtExistingTraceEndpointStartsTraceWhenFreeRouteModeIsInactive()
+    {
+        BoardEditorViewModel board = new();
+        board.ActivateRouteTool();
+        board.SetFreeRouteMode(true);
+        board.TraceClickAt(new CadPoint(0, 0));
+        board.CompleteTraceAt(new CadPoint(4_000_000, 0));
+        board.SetFreeRouteMode(false);
+
+        Assert.True(board.TraceClickAt(new CadPoint(4_100_000, 80_000)));
+
+        Assert.Equal(new CadPoint(4_000_000, 0), board.PendingTraceStart);
+        Assert.Equal([new CadPoint(4_000_000, 0)], board.PendingTraceRoutePoints);
+        Assert.Equal("Started board trace at existing route endpoint.", board.StatusText);
     }
 
     [Fact]
@@ -378,6 +423,7 @@ public sealed class BoardEditorViewModelTests
     {
         BoardEditorViewModel board = new();
         board.ActivateRouteTool();
+        board.SetFreeRouteMode(true);
         board.TraceClickAt(new CadPoint(0, 0));
         board.CompleteTraceAt(new CadPoint(4_000_000, 0));
         board.ActivateSelectTool();
@@ -396,6 +442,7 @@ public sealed class BoardEditorViewModelTests
     {
         BoardEditorViewModel board = new();
         board.ActivateRouteTool();
+        board.SetFreeRouteMode(true);
         board.TraceClickAt(new CadPoint(0, 0));
         board.CompleteTraceAt(new CadPoint(4_000_000, 0));
         board.ActivateSelectTool();
@@ -415,6 +462,7 @@ public sealed class BoardEditorViewModelTests
 
         board.SetActiveLayer("Bottom");
         board.ActivateRouteTool();
+        board.SetFreeRouteMode(true);
         board.TraceClickAt(new CadPoint(0, 0));
         board.CompleteTraceAt(new CadPoint(2_000_000, 0));
 
@@ -450,6 +498,7 @@ public sealed class BoardEditorViewModelTests
     {
         BoardEditorViewModel board = new();
         board.ActivateRouteTool();
+        board.SetFreeRouteMode(true);
         board.TraceClickAt(new CadPoint(0, 0));
 
         BoardVia via = board.PlaceViaAt(new CadPoint(2_200_000, 1_700_000));
@@ -474,6 +523,7 @@ public sealed class BoardEditorViewModelTests
     {
         BoardEditorViewModel board = new();
         board.ActivateRouteTool();
+        board.SetFreeRouteMode(true);
         board.TraceClickAt(new CadPoint(0, 0));
         board.CompleteTraceAt(new CadPoint(4_000_000, 0));
         board.PlaceViaAt(new CadPoint(6_000_000, 0));
@@ -528,6 +578,7 @@ public sealed class BoardEditorViewModelTests
         BoardEditorViewModel board = new();
 
         board.ActivateRouteTool();
+        board.SetFreeRouteMode(true);
         board.TraceClickAt(new CadPoint(0, 0));
         board.TraceClickAt(new CadPoint(2_100_000, 2_300_000));
         board.CompleteTraceAt(new CadPoint(6_000_000, 2_000_000));
@@ -552,6 +603,7 @@ public sealed class BoardEditorViewModelTests
         Assert.Equal("90", board.RouteCornerMode);
 
         board.ActivateRouteTool();
+        board.SetFreeRouteMode(true);
         board.TraceClickAt(new CadPoint(0, 0));
         board.CompleteTraceAt(new CadPoint(2_000_000, 2_000_000));
 
@@ -582,6 +634,7 @@ public sealed class BoardEditorViewModelTests
 
         board.SetRouteCornerMode("45");
         board.ActivateRouteTool();
+        board.SetFreeRouteMode(true);
         board.TraceClickAt(new CadPoint(0, 0));
         board.CompleteTraceAt(new CadPoint(2_000_000, 2_000_000));
 
@@ -603,6 +656,7 @@ public sealed class BoardEditorViewModelTests
 
         board.SetRouteCornerMode("45");
         board.ActivateRouteTool();
+        board.SetFreeRouteMode(true);
         board.TraceClickAt(new CadPoint(0, 0));
         board.CompleteTraceAt(new CadPoint(4_000_000, 2_000_000));
 
@@ -672,6 +726,7 @@ public sealed class BoardEditorViewModelTests
     {
         BoardEditorViewModel board = new();
         board.ActivateRouteTool();
+        board.SetFreeRouteMode(true);
         board.TraceClickAt(new CadPoint(0, 0));
         board.TraceClickAt(new CadPoint(2_100_000, 2_300_000));
         board.CompleteTraceAt(new CadPoint(6_000_000, 2_000_000));
@@ -698,6 +753,7 @@ public sealed class BoardEditorViewModelTests
     {
         BoardEditorViewModel board = new();
         board.ActivateRouteTool();
+        board.SetFreeRouteMode(true);
         board.TraceClickAt(new CadPoint(0, 0));
         board.CompleteTraceAt(new CadPoint(4_000_000, 0));
         board.ActivateSelectTool();
@@ -719,6 +775,7 @@ public sealed class BoardEditorViewModelTests
     {
         BoardEditorViewModel board = new();
         board.ActivateRouteTool();
+        board.SetFreeRouteMode(true);
         board.TraceClickAt(new CadPoint(0, 0));
         board.TraceClickAt(new CadPoint(4_000_000, 0));
         board.CompleteTraceAt(new CadPoint(4_000_000, 4_000_000));

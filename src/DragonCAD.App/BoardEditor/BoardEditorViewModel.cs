@@ -30,6 +30,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     private BoardVia? hoveredVia;
     private int? hoveredTraceSegmentIndex;
     private BoardPadHit? pendingTraceStartPad;
+    private bool isFreeRouteModeActive;
     private string routeCornerMode = "90";
     private readonly List<CadPoint> pendingTraceRoutePoints = [];
 
@@ -118,6 +119,21 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     }
 
     public IReadOnlyList<CadPoint> PendingTraceRoutePoints => pendingTraceRoutePoints;
+
+    public bool IsFreeRouteModeActive
+    {
+        get => isFreeRouteModeActive;
+        private set
+        {
+            if (isFreeRouteModeActive == value)
+            {
+                return;
+            }
+
+            isFreeRouteModeActive = value;
+            OnPropertyChanged();
+        }
+    }
 
     public IReadOnlyList<string> RouteCornerModes { get; } = ["90", "45"];
 
@@ -879,20 +895,33 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         RouteCornerMode = mode;
     }
 
+    public void SetFreeRouteMode(bool isActive)
+    {
+        IsFreeRouteModeActive = isActive;
+        StatusText = isActive
+            ? "Board free-route mode active."
+            : "Board free-route mode inactive.";
+    }
+
     public bool TraceClickAt(CadPoint point)
     {
         BoardPadHit? padHit = FindPadAt(point);
-        CadPoint routePoint = padHit?.Position ?? placementGrid.Snap(point);
+        BoardTraceEndpointHit? endpointHit = padHit is null ? FindTraceEndpointAt(point) : null;
+        CadPoint routePoint = padHit?.Position ?? endpointHit?.Position ?? placementGrid.Snap(point);
         if (PendingTraceStart is null)
         {
+            if (padHit is null && endpointHit is null && !IsFreeRouteModeActive)
+            {
+                StatusText = "Start a board trace from a pad or existing trace endpoint.";
+                return false;
+            }
+
             PendingTraceStart = routePoint;
             pendingTraceStartPad = padHit;
             pendingTraceRoutePoints.Clear();
             pendingTraceRoutePoints.Add(routePoint);
             OnPropertyChanged(nameof(PendingTraceRoutePoints));
-            StatusText = padHit is null
-                ? $"Started board trace at {FormatMillimeters(routePoint.X)} mm, {FormatMillimeters(routePoint.Y)} mm."
-                : $"Started board trace at pad {padHit.ReferenceDesignator}.{padHit.PadName}.";
+            StatusText = StartTraceStatusText(padHit, endpointHit, routePoint);
             return true;
         }
 
@@ -913,15 +942,48 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         }
 
         BoardPadHit? endPad = FindPadAt(point);
-        AddRouteLeg(pendingTraceRoutePoints, endPad?.Position ?? placementGrid.Snap(point));
+        BoardTraceEndpointHit? endpointHit = endPad is null ? FindTraceEndpointAt(point) : null;
+        if (endPad is null && endpointHit is null && !IsFreeRouteModeActive)
+        {
+            StatusText = pendingTraceStartPad is null
+                ? "Finish a board trace at a pad, existing trace endpoint, or enable free-route mode."
+                : $"Finish at a pad on the same airwire as {pendingTraceStartPad.ReferenceDesignator}.{pendingTraceStartPad.PadName}.";
+            return false;
+        }
+
+        BoardAirwire? retiredAirwire = null;
+        if (pendingTraceStartPad is not null && endPad is not null)
+        {
+            retiredAirwire = FindAirwireBetween(pendingTraceStartPad, endPad);
+            if (retiredAirwire is null)
+            {
+                StatusText = $"Finish at a pad on the same airwire as {pendingTraceStartPad.ReferenceDesignator}.{pendingTraceStartPad.PadName}.";
+                return false;
+            }
+        }
+
+        AddRouteLeg(pendingTraceRoutePoints, endPad?.Position ?? endpointHit?.Position ?? placementGrid.Snap(point));
         if (pendingTraceRoutePoints.Count < 2)
         {
             StatusText = "Board trace needs at least two points.";
             return false;
         }
 
-        BoardAirwire? retiredAirwire = RetireAirwireBetween(pendingTraceStartPad, endPad);
-        Traces.Add(new BoardTrace(Guid.NewGuid().ToString("N"), ActiveLayerName, [.. pendingTraceRoutePoints]));
+        if (retiredAirwire is not null)
+        {
+            Airwires.Remove(retiredAirwire);
+        }
+
+        Traces.Add(new BoardTrace(
+            Guid.NewGuid().ToString("N"),
+            ActiveLayerName,
+            [.. pendingTraceRoutePoints],
+            StartPadSyncId: pendingTraceStartPad?.SyncId,
+            StartPadReferenceDesignator: pendingTraceStartPad?.ReferenceDesignator,
+            StartPadName: pendingTraceStartPad?.PadName,
+            EndPadSyncId: endPad?.SyncId,
+            EndPadReferenceDesignator: endPad?.ReferenceDesignator,
+            EndPadName: endPad?.PadName));
         pendingTraceRoutePoints.Clear();
         PendingTraceStart = null;
         pendingTraceStartPad = null;
@@ -1098,6 +1160,34 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         SelectedTraceSegmentIndex = traceHit.SegmentIndex;
         StatusText = $"Selected board trace on {traceHit.Trace.LayerName}.";
         return traceHit.Trace;
+    }
+
+    private BoardTraceEndpointHit? FindTraceEndpointAt(CadPoint point)
+    {
+        const long tolerance = 600_000;
+        IReadOnlyList<BoardTrace> visibleTraces = VisibleTraces;
+        for (int traceIndex = visibleTraces.Count - 1; traceIndex >= 0; traceIndex--)
+        {
+            BoardTrace trace = visibleTraces[traceIndex];
+            if (trace.RoutePoints.Count == 0)
+            {
+                continue;
+            }
+
+            CadPoint start = trace.RoutePoints[0];
+            if (IsEndpointHit(start, point, tolerance))
+            {
+                return new BoardTraceEndpointHit(start);
+            }
+
+            CadPoint end = trace.RoutePoints[^1];
+            if (IsEndpointHit(end, point, tolerance))
+            {
+                return new BoardTraceEndpointHit(end);
+            }
+        }
+
+        return null;
     }
 
     private BoardVia? SelectViaAt(CadPoint point)
@@ -1301,19 +1391,13 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         return null;
     }
 
-    private BoardAirwire? RetireAirwireBetween(BoardPadHit? startPad, BoardPadHit? endPad)
+    private BoardAirwire? FindAirwireBetween(BoardPadHit startPad, BoardPadHit endPad)
     {
-        if (startPad is null || endPad is null)
-        {
-            return null;
-        }
-
         for (int index = Airwires.Count - 1; index >= 0; index--)
         {
             BoardAirwire airwire = Airwires[index];
             if (AirwireMatches(airwire, startPad, endPad))
             {
-                Airwires.RemoveAt(index);
                 return airwire;
             }
         }
@@ -1330,6 +1414,22 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     private static bool EndpointMatches(string syncId, string pinName, BoardPadHit pad) =>
         string.Equals(syncId, pad.SyncId, StringComparison.Ordinal) &&
         string.Equals(pinName, pad.PadName, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsEndpointHit(CadPoint endpoint, CadPoint point, long tolerance) =>
+        Math.Abs(endpoint.X - point.X) <= tolerance &&
+        Math.Abs(endpoint.Y - point.Y) <= tolerance;
+
+    private static string StartTraceStatusText(BoardPadHit? padHit, BoardTraceEndpointHit? endpointHit, CadPoint routePoint)
+    {
+        if (padHit is not null)
+        {
+            return $"Started board trace at pad {padHit.ReferenceDesignator}.{padHit.PadName}.";
+        }
+
+        return endpointHit is not null
+            ? "Started board trace at existing route endpoint."
+            : $"Started board trace at {FormatMillimeters(routePoint.X)} mm, {FormatMillimeters(routePoint.Y)} mm.";
+    }
 
     private static CadPoint TransformLocalPoint(BoardComponentInstance component, CadPoint localPoint)
     {
@@ -1561,4 +1661,6 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     private sealed record TraceHit(BoardTrace Trace, int SegmentIndex);
 
     private sealed record BoardPadHit(string SyncId, string ReferenceDesignator, string PadName, CadPoint Position);
+
+    private sealed record BoardTraceEndpointHit(CadPoint Position);
 }
