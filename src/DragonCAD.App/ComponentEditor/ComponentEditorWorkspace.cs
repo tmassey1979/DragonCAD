@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using DragonCAD.Core.Components.Drafts;
 using DragonCAD.Core.Components.Definitions;
 using DragonCAD.Core.Components.Identity;
 using DragonCAD.Core.Geometry;
@@ -29,6 +30,8 @@ public sealed class ComponentEditorWorkspace
 
     public bool IsDirty => ComponentEditorSnapshot.FromDefinition(ViewModel.ToDefinition()) != baselineSnapshot;
 
+    public bool IsTrustedLibraryEntry => SessionKind == ComponentEditorSessionKind.Edit;
+
     public ComponentEditorValidationSummary ValidationSummary => ComponentEditorValidationSummary.FromDefinition(ViewModel.ToDefinition());
 
     public IReadOnlyList<ComponentEditorValidationIssueDisplay> ValidationIssueDisplay =>
@@ -45,10 +48,11 @@ public sealed class ComponentEditorWorkspace
             ComponentEditorValidationSummary validationSummary = ValidationSummary;
             if (validationSummary.Issues.Count > 0)
             {
-                string issueText = validationSummary.Issues.Count == 1 ? "issue" : "issues";
+                int blockingIssueCount = validationSummary.Issues.Count(issue => issue.Kind != ComponentEditorValidationIssueKind.MissingPins);
+                string issueText = blockingIssueCount == 1 ? "issue" : "issues";
                 return new ComponentEditorSaveReadinessSummary(
                     ComponentEditorSaveReadiness.BlockedByValidation,
-                    $"Resolve {validationSummary.Issues.Count} validation {issueText} before saving.");
+                    $"Resolve {blockingIssueCount} validation {issueText} before saving.");
             }
 
             if (!IsDirty)
@@ -63,6 +67,11 @@ public sealed class ComponentEditorWorkspace
                 "Ready to save component changes.");
         }
     }
+
+    public ComponentEditorTrustedPromotionReadiness TrustedPromotionReadiness =>
+        IsTrustedLibraryEntry
+            ? new ComponentEditorTrustedPromotionReadiness(true, "Ready for trusted-library promotion.")
+            : new ComponentEditorTrustedPromotionReadiness(false, "Blocked: component editor drafts must be saved as drafts before trusted-library promotion.");
 
     public static ComponentEditorWorkspace StartNew(string componentId)
     {
@@ -100,12 +109,25 @@ public sealed class ComponentEditorWorkspace
             definition,
             ComponentEditorViewModel.FromDefinition(definition));
     }
+
+    public static ComponentEditorWorkspace ReloadDraftJson(string json)
+    {
+        ComponentDraft draft = ComponentDraftSerializer.Deserialize(json);
+        return new ComponentEditorWorkspace(
+            ComponentEditorSessionKind.Draft,
+            originalDefinition: null,
+            ComponentEditorViewModel.FromDraft(draft));
+    }
+
+    public string SaveDraftJson() =>
+        ComponentDraftSerializer.Serialize(ViewModel.ToDraft());
 }
 
 public enum ComponentEditorSessionKind
 {
     New,
-    Edit
+    Edit,
+    Draft
 }
 
 public enum ComponentEditorSaveReadiness
@@ -117,6 +139,10 @@ public enum ComponentEditorSaveReadiness
 
 public sealed record ComponentEditorSaveReadinessSummary(
     ComponentEditorSaveReadiness State,
+    string Message);
+
+public sealed record ComponentEditorTrustedPromotionReadiness(
+    bool CanPromote,
     string Message);
 
 public sealed class ComponentEditorViewModel : INotifyPropertyChanged
@@ -280,6 +306,60 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
     {
         ArgumentNullException.ThrowIfNull(definition);
         return new ComponentEditorViewModel(definition);
+    }
+
+    public static ComponentEditorViewModel FromDraft(ComponentDraft draft)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+
+        Dictionary<ComponentFootprintId, ComponentVariantId> variantIdsByFootprintId = draft.Footprints
+            .Select((footprint, index) => new
+            {
+                footprint.Id,
+                VariantId = new ComponentVariantId($"{draft.Id.Value}:variant:{Slug(index == 0 ? draft.Package.Name : footprint.Name)}")
+            })
+            .ToDictionary(entry => entry.Id, entry => entry.VariantId);
+
+        ComponentDefinition definition = new(
+            draft.Id,
+            draft.DisplayName,
+            ComponentKind.Custom,
+            "",
+            "",
+            Description: "",
+            Attributes: draft.Attributes.Select(attribute => new ComponentAttribute(attribute.Name, attribute.Value)).ToArray(),
+            Pins: draft.Pins.Select(pin => new ComponentPin(pin.Id, pin.Name, pin.Number, ToDefinitionPinElectricalType(pin.ElectricalType))).ToArray(),
+            Gates: [],
+            Symbols: draft.Symbols.Select(symbol => new ComponentSymbol(
+                symbol.Id,
+                symbol.Name,
+                symbol.Pins.Select(pin => new ComponentSymbolPin(pin.PinId, pin.Start, ToDefinitionPinOrientation(pin.Orientation))).ToArray(),
+                [],
+                [])
+            {
+                Primitives = symbol.Primitives.Select(ToDefinitionPrimitive).ToArray()
+            }).ToArray(),
+            Footprints: draft.Footprints.Select(footprint => new ComponentFootprint(
+                footprint.Id,
+                footprint.Name,
+                footprint.Pads.Select(pad => new ComponentFootprintPad(pad.Id, pad.Name, pad.Position, pad.Size, ToDefinitionPadTechnology(pad.Technology), ToDefinitionPadShape(pad.Shape), pad.DrillSize)).ToArray(),
+                footprint.Silkscreen.Select(primitive => new ComponentLine(primitive.Start, primitive.End)).ToArray(),
+                footprint.Courtyard.Select(primitive => new ComponentLine(primitive.Start, primitive.End)).ToArray())).ToArray(),
+            Variants: draft.Footprints.Select((footprint, index) => new ComponentVariant(
+                variantIdsByFootprintId[footprint.Id],
+                index == 0 ? draft.Package.Name : footprint.Name,
+                footprint.Id,
+                draft.Package.Metadata.Select(attribute => new ComponentAttribute(attribute.Name, attribute.Value)).ToArray())).ToArray(),
+            PinPadMappings: draft.DeviceMappings
+                .Where(mapping => variantIdsByFootprintId.ContainsKey(mapping.FootprintId))
+                .Select(mapping => new ComponentPinPadMapping(variantIdsByFootprintId[mapping.FootprintId], mapping.PinId, mapping.PadId))
+                .ToArray(),
+            Datasheets: [],
+            Sourcing: [],
+            PackageModels3D: [],
+            Provenance: []);
+
+        return FromDefinition(definition);
     }
 
     public void SetDisplayName(string value)
@@ -486,6 +566,25 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(SymbolSummaries));
     }
 
+    public ComponentEditorCommandResult AddSymbolLine(string symbolNameOrId, CadPoint start, CadPoint end)
+    {
+        ComponentSymbol? symbol = FindSymbol(symbolNameOrId);
+        if (symbol is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, $"Symbol '{symbolNameOrId}' was not found.");
+        }
+
+        ComponentSymbolLinePrimitive primitive = ComponentSymbolPrimitive.Line(start, end, "symbol", "default");
+        symbols = symbols
+            .Select(existing => existing.Id == symbol.Id
+                ? existing with { Primitives = existing.Primitives.Append(primitive).ToArray() }
+                : existing)
+            .ToArray();
+        OnPropertyChanged(nameof(Symbols));
+        OnPropertyChanged(nameof(SymbolSummaries));
+        return ComponentEditorCommandResult.Success();
+    }
+
     public void AddFootprint(string name, IReadOnlyList<ComponentEditorPadDraft> pads)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -514,6 +613,20 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
         AddPad(footprintNameOrId, name, position, size, DefaultCommandGrid);
 
     public ComponentEditorCommandResult AddPad(string footprintNameOrId, string name, CadPoint position, CadVector size, CadGrid grid)
+        => AddPad(footprintNameOrId, name, position, size, ComponentPadTechnology.SurfaceMount, ComponentPadShape.Rectangle, drillSize: null, grid);
+
+    public ComponentEditorCommandResult AddSmdPad(string footprintNameOrId, string name, CadPoint position, CadVector size) =>
+        AddPad(footprintNameOrId, name, position, size, ComponentPadTechnology.SurfaceMount, ComponentPadShape.Rectangle, drillSize: null, DefaultCommandGrid);
+
+    private ComponentEditorCommandResult AddPad(
+        string footprintNameOrId,
+        string name,
+        CadPoint position,
+        CadVector size,
+        ComponentPadTechnology technology,
+        ComponentPadShape shape,
+        long? drillSize,
+        CadGrid grid)
     {
         ComponentFootprint? footprint = FindFootprint(footprintNameOrId);
         if (footprint is null)
@@ -537,8 +650,9 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             normalizedName,
             grid.Snap(position),
             size,
-            ComponentPadTechnology.SurfaceMount,
-            ComponentPadShape.Rectangle);
+            technology,
+            shape,
+            drillSize);
         footprints = footprints
             .Select(existing => existing.Id == footprint.Id ? existing with { Pads = existing.Pads.Append(pad).ToArray() } : existing)
             .ToArray();
@@ -635,6 +749,17 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
 
     public ComponentEditorCommandResult MapPinToPad(string pinNumberOrName, string padName)
     {
+        ComponentVariant? variant = variants.FirstOrDefault();
+        if (variant is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, "Package is required before mapping pins to pads.");
+        }
+
+        return MapPinToPad(variant.Name, pinNumberOrName, padName);
+    }
+
+    public ComponentEditorCommandResult MapPinToPad(string packageNameOrId, string pinNumberOrName, string padName)
+    {
         if (string.IsNullOrWhiteSpace(pinNumberOrName))
         {
             return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.InvalidInput, "Pin number or name is required.");
@@ -645,10 +770,10 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.InvalidInput, "Pad name is required.");
         }
 
-        ComponentVariant? variant = variants.FirstOrDefault();
+        ComponentVariant? variant = FindVariant(packageNameOrId);
         if (variant is null)
         {
-            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, "Package is required before mapping pins to pads.");
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, $"Package '{packageNameOrId}' was not found.");
         }
 
         ComponentPin? pin = FindPin(pinNumberOrName);
@@ -697,6 +822,44 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             packageModels3D,
             provenance);
 
+    public ComponentDraft ToDraft()
+    {
+        ComponentVariant? primaryVariant = variants.FirstOrDefault();
+        ComponentFootprint? primaryFootprint = primaryVariant is null
+            ? footprints.FirstOrDefault()
+            : footprints.FirstOrDefault(footprint => footprint.Id == primaryVariant.FootprintId);
+        Dictionary<ComponentVariantId, ComponentVariant> variantsById = variants.ToDictionary(variant => variant.Id);
+
+        return new ComponentDraft(
+            new ComponentId(componentId),
+            displayName,
+            new ComponentDraftPackage(
+                primaryVariant?.Name ?? primaryFootprint?.Name ?? "Draft Package",
+                "U",
+                primaryVariant?.Attributes.Select(attribute => new ComponentDraftAttribute(attribute.Name, attribute.Value)).ToArray() ?? []),
+            attributes.Select(attribute => new ComponentDraftAttribute(attribute.Name, attribute.Value)).ToArray(),
+            pins.Select(pin => new ComponentDraftPin(pin.Id, pin.Name, pin.Number, ToDraftPinElectricalType(pin.ElectricalType))).ToArray(),
+            symbols.Select(symbol => new ComponentDraftSymbol(
+                symbol.Id,
+                symbol.Name,
+                symbol.Pins.Select(pin => new ComponentDraftSymbolPin(
+                    pin.PinId,
+                    pin.Position,
+                    PinEndPoint(pin.Position, pin.Orientation),
+                    ToDraftPinOrientation(pin.Orientation))).ToArray(),
+                symbol.Primitives.Select(ToDraftPrimitive).ToArray())).ToArray(),
+            footprints.Select(footprint => new ComponentDraftFootprint(
+                footprint.Id,
+                footprint.Name,
+                footprint.Pads.Select(pad => new ComponentDraftPad(pad.Id, pad.Name, pad.Position, pad.Size, ToDraftPadTechnology(pad.Technology), ToDraftPadShape(pad.Shape), pad.DrillSize)).ToArray(),
+                footprint.Silkscreen.Select(line => new ComponentDraftFootprintPrimitive(ComponentDraftPrimitiveKind.Line, line.Start, line.End)).ToArray(),
+                footprint.Courtyard.Select(line => new ComponentDraftFootprintPrimitive(ComponentDraftPrimitiveKind.Line, line.Start, line.End)).ToArray())).ToArray(),
+            pinPadMappings
+                .Where(mapping => variantsById.ContainsKey(mapping.VariantId))
+                .Select(mapping => new ComponentDraftDeviceMapping(mapping.PinId, variantsById[mapping.VariantId].FootprintId, mapping.PadId))
+                .ToArray());
+    }
+
     private bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
@@ -725,10 +888,20 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             string.Equals(pin.Name, pinNumberOrName, StringComparison.Ordinal) ||
             string.Equals(pin.Id.Value, pinNumberOrName, StringComparison.Ordinal));
 
+    private ComponentSymbol? FindSymbol(string symbolNameOrId) =>
+        symbols.FirstOrDefault(symbol =>
+            string.Equals(symbol.Name, symbolNameOrId, StringComparison.Ordinal) ||
+            string.Equals(symbol.Id.Value, symbolNameOrId, StringComparison.Ordinal));
+
     private ComponentFootprint? FindFootprint(string footprintNameOrId) =>
         footprints.FirstOrDefault(footprint =>
             string.Equals(footprint.Name, footprintNameOrId, StringComparison.Ordinal) ||
             string.Equals(footprint.Id.Value, footprintNameOrId, StringComparison.Ordinal));
+
+    private ComponentVariant? FindVariant(string packageNameOrId) =>
+        variants.FirstOrDefault(variant =>
+            string.Equals(variant.Name, packageNameOrId, StringComparison.Ordinal) ||
+            string.Equals(variant.Id.Value, packageNameOrId, StringComparison.Ordinal));
 
     private bool TryFindPad(
         string footprintNameOrId,
@@ -804,6 +977,121 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
 
     private static string Plural(int count, string singular, string plural) =>
         count == 1 ? singular : plural;
+
+    private static CadPoint PinEndPoint(CadPoint start, ComponentPinOrientation orientation) =>
+        orientation switch
+        {
+            ComponentPinOrientation.Left => start + new CadVector(-100_000, 0),
+            ComponentPinOrientation.Right => start + new CadVector(100_000, 0),
+            ComponentPinOrientation.Up => start + new CadVector(0, -100_000),
+            ComponentPinOrientation.Down => start + new CadVector(0, 100_000),
+            _ => start
+        };
+
+    private static ComponentDraftPinElectricalType ToDraftPinElectricalType(ComponentPinElectricalType type) =>
+        type switch
+        {
+            ComponentPinElectricalType.Passive => ComponentDraftPinElectricalType.Passive,
+            ComponentPinElectricalType.Input => ComponentDraftPinElectricalType.Input,
+            ComponentPinElectricalType.Output => ComponentDraftPinElectricalType.Output,
+            ComponentPinElectricalType.Bidirectional => ComponentDraftPinElectricalType.Bidirectional,
+            ComponentPinElectricalType.Power => ComponentDraftPinElectricalType.Power,
+            ComponentPinElectricalType.NoConnect => ComponentDraftPinElectricalType.NoConnect,
+            _ => throw new InvalidOperationException($"Unsupported component pin electrical type {type}.")
+        };
+
+    private static ComponentPinElectricalType ToDefinitionPinElectricalType(ComponentDraftPinElectricalType type) =>
+        type switch
+        {
+            ComponentDraftPinElectricalType.Passive => ComponentPinElectricalType.Passive,
+            ComponentDraftPinElectricalType.Input => ComponentPinElectricalType.Input,
+            ComponentDraftPinElectricalType.Output => ComponentPinElectricalType.Output,
+            ComponentDraftPinElectricalType.Bidirectional => ComponentPinElectricalType.Bidirectional,
+            ComponentDraftPinElectricalType.Power => ComponentPinElectricalType.Power,
+            ComponentDraftPinElectricalType.NoConnect => ComponentPinElectricalType.NoConnect,
+            _ => throw new InvalidOperationException($"Unsupported component draft pin electrical type {type}.")
+        };
+
+    private static ComponentDraftPinOrientation ToDraftPinOrientation(ComponentPinOrientation orientation) =>
+        orientation switch
+        {
+            ComponentPinOrientation.Left => ComponentDraftPinOrientation.Left,
+            ComponentPinOrientation.Right => ComponentDraftPinOrientation.Right,
+            ComponentPinOrientation.Up => ComponentDraftPinOrientation.Up,
+            ComponentPinOrientation.Down => ComponentDraftPinOrientation.Down,
+            _ => throw new InvalidOperationException($"Unsupported component pin orientation {orientation}.")
+        };
+
+    private static ComponentPinOrientation ToDefinitionPinOrientation(ComponentDraftPinOrientation orientation) =>
+        orientation switch
+        {
+            ComponentDraftPinOrientation.Left => ComponentPinOrientation.Left,
+            ComponentDraftPinOrientation.Right => ComponentPinOrientation.Right,
+            ComponentDraftPinOrientation.Up => ComponentPinOrientation.Up,
+            ComponentDraftPinOrientation.Down => ComponentPinOrientation.Down,
+            _ => throw new InvalidOperationException($"Unsupported component draft pin orientation {orientation}.")
+        };
+
+    private static ComponentDraftPadTechnology ToDraftPadTechnology(ComponentPadTechnology technology) =>
+        technology switch
+        {
+            ComponentPadTechnology.ThroughHole => ComponentDraftPadTechnology.ThroughHole,
+            ComponentPadTechnology.SurfaceMount => ComponentDraftPadTechnology.SurfaceMount,
+            _ => throw new InvalidOperationException($"Unsupported component pad technology {technology}.")
+        };
+
+    private static ComponentPadTechnology ToDefinitionPadTechnology(ComponentDraftPadTechnology technology) =>
+        technology switch
+        {
+            ComponentDraftPadTechnology.ThroughHole => ComponentPadTechnology.ThroughHole,
+            ComponentDraftPadTechnology.SurfaceMount => ComponentPadTechnology.SurfaceMount,
+            _ => throw new InvalidOperationException($"Unsupported component draft pad technology {technology}.")
+        };
+
+    private static ComponentDraftPadShape ToDraftPadShape(ComponentPadShape shape) =>
+        shape switch
+        {
+            ComponentPadShape.Round => ComponentDraftPadShape.Round,
+            ComponentPadShape.Rectangle => ComponentDraftPadShape.Rectangle,
+            ComponentPadShape.RoundedRectangle => ComponentDraftPadShape.RoundedRectangle,
+            ComponentPadShape.Oval => ComponentDraftPadShape.Oval,
+            _ => throw new InvalidOperationException($"Unsupported component pad shape {shape}.")
+        };
+
+    private static ComponentPadShape ToDefinitionPadShape(ComponentDraftPadShape shape) =>
+        shape switch
+        {
+            ComponentDraftPadShape.Round => ComponentPadShape.Round,
+            ComponentDraftPadShape.Rectangle => ComponentPadShape.Rectangle,
+            ComponentDraftPadShape.RoundedRectangle => ComponentPadShape.RoundedRectangle,
+            ComponentDraftPadShape.Oval => ComponentPadShape.Oval,
+            _ => throw new InvalidOperationException($"Unsupported component draft pad shape {shape}.")
+        };
+
+    private static ComponentDraftSymbolPrimitive ToDraftPrimitive(ComponentSymbolPrimitive primitive) =>
+        primitive switch
+        {
+            ComponentSymbolLinePrimitive line => new ComponentDraftSymbolPrimitive(ComponentDraftPrimitiveKind.Line, line.Start, line.End),
+            ComponentSymbolRectanglePrimitive rectangle => new ComponentDraftSymbolPrimitive(
+                ComponentDraftPrimitiveKind.Rectangle,
+                new CadPoint(rectangle.Bounds.Left, rectangle.Bounds.Top),
+                new CadPoint(rectangle.Bounds.Right, rectangle.Bounds.Bottom)),
+            ComponentSymbolCirclePrimitive circle => new ComponentDraftSymbolPrimitive(ComponentDraftPrimitiveKind.Circle, circle.Center, new CadPoint(circle.Center.X + circle.Radius, circle.Center.Y)),
+            ComponentSymbolArcPrimitive arc => new ComponentDraftSymbolPrimitive(ComponentDraftPrimitiveKind.Arc, arc.Center, new CadPoint(arc.Center.X + arc.Radius, arc.Center.Y)),
+            ComponentSymbolTextPrimitive text => new ComponentDraftSymbolPrimitive(ComponentDraftPrimitiveKind.Text, text.Position, text.Position),
+            _ => throw new InvalidOperationException($"Unsupported component symbol primitive {primitive.GetType().Name}.")
+        };
+
+    private static ComponentSymbolPrimitive ToDefinitionPrimitive(ComponentDraftSymbolPrimitive primitive) =>
+        primitive.Kind switch
+        {
+            ComponentDraftPrimitiveKind.Line => ComponentSymbolPrimitive.Line(primitive.Start, primitive.End, "symbol", "default"),
+            ComponentDraftPrimitiveKind.Rectangle => ComponentSymbolPrimitive.Rectangle(CadRectangle.FromCorners(primitive.Start, primitive.End), "symbol", "default"),
+            ComponentDraftPrimitiveKind.Circle => ComponentSymbolPrimitive.Circle(primitive.Start, Math.Abs(primitive.End.X - primitive.Start.X), "symbol", "default"),
+            ComponentDraftPrimitiveKind.Arc => ComponentSymbolPrimitive.Arc(primitive.Start, Math.Abs(primitive.End.X - primitive.Start.X), 0, 90, "symbol", "default"),
+            ComponentDraftPrimitiveKind.Text => ComponentSymbolPrimitive.Text(ComponentSymbolTextKind.Custom, "", primitive.Start, "symbol", "default"),
+            _ => throw new InvalidOperationException($"Unsupported component draft primitive kind {primitive.Kind}.")
+        };
 }
 
 public sealed record ComponentEditorIdentitySummary(
@@ -882,6 +1170,13 @@ public sealed record ComponentEditorValidationSummary(
                 "Missing symbol");
         }
 
+        if (definition.Pins.Count == 0)
+        {
+            yield return new ComponentEditorValidationIssue(
+                ComponentEditorValidationIssueKind.MissingPins,
+                "Missing pins");
+        }
+
         if (definition.Footprints.Count == 0)
         {
             yield return new ComponentEditorValidationIssue(
@@ -894,6 +1189,21 @@ public sealed record ComponentEditorValidationSummary(
             yield return new ComponentEditorValidationIssue(
                 ComponentEditorValidationIssueKind.MissingPackage,
                 "Missing package");
+        }
+
+        foreach (ComponentEditorValidationIssue issue in MissingPinReferences(definition))
+        {
+            yield return issue;
+        }
+
+        foreach (ComponentEditorValidationIssue issue in DuplicatePinNames(definition))
+        {
+            yield return issue;
+        }
+
+        foreach (ComponentEditorValidationIssue issue in IncompleteMappings(definition))
+        {
+            yield return issue;
         }
 
         if (definition.PinPadMappings.Count == 0)
@@ -920,6 +1230,76 @@ public sealed record ComponentEditorValidationSummary(
         }
     }
 
+    private static IEnumerable<ComponentEditorValidationIssue> MissingPinReferences(ComponentDefinition definition)
+    {
+        HashSet<ComponentPinId> pinIds = definition.Pins.Select(pin => pin.Id).ToHashSet();
+
+        foreach (ComponentSymbol symbol in definition.Symbols.OrderBy(symbol => symbol.Name, StringComparer.Ordinal))
+        {
+            foreach (ComponentSymbolPin pin in symbol.Pins.OrderBy(pin => pin.PinId.Value, StringComparer.Ordinal))
+            {
+                if (!pinIds.Contains(pin.PinId))
+                {
+                    yield return new ComponentEditorValidationIssue(
+                        ComponentEditorValidationIssueKind.MissingPin,
+                        $"Symbol references missing pin {pin.PinId.Value}");
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<ComponentEditorValidationIssue> DuplicatePinNames(ComponentDefinition definition) =>
+        definition.Pins
+            .GroupBy(pin => pin.Name, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group => new ComponentEditorValidationIssue(
+                ComponentEditorValidationIssueKind.DuplicatePinName,
+                $"Duplicate pin name {group.Key}"));
+
+    private static IEnumerable<ComponentEditorValidationIssue> IncompleteMappings(ComponentDefinition definition)
+    {
+        HashSet<ComponentPinId> pinIds = definition.Pins.Select(pin => pin.Id).ToHashSet();
+        Dictionary<ComponentVariantId, ComponentVariant> variantsById = definition.Variants.ToDictionary(variant => variant.Id);
+        Dictionary<ComponentFootprintId, ComponentFootprint> footprintsById = definition.Footprints.ToDictionary(footprint => footprint.Id);
+
+        foreach (ComponentPinPadMapping mapping in definition.PinPadMappings
+            .OrderBy(mapping => mapping.VariantId.Value, StringComparer.Ordinal)
+            .ThenBy(mapping => mapping.PinId.Value, StringComparer.Ordinal)
+            .ThenBy(mapping => mapping.PadId.Value, StringComparer.Ordinal))
+        {
+            if (!variantsById.TryGetValue(mapping.VariantId, out ComponentVariant? variant))
+            {
+                yield return new ComponentEditorValidationIssue(
+                    ComponentEditorValidationIssueKind.IncompleteMapping,
+                    $"Mapping references missing package {mapping.VariantId.Value}");
+                continue;
+            }
+
+            if (!pinIds.Contains(mapping.PinId))
+            {
+                yield return new ComponentEditorValidationIssue(
+                    ComponentEditorValidationIssueKind.IncompleteMapping,
+                    $"Mapping references missing pin {mapping.PinId.Value}");
+            }
+
+            if (!footprintsById.TryGetValue(variant.FootprintId, out ComponentFootprint? footprint))
+            {
+                yield return new ComponentEditorValidationIssue(
+                    ComponentEditorValidationIssueKind.IncompleteMapping,
+                    $"Mapping references missing footprint {variant.FootprintId.Value}");
+                continue;
+            }
+
+            if (footprint.Pads.All(pad => pad.Id != mapping.PadId))
+            {
+                yield return new ComponentEditorValidationIssue(
+                    ComponentEditorValidationIssueKind.IncompleteMapping,
+                    $"Mapping references missing pad {mapping.PadId.Value}");
+            }
+        }
+    }
+
     private static string LowercaseFirst(string value) =>
         value.Length == 0
             ? value
@@ -938,9 +1318,13 @@ public enum ComponentEditorValidationIssueKind
 {
     None,
     MissingSymbol,
+    MissingPins,
     MissingFootprint,
     MissingPackage,
     MissingMapping,
+    MissingPin,
+    DuplicatePinName,
+    IncompleteMapping,
     UnmappedPin
 }
 
