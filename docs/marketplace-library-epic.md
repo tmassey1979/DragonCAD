@@ -14,6 +14,8 @@ This epic is intentionally split into vertical stories so agents can work indepe
 - PCBCart: supports web quote/order workflows for PCB and assembly production. Treat this as a quote/order handoff unless a formal partner API is available.
 - Jameco: no formal public catalog API/feed is assumed. Support manual catalog import, negotiated feed ingestion, or curated CSV/catalog workflows until a formal API/feed exists.
 
+These assumptions describe integration boundaries, not a promise that DragonCAD is currently performing live provider calls or order submission. Live API use must remain opt-in, credential-backed, and covered by provider-specific stories. Order, upload, cart, and checkout behavior remains reviewable handoff unless a later story explicitly owns live submission.
+
 ## Marketplace Architecture Principles
 
 - Keep vendor credentials out of project files.
@@ -39,6 +41,29 @@ This epic is intentionally split into vertical stories so agents can work indepe
 10. OSH Park prototype package handoff.
 11. PCBCart production quote/order package handoff.
 12. Marketplace legal, attribution, and terms guardrails.
+
+## Epic Status And Sequencing
+
+This table is the coordination index for parallel marketplace agents. Story-level sections remain the source of acceptance criteria and owned paths; completion notes later in this file record delivered implementation waves. Status here uses documentation status only so it does not overstate live provider, ordering, or library-mutation behavior.
+
+| Phase | Stories | Coordination status | Parallelization boundary |
+| --- | --- | --- | --- |
+| Foundation contracts | `MKT-001`, `MKT-002`, `MKT-014` | Sequenced before provider, order, and fabrication work. Later provider waves may consume these contracts but must not store secrets or hide terms limits. | Sourcing contracts, credential abstractions, compliance metadata. |
+| Component identity and trusted library | `MKT-003`, `MKT-004`, `MKT-008`, `MKT-016`, `MKT-023`, `MKT-026`, `MKT-032` | Library maturity gate for editor placement. Generated, imported, and vendor-linked parts stay review-required until promotion records make them trusted/placeable. | Core component identity, permanent library, review/promotion, audit trail. |
+| Catalog ingestion and provider sync | `MKT-005`, `MKT-006`, `MKT-017`, `MKT-025`, `MKT-029` | API-backed and manual/feed providers stay behind adapters, fixtures, request plans, freshness state, and credential diagnostics. | Sourcing provider adapters, source manifests, sync planning, status models. |
+| Datasheet draft workflow | `MKT-007`, `MKT-020`, `MKT-030` | Datasheet output is draft/review-only until explicit promotion. UI can surface queues and commands but must not call AI or mutate the trusted library directly. | Component-intelligence contracts, app review view models, promotion commands. |
+| BOM and cart planning | `MKT-010`, `MKT-011`, `MKT-018`, `MKT-022`, `MKT-028` | BOM/order state is derived from placed components and reviewable plans. Cart commands may update local state but must not submit orders. | Sourcing BOM planning, cart workspace, quantity commands. |
+| Fabrication handoff | `MKT-012`, `MKT-013`, `MKT-019`, `MKT-024`, `MKT-031` | OSH Park and PCBCart flows are package validation and handoff planning unless a provider-specific live story exists. | Fabrication providers, app handoff view models, readiness commands. |
+| Shell/editor integration | `MKT-009`, `MKT-021`, `MKT-027`, `MKT-033` | Shell work runs after backing models expose stable view-model APIs. Editor placement must still require trusted placeable components. | Component browser, marketplace panels, shell navigation and command wiring. |
+| Documentation coordination | `MKT-015` | Implemented by this epic/status document and matching editor backlog links. Future waves should update this section only when sequencing or boundaries change. | `docs/marketplace-library-epic.md`, `docs/editor-interaction-backlog.md`. |
+
+### Six-Agent Wave Rules
+
+- One agent may own each backend domain in a wave: core library/identity, sourcing providers, BOM/cart planning, fabrication handoff, datasheet/review, and app shell/editor integration.
+- App shell/editor integration runs after domain-owned view models or services are stable; it should bind to those APIs rather than duplicating business rules.
+- Provider work must use deterministic fixtures or explicit opt-in live smoke paths; normal tests must not require live credentials or network access.
+- Marketplace rows, imported candidates, and datasheet drafts are not placeable editor components until review/promotion marks them trusted.
+- Ordering and fabrication stories must use reviewable records, exports, or handoff actions and must not imply live checkout, payment, shipping, upload, or provider order submission.
 
 ---
 

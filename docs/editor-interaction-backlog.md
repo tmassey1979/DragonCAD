@@ -40,6 +40,20 @@ Status is based on the current app and test surface, not on long-term product in
 
 These stories describe the remaining user-facing flow from placing a schematic part through board layout, library sourcing, and fabrication ordering. They are documentation/status guidance only; implementation agents should still work from the detailed story sections and marketplace epic before editing app source.
 
+### Marketplace And Library Placement Gates
+
+Editor stories can expose marketplace and library status, but placement behavior depends on trusted-library maturity. Use these gates when sequencing editor work with `docs/marketplace-library-epic.md`.
+
+| Editor dependency | Marketplace/library source | Placement rule | Editor backlog touchpoint |
+| --- | --- | --- | --- |
+| Trusted component search and repeat placement | `MKT-003`, `MKT-004`, `MKT-008`, `MKT-009`, `MKT-016`, `MKT-023` | Only verified placeable components can arm the schematic cursor. Vendor rows, imported candidates, and datasheet drafts must show diagnostics until reviewed and promoted. | `USE-001`, `EDIT-003`, `EDIT-010` |
+| Package and footprint selection | `MKT-003`, `MKT-004`, `MKT-008`, `MKT-026` | Package changes must preserve provenance and cannot replace verified geometry silently. Placement waits for a trusted package-to-footprint mapping. | `USE-001`, `USE-003`, `EDIT-004`, `EDIT-006`, `EDIT-012` |
+| Datasheet-generated proposals | `MKT-007`, `MKT-020`, `MKT-023`, `MKT-030` | Generated symbols, footprints, and 3D proposals remain review-required. Editor previews may display them, but schematic/board placement requires promotion. | `USE-004`, `EDIT-010`, `EDIT-013D` |
+| BOM and vendor sourcing context | `MKT-010`, `MKT-018`, `MKT-022`, `MKT-028`, `MKT-029` | BOM/cart plans are derived from placed components and selected alternates. The editor must not invent editor-only catalog records to satisfy sourcing gaps. | `USE-004`, `USE-005`, `Marketplace Wave 8`, `Marketplace Wave 9` |
+| Fabrication handoff readiness | `MKT-012`, `MKT-013`, `MKT-019`, `MKT-024`, `MKT-031` | Board routing and package selection provide artifacts for handoff checks; handoff panels remain review/export flows unless live provider stories are added. | `USE-003`, `USE-005`, `EDIT-007`, `EDIT-012` |
+
+These gates intentionally avoid claiming live vendor ordering or API-backed placement. Live provider sync, carts, checkout, manufacturing upload, payment, shipping, and automatic promotion require explicit marketplace stories before editor work may depend on them.
+
 ### USE-001 - Schematic Part Placement Flow
 
 **As a** schematic designer, **I want** to search, preview, place, and repeat-place verified components from one add-part workflow, **so that** I can build a schematic quickly without confusing catalog-only results with placeable parts.
@@ -53,6 +67,7 @@ These stories describe the remaining user-facing flow from placing a schematic p
 
 **Implementation Dev Notes:**
 - Coordinate with `EDIT-003`, `EDIT-004`, `EDIT-005`, `EDIT-010`, and marketplace component-browser stories.
+- Use the Marketplace And Library Placement Gates table before adding any placement path that consumes marketplace, imported, or datasheet-derived records.
 - Do not let marketplace rows, generated datasheet drafts, or unreviewed imported candidates bypass trusted component review.
 - The implementation should preserve schematic-to-board identity from the first placement command so later board synchronization does not depend on display text.
 
@@ -101,6 +116,7 @@ These stories describe the remaining user-facing flow from placing a schematic p
 
 **Implementation Dev Notes:**
 - Coordinate with `docs/marketplace-library-epic.md`, `docs/component-marketplace-roadmap.md`, `MKT-016` through `MKT-033`, and `EDIT-010`.
+- Treat `MKT-015` as the current documentation/status source for marketplace sequencing and six-agent boundaries.
 - Do not write generated parts directly into the permanent library without an explicit reviewed promotion story.
 - Treat marketplace integration as a review-first workflow; source, merge, and order state should remain explainable from component provenance.
 
