@@ -6,6 +6,7 @@ public static class HelpWikiDiagnosticCodes
     public const string DuplicateTopicId = "duplicate-topic-id";
     public const string BrokenRelatedTopic = "broken-related-topic";
     public const string BrokenWikiSlug = "broken-wiki-slug";
+    public const string BrokenCommandReference = "broken-command-reference";
     public const string EmptySummary = "empty-summary";
     public const string OrphanedPage = "orphaned-page";
 }

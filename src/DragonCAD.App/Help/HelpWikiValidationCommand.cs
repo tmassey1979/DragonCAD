@@ -31,6 +31,7 @@ public static partial class HelpWikiValidationCommand
 
         HashSet<string> categoryIds = registry.Categories.Select(category => category.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         HashSet<string> wikiSlugs = new(StringComparer.OrdinalIgnoreCase);
+        HashSet<string> knownCommandReferences = FindKnownCommandReferences(registry, repositoryRoot);
 
         foreach (HelpTopic topic in registry.Topics)
         {
@@ -58,6 +59,20 @@ public static partial class HelpWikiValidationCommand
                     $"Topic '{topic.Id}' references missing markdown file '{topic.DocumentPath}'.",
                     topic.Id,
                     topic.DocumentPath));
+            }
+            else
+            {
+                foreach (string commandReference in ExtractCommandReferences(File.ReadAllText(documentPath)))
+                {
+                    if (!knownCommandReferences.Contains(commandReference))
+                    {
+                        diagnostics.Add(new(
+                            HelpWikiDiagnosticCodes.BrokenCommandReference,
+                            $"Topic '{topic.Id}' references command '{commandReference}' that is not listed in command reference help.",
+                            topic.Id,
+                            topic.DocumentPath));
+                    }
+                }
             }
 
             foreach (string relatedTopicId in topic.RelatedTopicIds)
@@ -99,6 +114,37 @@ public static partial class HelpWikiValidationCommand
     internal static string ResolveRepositoryPath(string repositoryRoot, string relativePath) =>
         Path.GetFullPath(Path.Combine(repositoryRoot, relativePath.Replace('/', Path.DirectorySeparatorChar)));
 
+    private static HashSet<string> FindKnownCommandReferences(HelpTopicRegistry registry, string repositoryRoot)
+    {
+        HashSet<string> commands = new(StringComparer.Ordinal);
+        foreach (HelpTopic topic in registry.Topics.Where(topic => topic.GroupId.Equals("command-reference", StringComparison.OrdinalIgnoreCase)))
+        {
+            string documentPath = ResolveRepositoryPath(repositoryRoot, topic.DocumentPath);
+            if (!File.Exists(documentPath))
+            {
+                continue;
+            }
+
+            foreach (string commandReference in ExtractCommandReferences(File.ReadAllText(documentPath)))
+            {
+                commands.Add(commandReference);
+            }
+        }
+
+        return commands;
+    }
+
+    private static IEnumerable<string> ExtractCommandReferences(string markdown)
+    {
+        foreach (Match match in CommandReferenceRegex().Matches(markdown))
+        {
+            yield return match.Groups["command"].Value;
+        }
+    }
+
     [GeneratedRegex("^[A-Za-z0-9][A-Za-z0-9-]*$")]
     private static partial Regex ValidWikiSlugRegex();
+
+    [GeneratedRegex("`(?<command>[A-Za-z][A-Za-z0-9_]*Command)`")]
+    private static partial Regex CommandReferenceRegex();
 }

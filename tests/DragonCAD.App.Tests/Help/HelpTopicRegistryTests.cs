@@ -12,6 +12,7 @@ public sealed class HelpTopicRegistryTests
         Assert.Equal(
             [
                 "getting-started",
+                "tutorials",
                 "schematic-editing",
                 "pcb-layout",
                 "component-libraries",
@@ -25,6 +26,8 @@ public sealed class HelpTopicRegistryTests
             registry.Categories.Select(category => category.Id));
 
         Assert.Contains(registry.Topics, topic => topic.Id == "getting-started.workspace" && topic.GroupId == "getting-started");
+        Assert.Contains(registry.Topics, topic => topic.Id == "tutorials.7805-regulator" && topic.GroupId == "tutorials");
+        Assert.Contains(registry.Topics, topic => topic.Id == "tutorials.arduino-uno" && topic.GroupId == "tutorials");
         Assert.Contains(registry.Topics, topic => topic.Id == "schematic-editing.placing-wires" && topic.GroupId == "schematic-editing");
         Assert.Contains(registry.Topics, topic => topic.Id == "pcb-layout.board-basics" && topic.GroupId == "pcb-layout");
         Assert.Contains(registry.Topics, topic => topic.Id == "component-libraries.library-basics" && topic.GroupId == "component-libraries");
@@ -124,6 +127,28 @@ public sealed class HelpTopicRegistryTests
     }
 
     [Fact]
+    public void ValidationReportsBrokenCommandReference()
+    {
+        using HelpWikiTestWorkspace workspace = HelpWikiTestWorkspace.Create();
+        string topicPath = Path.Combine(workspace.RootPath, "docs", "help", "getting-started", "workspace.md");
+        File.AppendAllText(topicPath, Environment.NewLine + "Use `MissingSampleCommand` from the toolbar.");
+
+        HelpWikiValidationResult result = HelpWikiValidationCommand.Validate(HelpTopicRegistry.CreateDefault(), workspace.RootPath);
+
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == HelpWikiDiagnosticCodes.BrokenCommandReference);
+    }
+
+    [Fact]
+    public void RepositoryHelpDocsReferenceOnlyKnownCommands()
+    {
+        string repositoryRoot = FindRepositoryRoot();
+
+        HelpWikiValidationResult result = HelpWikiValidationCommand.Validate(HelpTopicRegistry.CreateDefault(), repositoryRoot);
+
+        Assert.DoesNotContain(result.Diagnostics, diagnostic => diagnostic.Code == HelpWikiDiagnosticCodes.BrokenCommandReference);
+    }
+
+    [Fact]
     public void WikiExportGeneratesPageWithNavigationRelatedTopicsAndMetadata()
     {
         using HelpWikiTestWorkspace workspace = HelpWikiTestWorkspace.Create();
@@ -136,7 +161,7 @@ public sealed class HelpTopicRegistryTests
         Assert.Contains("Source: `docs/help/getting-started/workspace.md`", workspacePage);
         Assert.Contains("[Help Home](Home.md)", workspacePage);
         Assert.Contains("[Board editing basics](Board-Editing-Basics.md)", workspacePage);
-        Assert.Contains("Generated pages: 10", result.Summary);
+        Assert.Contains("Generated pages: 12", result.Summary);
     }
 
     [Fact]
@@ -162,7 +187,7 @@ public sealed class HelpTopicRegistryTests
         HelpWikiSyncResult result = HelpWikiSyncCommand.SyncDryRun(HelpTopicRegistry.CreateDefault(), workspace.RootPath);
 
         Assert.True(result.Validation.IsValid);
-        Assert.Equal(8, result.Created.Count);
+        Assert.Equal(10, result.Created.Count);
         Assert.Contains("Workspace-Basics", result.Updated);
         Assert.Contains("Vendor-Catalogs", result.Unchanged);
         Assert.Contains("Removed-Generated", result.Removed);
@@ -188,6 +213,22 @@ public sealed class HelpTopicRegistryTests
     }
 
     private static HelpTopicGroup TestCategory(string id) => new(id, "Getting started", "Getting started docs.");
+
+    private static string FindRepositoryRoot()
+    {
+        DirectoryInfo? directory = new(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "DragonCAD.slnx")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not find DragonCAD repository root.");
+    }
 
     private static HelpTopic TestTopic(string id) =>
         new(
