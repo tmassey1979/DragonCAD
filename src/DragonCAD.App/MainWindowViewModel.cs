@@ -839,15 +839,27 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         new("editing", "Editing", "Compatibility group for editor topics surfaced by the workspace shell.")
     ];
 
-    public IReadOnlyList<HelpTopic> HelpTopics =>
-    [
-        .. helpTopicRegistry.Search(HelpSearchText),
-        helpTopicRegistry.GetTopicOrFallback("pcb-layout.board-basics") with
+    public IReadOnlyList<HelpTopic> HelpTopics
+    {
+        get
         {
-            Id = "editing.board-basics",
-            GroupId = "editing"
+            IReadOnlyList<HelpTopic> topics = helpTopicRegistry.Search(HelpSearchText);
+            if (!ShouldShowEditingCompatibilityTopic(HelpSearchText))
+            {
+                return topics;
+            }
+
+            return
+            [
+                .. topics,
+                helpTopicRegistry.GetTopicOrFallback("pcb-layout.board-basics") with
+                {
+                    Id = "editing.board-basics",
+                    GroupId = "editing"
+                }
+            ];
         }
-    ];
+    }
 
     public HelpTopic SelectedHelpTopic
     {
@@ -887,6 +899,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
         helpSearchText = normalizedText;
         OnPropertyChanged(nameof(HelpSearchText));
         OnPropertyChanged(nameof(HelpTopics));
+    }
+
+    private static bool ShouldShowEditingCompatibilityTopic(string? searchText)
+    {
+        string normalized = (searchText ?? string.Empty).Trim();
+        return normalized.Length == 0 ||
+            normalized.Contains("editing", StringComparison.OrdinalIgnoreCase) ||
+            normalized.Contains("board-basics", StringComparison.OrdinalIgnoreCase);
     }
 
     public IReadOnlyList<AiInspectorSummaryRow> AiInspectorSummaryRows =>
