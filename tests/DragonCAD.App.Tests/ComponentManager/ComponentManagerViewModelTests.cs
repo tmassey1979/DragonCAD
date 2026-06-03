@@ -598,6 +598,125 @@ public sealed class ComponentManagerViewModelTests
     }
 
     [Fact]
+    public void SelectedPackageSummaryPropertiesExposeActivePackageDetailsAndReadiness()
+    {
+        ComponentFootprintId soic8FootprintId = new("dragon:opamp:footprint:soic-8");
+        ComponentFootprintId qfn16FootprintId = new("dragon:opamp:footprint:qfn-16");
+        ComponentVariantId soic8VariantId = new("dragon:opamp:variant:soic-8");
+        ComponentVariantId qfn16VariantId = new("dragon:opamp:variant:qfn-16");
+        ComponentDefinition definition = new(
+            new ComponentId("dragon:opamp"),
+            "Dual Op Amp",
+            ComponentKind.IntegratedCircuit,
+            "Dragon",
+            "DOP-1",
+            Description: "",
+            Attributes: [],
+            Pins: [],
+            Gates: [],
+            Symbols: [new ComponentSymbol(new ComponentSymbolId("dragon:opamp:symbol"), "Primary", [], [], [])],
+            Footprints:
+            [
+                Footprint(soic8FootprintId, "SOIC-8", padCount: 8),
+                Footprint(qfn16FootprintId, "QFN-16", padCount: 16)
+            ],
+            Variants:
+            [
+                new ComponentVariant(soic8VariantId, "SOIC package", soic8FootprintId, [new ComponentAttribute("Temperature", "-40C to 85C")]),
+                new ComponentVariant(qfn16VariantId, "QFN package", qfn16FootprintId, [new ComponentAttribute("Temperature", "-40C to 125C")])
+            ],
+            PinPadMappings: [],
+            Datasheets: [],
+            Sourcing: [],
+            PackageModels3D: [new ComponentPackageModel3D("qfn-step", ComponentPackageModel3DFormat.Step, "models/qfn.step", qfn16VariantId)],
+            Provenance: [new ComponentProvenanceRecord(ComponentProvenanceKind.Native, "DragonCAD", "Curated native part")]);
+        ComponentCatalog catalog = new(BuiltInDefinitions: [definition], UserDefinitions: [], ProjectDefinitions: []);
+        ComponentManagerViewModel viewModel = ComponentManagerViewModel.FromCatalog(catalog);
+        ComponentManagerRow row = Assert.Single(viewModel.Components);
+
+        viewModel.SelectPackageOption(row, row.PackageOptions.Single(option => option.Label == "QFN package (QFN-16)"));
+
+        Assert.Equal("QFN package (QFN-16)", viewModel.SelectedPackageName);
+        Assert.Equal("2 packages", viewModel.SelectedPackageCountText);
+        Assert.Equal("Variant dragon:opamp:variant:qfn-16 / Footprint dragon:opamp:footprint:qfn-16", viewModel.SelectedPackageVariantMetadata);
+        Assert.Equal("QFN package (QFN-16) - dragon:opamp:footprint:qfn-16 - 16 pads - 3D model", viewModel.SelectedPackagePreviewSummary);
+        Assert.Equal("Ready for placement", viewModel.SelectedPackagePlacementReadiness);
+        Assert.Equal("dragon:opamp:footprint:qfn-16", viewModel.SelectedPackageSummary.FootprintId);
+        Assert.Equal(16, viewModel.SelectedPackageSummary.PadCount);
+        Assert.True(viewModel.SelectedPackageSummary.HasModel3D);
+    }
+
+    [Fact]
+    public void ReplaceFromCatalogPreservesActivePackageWhenStillAvailable()
+    {
+        ComponentFootprintId soic8FootprintId = new("dragon:opamp:footprint:soic-8");
+        ComponentFootprintId tssop8FootprintId = new("dragon:opamp:footprint:tssop-8");
+        ComponentVariantId soic8VariantId = new("dragon:opamp:variant:soic-8");
+        ComponentVariantId tssop8VariantId = new("dragon:opamp:variant:tssop-8");
+        ComponentDefinition original = MultiPackageComponent(soic8FootprintId, tssop8FootprintId, soic8VariantId, tssop8VariantId);
+        ComponentDefinition refreshed = MultiPackageComponent(soic8FootprintId, tssop8FootprintId, soic8VariantId, tssop8VariantId);
+        ComponentManagerViewModel viewModel = ComponentManagerViewModel.FromCatalog(new ComponentCatalog(BuiltInDefinitions: [original], UserDefinitions: [], ProjectDefinitions: []));
+        ComponentManagerRow row = Assert.Single(viewModel.Components);
+        viewModel.SelectPackageOption(row, row.PackageOptions[1]);
+
+        viewModel.ReplaceFromCatalog(new ComponentCatalog(BuiltInDefinitions: [refreshed], UserDefinitions: [], ProjectDefinitions: []));
+
+        ComponentManagerRow updatedRow = Assert.Single(viewModel.Components);
+        Assert.Equal("TSSOP package (TSSOP-8)", updatedRow.ActivePackageLabel);
+        Assert.True(updatedRow.PackageOptions[1].IsActive);
+        Assert.Equal("TSSOP package (TSSOP-8)", viewModel.SelectedPackageName);
+        Assert.Equal("Package selection preserved.", viewModel.SelectedPackageAvailabilityMessage);
+    }
+
+    [Fact]
+    public void PackageFilterPreservesActivePackageWhenSelectedComponentStillMatches()
+    {
+        ComponentFootprintId soic8FootprintId = new("dragon:opamp:footprint:soic-8");
+        ComponentFootprintId tssop8FootprintId = new("dragon:opamp:footprint:tssop-8");
+        ComponentVariantId soic8VariantId = new("dragon:opamp:variant:soic-8");
+        ComponentVariantId tssop8VariantId = new("dragon:opamp:variant:tssop-8");
+        ComponentDefinition opAmp = MultiPackageComponent(soic8FootprintId, tssop8FootprintId, soic8VariantId, tssop8VariantId);
+        ComponentCatalog catalog = new(
+            BuiltInDefinitions:
+            [
+                opAmp,
+                Component("dragon:resistor-0603", "Resistor 0603", ComponentKind.Passive, "Yageo", "RC0603FR-0710KL")
+            ],
+            UserDefinitions: [],
+            ProjectDefinitions: []);
+        ComponentManagerViewModel viewModel = ComponentManagerViewModel.FromCatalog(catalog);
+        ComponentManagerRow row = viewModel.Components.Single(component => component.DisplayName == "Dual Op Amp");
+        viewModel.SelectPackageOption(row, row.PackageOptions[1]);
+
+        viewModel.PackageFilter = "TSSOP-8";
+
+        ComponentManagerRow filteredRow = Assert.Single(viewModel.Components);
+        Assert.Equal("Dual Op Amp", filteredRow.DisplayName);
+        Assert.Equal("TSSOP package (TSSOP-8)", filteredRow.ActivePackageLabel);
+        Assert.Equal("TSSOP package (TSSOP-8)", viewModel.SelectedPackageName);
+    }
+
+    [Fact]
+    public void ReplaceFromCatalogExplainsWhenActivePackageIsMissing()
+    {
+        ComponentFootprintId soic8FootprintId = new("dragon:opamp:footprint:soic-8");
+        ComponentFootprintId tssop8FootprintId = new("dragon:opamp:footprint:tssop-8");
+        ComponentVariantId soic8VariantId = new("dragon:opamp:variant:soic-8");
+        ComponentVariantId tssop8VariantId = new("dragon:opamp:variant:tssop-8");
+        ComponentDefinition original = MultiPackageComponent(soic8FootprintId, tssop8FootprintId, soic8VariantId, tssop8VariantId);
+        ComponentDefinition refreshed = SinglePackageComponent(soic8FootprintId, soic8VariantId);
+        ComponentManagerViewModel viewModel = ComponentManagerViewModel.FromCatalog(new ComponentCatalog(BuiltInDefinitions: [original], UserDefinitions: [], ProjectDefinitions: []));
+        ComponentManagerRow row = Assert.Single(viewModel.Components);
+        viewModel.SelectPackageOption(row, row.PackageOptions[1]);
+
+        viewModel.ReplaceFromCatalog(new ComponentCatalog(BuiltInDefinitions: [refreshed], UserDefinitions: [], ProjectDefinitions: []));
+
+        ComponentManagerRow updatedRow = Assert.Single(viewModel.Components);
+        Assert.Equal("SOIC package (SOIC-8)", updatedRow.ActivePackageLabel);
+        Assert.Equal("Previously selected package 'TSSOP package (TSSOP-8)' is no longer available; using 'SOIC package (SOIC-8)'.", viewModel.SelectedPackageAvailabilityMessage);
+    }
+
+    [Fact]
     public void SelectedPackageOptionDrivesFootprintPreviewGeometry()
     {
         ComponentFootprintId soic8FootprintId = new("dragon:opamp:footprint:soic-8");
@@ -775,4 +894,56 @@ public sealed class ComponentManagerViewModelTests
                 .ToArray(),
             [],
             []);
+
+    private static ComponentDefinition MultiPackageComponent(
+        ComponentFootprintId firstFootprintId,
+        ComponentFootprintId secondFootprintId,
+        ComponentVariantId firstVariantId,
+        ComponentVariantId secondVariantId) =>
+        new(
+            new ComponentId("dragon:opamp"),
+            "Dual Op Amp",
+            ComponentKind.IntegratedCircuit,
+            "Dragon",
+            "DOP-1",
+            Description: "",
+            Attributes: [],
+            Pins: [],
+            Gates: [],
+            Symbols: [],
+            Footprints:
+            [
+                Footprint(firstFootprintId, "SOIC-8", padCount: 8),
+                Footprint(secondFootprintId, "TSSOP-8", padCount: 8)
+            ],
+            Variants:
+            [
+                new ComponentVariant(firstVariantId, "SOIC package", firstFootprintId, [new ComponentAttribute("Package", "SOIC-8")]),
+                new ComponentVariant(secondVariantId, "TSSOP package", secondFootprintId, [new ComponentAttribute("Package", "TSSOP-8")])
+            ],
+            PinPadMappings: [],
+            Datasheets: [],
+            Sourcing: [],
+            PackageModels3D: [],
+            Provenance: []);
+
+    private static ComponentDefinition SinglePackageComponent(ComponentFootprintId footprintId, ComponentVariantId variantId) =>
+        new(
+            new ComponentId("dragon:opamp"),
+            "Dual Op Amp",
+            ComponentKind.IntegratedCircuit,
+            "Dragon",
+            "DOP-1",
+            Description: "",
+            Attributes: [],
+            Pins: [],
+            Gates: [],
+            Symbols: [],
+            Footprints: [Footprint(footprintId, "SOIC-8", padCount: 8)],
+            Variants: [new ComponentVariant(variantId, "SOIC package", footprintId, [new ComponentAttribute("Package", "SOIC-8")])],
+            PinPadMappings: [],
+            Datasheets: [],
+            Sourcing: [],
+            PackageModels3D: [],
+            Provenance: []);
 }

@@ -19,6 +19,7 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
     private string selectedLifecycleFilter = "";
     private string selectedVerifiedStatusFilter = "";
     private string selectedSourceFilter = "";
+    private string selectedPackageAvailabilityMessage = "";
     private ComponentManagerRow? selectedComponent;
 
     private ComponentManagerViewModel(IReadOnlyList<ComponentManagerRow> components)
@@ -142,6 +143,47 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
 
             selectedComponent = value;
             OnPropertyChanged();
+            OnSelectedPackageChanged();
+        }
+    }
+
+    public string SelectedPackageName => selectedComponent?.ActivePackageLabel ?? "No package";
+
+    public ComponentPackageSummary SelectedPackageSummary => selectedComponent?.SelectedPackageSummary ?? ComponentPackageSummary.Empty;
+
+    public string SelectedPackagePreviewSummary => SelectedPackageSummary.DisplayText;
+
+    public string SelectedPackageVariantMetadata =>
+        selectedComponent?.SelectedPackageOption is { } option
+            ? string.IsNullOrWhiteSpace(option.VariantId)
+                ? $"Footprint {option.FootprintId}"
+                : $"Variant {option.VariantId} / Footprint {option.FootprintId}"
+            : "No package metadata";
+
+    public string SelectedPackageCountText =>
+        selectedComponent is null
+            ? "0 packages"
+            : CountText(selectedComponent.PackageOptionCount, "package");
+
+    public string SelectedPackagePlacementReadiness =>
+        selectedComponent is null
+            ? "No component selected"
+            : selectedComponent.CanPlaceWithoutReview
+                ? "Ready for placement"
+                : "Review required before placement";
+
+    public string SelectedPackageAvailabilityMessage
+    {
+        get => selectedPackageAvailabilityMessage;
+        private set
+        {
+            if (selectedPackageAvailabilityMessage == value)
+            {
+                return;
+            }
+
+            selectedPackageAvailabilityMessage = value;
+            OnPropertyChanged();
         }
     }
 
@@ -161,11 +203,24 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
     public void ReplaceFromCatalog(ComponentCatalog catalog)
     {
         ArgumentNullException.ThrowIfNull(catalog);
+        Dictionary<string, ComponentPackageOption> previousSelectedPackages = allComponents
+            .Where(row => row.SelectedPackageOption is not null)
+            .ToDictionary(row => row.ComponentId, row => row.SelectedPackageOption!, StringComparer.Ordinal);
+        string? previousSelectedComponentId = selectedComponent?.ComponentId;
+        ComponentPackageOption? previousSelectedPackage = selectedComponent?.SelectedPackageOption;
+        string previousSelectedPackageLabel = selectedComponent?.ActivePackageLabel ?? "No package";
+
         allComponents = catalog.EnumerateEffectiveDefinitions()
             .Select(ComponentManagerRow.FromCatalogEntry)
+            .Select(row => PreserveSelectedPackage(row, previousSelectedPackages))
             .OrderBy(row => row.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(row => row.ComponentId, StringComparer.Ordinal)
             .ToArray();
+        SelectedPackageAvailabilityMessage = BuildPackageAvailabilityMessage(
+            allComponents,
+            previousSelectedComponentId,
+            previousSelectedPackage,
+            previousSelectedPackageLabel);
         typeFilterOptions = BuildTypeFilterOptions(allComponents);
         if (selectedTypeFilterKind.Length > 0 && !typeFilterOptions.Any(option => option.Kind == selectedTypeFilterKind))
         {
@@ -189,6 +244,7 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
         ReplaceRow(Components, row, updatedRow);
         if (selectedComponent == row)
         {
+            SelectedPackageAvailabilityMessage = "Package selection preserved.";
             SelectedComponent = updatedRow;
         }
     }
@@ -257,9 +313,7 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
 
         UpdateResultGroups(filteredRows);
 
-        SelectedComponent = previousSelection is not null && Components.Contains(previousSelection)
-            ? previousSelection
-            : Components.FirstOrDefault();
+        SelectedComponent = ResolveFilteredSelection(previousSelection, filteredRows);
     }
 
     private void SetTextFilter(ref string field, string value)
@@ -361,6 +415,80 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
 
     private static bool Contains(string value, string searchText) =>
         value.Contains(searchText, StringComparison.OrdinalIgnoreCase);
+
+    private void OnSelectedPackageChanged()
+    {
+        OnPropertyChanged(nameof(SelectedPackageName));
+        OnPropertyChanged(nameof(SelectedPackageSummary));
+        OnPropertyChanged(nameof(SelectedPackagePreviewSummary));
+        OnPropertyChanged(nameof(SelectedPackageVariantMetadata));
+        OnPropertyChanged(nameof(SelectedPackageCountText));
+        OnPropertyChanged(nameof(SelectedPackagePlacementReadiness));
+    }
+
+    private ComponentManagerRow? ResolveFilteredSelection(ComponentManagerRow? previousSelection, IReadOnlyList<ComponentManagerRow> filteredRows)
+    {
+        if (previousSelection is null)
+        {
+            return filteredRows.FirstOrDefault();
+        }
+
+        ComponentManagerRow? exactSelection = filteredRows.FirstOrDefault(row => ReferenceEquals(row, previousSelection));
+        if (exactSelection is not null)
+        {
+            return exactSelection;
+        }
+
+        ComponentManagerRow? sameComponent = filteredRows.FirstOrDefault(row =>
+            string.Equals(row.ComponentId, previousSelection.ComponentId, StringComparison.Ordinal));
+        return sameComponent ?? filteredRows.FirstOrDefault();
+    }
+
+    private static ComponentManagerRow PreserveSelectedPackage(
+        ComponentManagerRow row,
+        IReadOnlyDictionary<string, ComponentPackageOption> previousSelectedPackages)
+    {
+        if (!previousSelectedPackages.TryGetValue(row.ComponentId, out ComponentPackageOption? selectedPackage))
+        {
+            return row;
+        }
+
+        ComponentPackageOption? availablePackage = row.PackageOptions.FirstOrDefault(option => PackageOptionMatches(option, selectedPackage));
+        return availablePackage is null ? row : row.WithSelectedPackageOption(availablePackage);
+    }
+
+    private static string BuildPackageAvailabilityMessage(
+        IReadOnlyList<ComponentManagerRow> rows,
+        string? previousSelectedComponentId,
+        ComponentPackageOption? previousSelectedPackage,
+        string previousSelectedPackageLabel)
+    {
+        if (previousSelectedComponentId is null || previousSelectedPackage is null)
+        {
+            return "";
+        }
+
+        ComponentManagerRow? refreshedSelection = rows.FirstOrDefault(row =>
+            string.Equals(row.ComponentId, previousSelectedComponentId, StringComparison.Ordinal));
+        if (refreshedSelection is null)
+        {
+            return $"Previously selected component is no longer available; package '{previousSelectedPackageLabel}' cannot be preserved.";
+        }
+
+        if (refreshedSelection.PackageOptions.Any(option => PackageOptionMatches(option, previousSelectedPackage)))
+        {
+            return "Package selection preserved.";
+        }
+
+        return $"Previously selected package '{previousSelectedPackageLabel}' is no longer available; using '{refreshedSelection.ActivePackageLabel}'.";
+    }
+
+    private static string CountText(int count, string singularName) =>
+        $"{count} {singularName}{(count == 1 ? "" : "s")}";
+
+    private static bool PackageOptionMatches(ComponentPackageOption option, ComponentPackageOption selectedOption) =>
+        string.Equals(option.VariantId, selectedOption.VariantId, StringComparison.Ordinal) &&
+        string.Equals(option.FootprintId, selectedOption.FootprintId, StringComparison.Ordinal);
 
     private static void ReplaceRow(IReadOnlyList<ComponentManagerRow> rows, ComponentManagerRow oldRow, ComponentManagerRow newRow)
     {
