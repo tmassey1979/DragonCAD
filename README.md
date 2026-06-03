@@ -40,6 +40,7 @@ Start here before changing code:
 - [Implementation roadmap](docs/remaining-implementation-roadmap.md) - current epic backlog and next vertical slices.
 - [Editor interaction backlog](docs/editor-interaction-backlog.md) - editor-specific interaction gaps and follow-up work.
 - [Component marketplace roadmap](docs/component-marketplace-roadmap.md) - marketplace, component, sourcing, and trusted-library direction.
+- [Live provider smoke checklist](docs/vendor-live-smoke-checklist.md) - opt-in Digi-Key and Mouser catalog smoke process that keeps default validation offline.
 - [Local help: workspace basics](docs/help/getting-started/workspace.md) - in-app help source for opening and inspecting workspaces.
 - [Local help: project folders](docs/help/project-system/project-folders.md) - project folder conventions.
 - [Local help: schematic wires](docs/help/schematic-editing/placing-wires.md) - schematic editing help source.

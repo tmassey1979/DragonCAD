@@ -29,6 +29,11 @@ $requiredLinks = @(
         Path = "docs\component-marketplace-roadmap.md"
     },
     @{
+        Label = "Live provider smoke checklist"
+        Text = "[Live provider smoke checklist](docs/vendor-live-smoke-checklist.md)"
+        Path = "docs\vendor-live-smoke-checklist.md"
+    },
+    @{
         Label = "Local help workspace"
         Text = "[Local help: workspace basics](docs/help/getting-started/workspace.md)"
         Path = "docs\help\getting-started\workspace.md"
