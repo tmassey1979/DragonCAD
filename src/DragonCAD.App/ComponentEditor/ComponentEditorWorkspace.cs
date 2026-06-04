@@ -199,13 +199,23 @@ public enum ComponentEditorSectionState
 public sealed class ComponentEditorViewModel : INotifyPropertyChanged
 {
     private static readonly CadGrid DefaultCommandGrid = new(new CadVector(100_000, 100_000));
+    private static readonly IReadOnlyList<ComponentEditorSymbolTool> SymbolTools =
+    [
+        ComponentEditorSymbolTool.Select,
+        ComponentEditorSymbolTool.Pin,
+        ComponentEditorSymbolTool.Line,
+        ComponentEditorSymbolTool.Arc,
+        ComponentEditorSymbolTool.Text
+    ];
 
     private readonly string componentId;
+    private readonly List<ComponentEditorSymbolAuthoringItem> symbolAuthoringHistory = [];
     private string displayName;
     private string manufacturer;
     private string manufacturerPartNumber;
     private string description;
     private ComponentKind kind;
+    private ComponentEditorSymbolTool activeSymbolTool = ComponentEditorSymbolTool.Select;
     private IReadOnlyList<ComponentPin> pins;
     private IReadOnlyList<ComponentGate> gates;
     private IReadOnlyList<ComponentSymbol> symbols;
@@ -306,6 +316,14 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
     public IReadOnlyList<ComponentPin> Pins => pins;
 
     public IReadOnlyList<ComponentSymbol> Symbols => symbols;
+
+    public ComponentEditorSymbolTool ActiveSymbolTool
+    {
+        get => activeSymbolTool;
+        private set => SetField(ref activeSymbolTool, value);
+    }
+
+    public IReadOnlyList<ComponentEditorSymbolTool> AvailableSymbolTools => SymbolTools;
 
     public IReadOnlyList<ComponentFootprint> Footprints => footprints;
 
@@ -464,6 +482,18 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
 
     public void SetKind(ComponentKind value) => Kind = value;
 
+    public void ActivateSymbolTool(ComponentEditorSymbolTool tool) => ActiveSymbolTool = tool;
+
+    public ComponentEditorSymbolPlacementPreview PreviewSymbolPlacement(CadPoint point) =>
+        ComponentEditorSymbolPlacementPreview.FromPoint(ActiveSymbolTool, DefaultCommandGrid.Snap(point));
+
+    public ComponentEditorSymbolPlacementPreview PreviewSymbolPlacement(CadPoint start, CadPoint end)
+    {
+        CadPoint snappedStart = DefaultCommandGrid.Snap(start);
+        CadPoint snappedEnd = DefaultCommandGrid.Snap(end);
+        return ComponentEditorSymbolPlacementPreview.FromSpan(ActiveSymbolTool, snappedStart, snappedEnd);
+    }
+
     public void AddBasicPinPackageAndMapping(string pinNumber, string pinName, string packageName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(pinNumber);
@@ -497,7 +527,19 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
     public ComponentEditorCommandResult AddPin(string number, string name, CadPoint symbolPosition) =>
         AddPin(number, name, symbolPosition, DefaultCommandGrid);
 
-    public ComponentEditorCommandResult AddPin(string number, string name, CadPoint symbolPosition, CadGrid grid)
+    public ComponentEditorCommandResult AddPin(string number, string name, CadPoint symbolPosition, CadGrid grid) =>
+        AddPin(number, name, ComponentPinOrientation.Right, symbolPosition, grid, rememberAuthoringItem: false);
+
+    public ComponentEditorCommandResult PlaceSymbolPin(string number, string name, ComponentPinOrientation direction, CadPoint connectionPoint) =>
+        AddPin(number, name, direction, connectionPoint, DefaultCommandGrid, rememberAuthoringItem: true);
+
+    private ComponentEditorCommandResult AddPin(
+        string number,
+        string name,
+        ComponentPinOrientation direction,
+        CadPoint symbolPosition,
+        CadGrid grid,
+        bool rememberAuthoringItem)
     {
         if (string.IsNullOrWhiteSpace(number))
         {
@@ -529,10 +571,15 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             .Select(symbol => symbol with
             {
                 Pins = symbol.Pins
-                    .Append(new ComponentSymbolPin(pin.Id, snappedPosition, ComponentPinOrientation.Right))
+                    .Append(new ComponentSymbolPin(pin.Id, snappedPosition, direction))
                     .ToArray()
             })
             .ToArray();
+        if (rememberAuthoringItem)
+        {
+            symbolAuthoringHistory.Add(ComponentEditorSymbolAuthoringItem.Pin(pin.Id));
+        }
+
         OnPropertyChanged(nameof(Pins));
         OnPropertyChanged(nameof(PinSummaries));
         OnPropertyChanged(nameof(Symbols));
@@ -652,11 +699,109 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
         }
 
         ComponentSymbolLinePrimitive primitive = ComponentSymbolPrimitive.Line(start, end, "symbol", "default");
+        return AddSymbolPrimitive(symbol.Id, primitive, rememberAuthoringItem: false);
+    }
+
+    public ComponentEditorCommandResult PlaceSymbolLine(CadPoint start, CadPoint end)
+    {
+        ComponentSymbol? symbol = PrimarySymbol();
+        if (symbol is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, "A symbol is required before placing symbol primitives.");
+        }
+
+        ComponentEditorSymbolPlacementPreview preview = PreviewSymbolPlacement(start, end);
+        ComponentSymbolLinePrimitive primitive = ComponentSymbolPrimitive.Line(preview.Start, preview.End, "symbol", "default");
+        return AddSymbolPrimitive(symbol.Id, primitive, rememberAuthoringItem: true);
+    }
+
+    public ComponentEditorCommandResult PlaceSymbolText(string value, CadPoint position)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.InvalidInput, "Text value is required.");
+        }
+
+        ComponentSymbol? symbol = PrimarySymbol();
+        if (symbol is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, "A symbol is required before placing symbol primitives.");
+        }
+
+        CadPoint snappedPosition = DefaultCommandGrid.Snap(position);
+        ComponentSymbolTextPrimitive primitive = ComponentSymbolPrimitive.Text(ComponentSymbolTextKind.Custom, value.Trim(), snappedPosition, "symbol", "default");
+        return AddSymbolPrimitive(symbol.Id, primitive, rememberAuthoringItem: true);
+    }
+
+    public ComponentEditorCommandResult PlaceSymbolArc(CadPoint center, CadPoint radiusPoint, int startAngleDegrees, int sweepAngleDegrees)
+    {
+        ComponentSymbol? symbol = PrimarySymbol();
+        if (symbol is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, "A symbol is required before placing symbol primitives.");
+        }
+
+        ComponentEditorSymbolPlacementPreview preview = PreviewSymbolPlacement(center, radiusPoint);
+        ComponentSymbolArcPrimitive primitive = ComponentSymbolPrimitive.Arc(
+            preview.Center,
+            preview.Radius,
+            startAngleDegrees,
+            sweepAngleDegrees,
+            "symbol",
+            "default");
+        return AddSymbolPrimitive(symbol.Id, primitive, rememberAuthoringItem: true);
+    }
+
+    public ComponentEditorCommandResult RemoveLastSymbolAuthoringItem()
+    {
+        ComponentEditorSymbolAuthoringItem? item = symbolAuthoringHistory.LastOrDefault();
+        if (item is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, "No symbol authoring item is available to remove.");
+        }
+
+        symbolAuthoringHistory.RemoveAt(symbolAuthoringHistory.Count - 1);
+        if (item.PinId is not null)
+        {
+            pins = pins.Where(pin => pin.Id != item.PinId).ToArray();
+            symbols = symbols
+                .Select(symbol => symbol with { Pins = symbol.Pins.Where(pin => pin.PinId != item.PinId).ToArray() })
+                .ToArray();
+            pinPadMappings = pinPadMappings.Where(mapping => mapping.PinId != item.PinId).ToArray();
+            OnPropertyChanged(nameof(Pins));
+            OnPropertyChanged(nameof(PinSummaries));
+            OnPropertyChanged(nameof(PinPadMappings));
+            OnPropertyChanged(nameof(MappingSummaries));
+        }
+        else if (item.SymbolId is not null)
+        {
+            symbols = symbols
+                .Select(symbol => symbol.Id == item.SymbolId
+                    ? symbol with { Primitives = symbol.Primitives.Take(Math.Max(0, symbol.Primitives.Count - 1)).ToArray() }
+                    : symbol)
+                .ToArray();
+        }
+
+        OnPropertyChanged(nameof(Symbols));
+        OnPropertyChanged(nameof(SymbolSummaries));
+        return ComponentEditorCommandResult.Success();
+    }
+
+    private ComponentEditorCommandResult AddSymbolPrimitive(
+        ComponentSymbolId symbolId,
+        ComponentSymbolPrimitive primitive,
+        bool rememberAuthoringItem)
+    {
         symbols = symbols
-            .Select(existing => existing.Id == symbol.Id
+            .Select(existing => existing.Id == symbolId
                 ? existing with { Primitives = existing.Primitives.Append(primitive).ToArray() }
                 : existing)
             .ToArray();
+        if (rememberAuthoringItem)
+        {
+            symbolAuthoringHistory.Add(ComponentEditorSymbolAuthoringItem.Primitive(symbolId));
+        }
+
         OnPropertyChanged(nameof(Symbols));
         OnPropertyChanged(nameof(SymbolSummaries));
         OnPropertyChanged(nameof(MappingSummaries));
@@ -977,6 +1122,8 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             string.Equals(symbol.Name, symbolNameOrId, StringComparison.Ordinal) ||
             string.Equals(symbol.Id.Value, symbolNameOrId, StringComparison.Ordinal));
 
+    private ComponentSymbol? PrimarySymbol() => symbols.FirstOrDefault();
+
     private ComponentFootprint? FindFootprint(string footprintNameOrId) =>
         footprints.FirstOrDefault(footprint =>
             string.Equals(footprint.Name, footprintNameOrId, StringComparison.Ordinal) ||
@@ -1233,6 +1380,43 @@ public sealed record ComponentEditorPadDraft(
     CadPoint Position,
     CadVector Size);
 
+public enum ComponentEditorSymbolTool
+{
+    Select,
+    Pin,
+    Line,
+    Arc,
+    Text
+}
+
+public sealed record ComponentEditorSymbolPlacementPreview(
+    ComponentEditorSymbolTool Tool,
+    CadPoint Start,
+    CadPoint End,
+    CadPoint Position,
+    CadPoint Center,
+    CadPoint ConnectionPoint,
+    long Radius)
+{
+    public static ComponentEditorSymbolPlacementPreview FromPoint(ComponentEditorSymbolTool tool, CadPoint point) =>
+        new(tool, point, point, point, point, point, 0);
+
+    public static ComponentEditorSymbolPlacementPreview FromSpan(ComponentEditorSymbolTool tool, CadPoint start, CadPoint end) =>
+        new(tool, start, end, start, start, start, RadiusBetween(start, end));
+
+    private static long RadiusBetween(CadPoint center, CadPoint edge) =>
+        Math.Max(Math.Abs(edge.X - center.X), Math.Abs(edge.Y - center.Y));
+}
+
+internal sealed record ComponentEditorSymbolAuthoringItem(
+    ComponentPinId? PinId,
+    ComponentSymbolId? SymbolId)
+{
+    public static ComponentEditorSymbolAuthoringItem Pin(ComponentPinId pinId) => new(pinId, null);
+
+    public static ComponentEditorSymbolAuthoringItem Primitive(ComponentSymbolId symbolId) => new(null, symbolId);
+}
+
 public sealed record ComponentEditorCommandResult(
     IReadOnlyList<ComponentEditorCommandDiagnostic> Diagnostics)
 {
@@ -1470,7 +1654,7 @@ internal static class ComponentEditorSnapshot
             .Select(pin => $"{pin.Id.Value}:{pin.Name}:{pin.Number}:{pin.ElectricalType}"));
         string symbolsText = string.Join("|", definition.Symbols
             .OrderBy(symbol => symbol.Id.Value, StringComparer.Ordinal)
-            .Select(symbol => $"{symbol.Id.Value}:{symbol.Name}:{string.Join(",", symbol.Pins.Select(pin => $"{pin.PinId.Value}@{pin.Position.X}:{pin.Position.Y}:{pin.Orientation}"))}"));
+            .Select(symbol => $"{symbol.Id.Value}:{symbol.Name}:{string.Join(",", symbol.Pins.Select(pin => $"{pin.PinId.Value}@{pin.Position.X}:{pin.Position.Y}:{pin.Orientation}"))}:{string.Join(",", symbol.Primitives.Select(PrimitiveSnapshot))}"));
         string footprintsText = string.Join("|", definition.Footprints
             .OrderBy(footprint => footprint.Id.Value, StringComparer.Ordinal)
             .Select(footprint => $"{footprint.Id.Value}:{footprint.Name}:{string.Join(",", footprint.Pads.Select(pad => $"{pad.Id.Value}:{pad.Name}@{pad.Position.X}:{pad.Position.Y}:{pad.Size.X}:{pad.Size.Y}:{pad.Technology}:{pad.Shape}:{pad.DrillSize}"))}"));
@@ -1498,4 +1682,15 @@ internal static class ComponentEditorSnapshot
             variantsText,
             mappingsText);
     }
+
+    private static string PrimitiveSnapshot(ComponentSymbolPrimitive primitive) =>
+        primitive switch
+        {
+            ComponentSymbolLinePrimitive line => $"line:{line.Start.X}:{line.Start.Y}:{line.End.X}:{line.End.Y}:{line.Layer}:{line.Color}",
+            ComponentSymbolArcPrimitive arc => $"arc:{arc.Center.X}:{arc.Center.Y}:{arc.Radius}:{arc.StartAngleDegrees}:{arc.SweepAngleDegrees}:{arc.Layer}:{arc.Color}",
+            ComponentSymbolRectanglePrimitive rectangle => $"rectangle:{rectangle.Bounds.Left}:{rectangle.Bounds.Top}:{rectangle.Bounds.Right}:{rectangle.Bounds.Bottom}:{rectangle.Layer}:{rectangle.Color}",
+            ComponentSymbolCirclePrimitive circle => $"circle:{circle.Center.X}:{circle.Center.Y}:{circle.Radius}:{circle.Layer}:{circle.Color}",
+            ComponentSymbolTextPrimitive text => $"text:{text.Kind}:{text.Value}:{text.Position.X}:{text.Position.Y}:{text.Layer}:{text.Color}",
+            _ => primitive.GetType().Name
+        };
 }

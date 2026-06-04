@@ -275,6 +275,133 @@ public sealed class ComponentEditorWorkspaceTests
     }
 
     [Fact]
+    public void SymbolToolActivationExposesExplicitAuthoringTools()
+    {
+        ComponentEditorViewModel editor = ComponentEditorWorkspace.StartNew("dragon:symbol-tools").ViewModel;
+
+        Assert.Equal(ComponentEditorSymbolTool.Select, editor.ActiveSymbolTool);
+        Assert.Equal(
+            [
+                ComponentEditorSymbolTool.Select,
+                ComponentEditorSymbolTool.Pin,
+                ComponentEditorSymbolTool.Line,
+                ComponentEditorSymbolTool.Arc,
+                ComponentEditorSymbolTool.Text
+            ],
+            editor.AvailableSymbolTools);
+
+        editor.ActivateSymbolTool(ComponentEditorSymbolTool.Pin);
+
+        Assert.Equal(ComponentEditorSymbolTool.Pin, editor.ActiveSymbolTool);
+    }
+
+    [Fact]
+    public void PinToolPreviewsAndCommitsPinWithDirectionAndConnectionPoint()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:pin-tool");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.AddSymbol("Main");
+        editor.ActivateSymbolTool(ComponentEditorSymbolTool.Pin);
+
+        ComponentEditorSymbolPlacementPreview preview = editor.PreviewSymbolPlacement(new CadPoint(149_999, 251_000));
+        ComponentEditorCommandResult result = editor.PlaceSymbolPin(" 7 ", " RESET ", ComponentPinOrientation.Left, new CadPoint(149_999, 251_000));
+
+        Assert.Equal(ComponentEditorSymbolTool.Pin, preview.Tool);
+        Assert.Equal(new CadPoint(100_000, 300_000), preview.ConnectionPoint);
+        Assert.Empty(result.Diagnostics);
+        ComponentPin pin = Assert.Single(editor.Pins);
+        Assert.Equal("7", pin.Number);
+        Assert.Equal("RESET", pin.Name);
+        ComponentSymbolPin symbolPin = Assert.Single(Assert.Single(editor.Symbols).Pins);
+        Assert.Equal(pin.Id, symbolPin.PinId);
+        Assert.Equal(ComponentPinOrientation.Left, symbolPin.Orientation);
+        Assert.Equal(new CadPoint(100_000, 300_000), symbolPin.Position);
+    }
+
+    [Fact]
+    public void LineToolPreviewsAndCommitsGridSnappedPrimitive()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:line-tool");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.AddSymbol("Main");
+        editor.ActivateSymbolTool(ComponentEditorSymbolTool.Line);
+
+        ComponentEditorSymbolPlacementPreview preview = editor.PreviewSymbolPlacement(new CadPoint(51_000, 149_999), new CadPoint(251_000, 249_999));
+        ComponentEditorCommandResult result = editor.PlaceSymbolLine(new CadPoint(51_000, 149_999), new CadPoint(251_000, 249_999));
+
+        Assert.Equal(ComponentEditorSymbolTool.Line, preview.Tool);
+        Assert.Equal(new CadPoint(100_000, 100_000), preview.Start);
+        Assert.Equal(new CadPoint(300_000, 200_000), preview.End);
+        Assert.Empty(result.Diagnostics);
+        ComponentSymbolLinePrimitive primitive = Assert.IsType<ComponentSymbolLinePrimitive>(
+            Assert.Single(Assert.Single(editor.Symbols).Primitives));
+        Assert.Equal(new CadPoint(100_000, 100_000), primitive.Start);
+        Assert.Equal(new CadPoint(300_000, 200_000), primitive.End);
+    }
+
+    [Fact]
+    public void TextToolPreviewsAndCommitsGridSnappedPrimitive()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:text-tool");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.AddSymbol("Main");
+        editor.ActivateSymbolTool(ComponentEditorSymbolTool.Text);
+
+        ComponentEditorSymbolPlacementPreview preview = editor.PreviewSymbolPlacement(new CadPoint(-51_000, 49_999));
+        ComponentEditorCommandResult result = editor.PlaceSymbolText("VREF", new CadPoint(-51_000, 49_999));
+
+        Assert.Equal(ComponentEditorSymbolTool.Text, preview.Tool);
+        Assert.Equal(new CadPoint(-100_000, 0), preview.Position);
+        Assert.Empty(result.Diagnostics);
+        ComponentSymbolTextPrimitive primitive = Assert.IsType<ComponentSymbolTextPrimitive>(
+            Assert.Single(Assert.Single(editor.Symbols).Primitives));
+        Assert.Equal(ComponentSymbolTextKind.Custom, primitive.Kind);
+        Assert.Equal("VREF", primitive.Value);
+        Assert.Equal(new CadPoint(-100_000, 0), primitive.Position);
+    }
+
+    [Fact]
+    public void ArcToolPreviewsAndCommitsGridSnappedModelState()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:arc-tool");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.AddSymbol("Main");
+        editor.ActivateSymbolTool(ComponentEditorSymbolTool.Arc);
+
+        ComponentEditorSymbolPlacementPreview preview = editor.PreviewSymbolPlacement(new CadPoint(49_999, 51_000), new CadPoint(249_999, 51_000));
+        ComponentEditorCommandResult result = editor.PlaceSymbolArc(new CadPoint(49_999, 51_000), new CadPoint(249_999, 51_000), 45, 180);
+
+        Assert.Equal(ComponentEditorSymbolTool.Arc, preview.Tool);
+        Assert.Equal(new CadPoint(0, 100_000), preview.Center);
+        Assert.Equal(200_000, preview.Radius);
+        Assert.Empty(result.Diagnostics);
+        ComponentSymbolArcPrimitive primitive = Assert.IsType<ComponentSymbolArcPrimitive>(
+            Assert.Single(Assert.Single(editor.Symbols).Primitives));
+        Assert.Equal(new CadPoint(0, 100_000), primitive.Center);
+        Assert.Equal(200_000, primitive.Radius);
+        Assert.Equal(45, primitive.StartAngleDegrees);
+        Assert.Equal(180, primitive.SweepAngleDegrees);
+    }
+
+    [Fact]
+    public void RemoveLastSymbolAuthoringItemRemovesLastCommittedPrimitive()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:remove-last-symbol-item");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.AddSymbol("Main");
+        editor.PlaceSymbolLine(new CadPoint(0, 0), new CadPoint(100_000, 0));
+        editor.PlaceSymbolText("OUT", new CadPoint(0, 100_000));
+
+        ComponentEditorCommandResult result = editor.RemoveLastSymbolAuthoringItem();
+
+        Assert.Empty(result.Diagnostics);
+        ComponentSymbol symbol = Assert.Single(editor.Symbols);
+        ComponentSymbolLinePrimitive primitive = Assert.IsType<ComponentSymbolLinePrimitive>(Assert.Single(symbol.Primitives));
+        Assert.Equal(new CadPoint(0, 0), primitive.Start);
+        Assert.Equal(new CadPoint(100_000, 0), primitive.End);
+    }
+
+    [Fact]
     public void MovePinCommandMovesSymbolPinToGridSnappedPosition()
     {
         ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:move-pin");
