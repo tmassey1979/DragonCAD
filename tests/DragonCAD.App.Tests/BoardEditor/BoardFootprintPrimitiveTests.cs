@@ -29,15 +29,18 @@ public sealed class BoardFootprintPrimitiveTests
 
         Assert.Contains(board.VisibleFootprintPrimitives(connector), primitive => primitive.LayerName == "Top");
         Assert.Contains(board.VisibleFootprintPrimitives(connector), primitive => primitive.LayerName == "Silkscreen");
+        Assert.Contains(board.VisibleFootprintPrimitives(connector), primitive => primitive.LayerName == "Documentation");
         Assert.Contains(board.VisibleFootprintPrimitives(connector), primitive => primitive.LayerName == "Keepout");
 
         board.SetLayerVisibility("Top", false);
+        board.SetLayerVisibility("Silkscreen", false);
         board.SetLayerVisibility("Keepout", false);
 
         IReadOnlyList<BoardFootprintPrimitive> visible = board.VisibleFootprintPrimitives(connector);
         Assert.DoesNotContain(visible, primitive => primitive.LayerName == "Top");
+        Assert.DoesNotContain(visible, primitive => primitive.LayerName == "Silkscreen");
         Assert.DoesNotContain(visible, primitive => primitive.LayerName == "Keepout");
-        Assert.Contains(visible, primitive => primitive.LayerName == "Silkscreen");
+        Assert.Contains(visible, primitive => primitive.LayerName == "Documentation");
     }
 
     [Fact]
@@ -55,6 +58,21 @@ public sealed class BoardFootprintPrimitiveTests
 
         Assert.NotNull(board.SelectComponentAt(new CadPoint(1_270_000, 0)));
         Assert.Equal("J1", board.SelectedComponent?.ReferenceDesignator);
+    }
+
+    [Fact]
+    public void SelectComponentAtDoesNotUsePreviewBoundsWhenPrimitiveGeometryExists()
+    {
+        BoardEditorViewModel board = new();
+        BoardComponentInstance module = ModuleWithPreviewBoundsAndPrimitivePads();
+        board.Components.Add(module);
+
+        Assert.NotNull(board.SelectComponentAt(new CadPoint(-2_500_000, 0)));
+        Assert.Equal("M1", board.SelectedComponent?.ReferenceDesignator);
+
+        board.SelectComponentAt(new CadPoint(0, 0));
+
+        Assert.Null(board.SelectedComponent);
     }
 
     [Fact]
@@ -80,8 +98,9 @@ public sealed class BoardFootprintPrimitiveTests
         {
             { "TO-220", To220(), ["Pad", "Hole", "Line", "Arc", "Text"] },
             { "DIP", Dip8(), ["Pad", "Hole", "Line", "Text"] },
-            { "SMD resistor", SmdResistor(), ["Smd", "Line", "Text"] },
+            { "SMD resistor/capacitor", SmdResistor(), ["Smd", "Line", "Text"] },
             { "USB connector", UsbMiniConnector(), ["Smd", "Hole", "Keepout", "Line", "Arc", "Text"] },
+            { "Wireless module", ModuleWithPreviewBoundsAndPrimitivePads(), ["Smd", "Line", "Text"] },
             { "Pin header", PinHeader(), ["Pad", "Hole", "Line", "Text"] }
         };
 
@@ -158,8 +177,29 @@ public sealed class BoardFootprintPrimitiveTests
                 BoardFootprintPrimitive.Hole(new CadPoint(2_200_000, 1_000_000), 1_000_000, "Drills"),
                 BoardFootprintPrimitive.Keepout(new CadRectangle(-5_400_000, -4_800_000, 5_400_000, 5_100_000), "Keepout"),
                 BoardFootprintPrimitive.Line(new CadPoint(-3_900_000, -4_600_000), new CadPoint(3_900_000, -4_600_000), "Silkscreen"),
+                BoardFootprintPrimitive.Line(new CadPoint(-4_800_000, -4_100_000), new CadPoint(4_800_000, -4_100_000), "Documentation"),
                 BoardFootprintPrimitive.Arc(new CadPoint(0, 4_600_000), 1_000_000, 180, 180, "Silkscreen"),
                 BoardFootprintPrimitive.Text("J2", new CadPoint(-3_300_000, 5_350_000), 1_000_000, "Names")
+            ]);
+
+    private static BoardComponentInstance ModuleWithPreviewBoundsAndPrimitivePads() =>
+        new(
+            "sync-m1",
+            "M1",
+            "fixture:module",
+            "Wireless module",
+            Position: default,
+            FootprintPreview: new ComponentFootprintPreview(
+                new CadRectangle(-4_000_000, -2_000_000, 4_000_000, 2_000_000),
+                [],
+                []),
+            FootprintPrimitives:
+            [
+                BoardFootprintPrimitive.Smd("1", new CadPoint(-2_500_000, 0), new CadVector(800_000, 1_000_000), "Rectangle", "Top"),
+                BoardFootprintPrimitive.Smd("2", new CadPoint(2_500_000, 0), new CadVector(800_000, 1_000_000), "Rectangle", "Top"),
+                BoardFootprintPrimitive.Line(new CadPoint(-3_800_000, -1_800_000), new CadPoint(3_800_000, -1_800_000), "Documentation"),
+                BoardFootprintPrimitive.Line(new CadPoint(-3_800_000, 1_800_000), new CadPoint(3_800_000, 1_800_000), "Silkscreen"),
+                BoardFootprintPrimitive.Text("M1", new CadPoint(-3_700_000, 2_300_000), 900_000, "Names")
             ]);
 
     private static BoardComponentInstance PinHeader() =>

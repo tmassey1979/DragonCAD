@@ -27,6 +27,7 @@ public sealed class BoardCanvasControl : Control
     private static readonly Pen SelectedComponentPen = new(new SolidColorBrush(Color.FromRgb(255, 176, 52)), 2.2);
     private static readonly Pen HoverSelectionPen = new(new SolidColorBrush(Color.FromRgb(70, 180, 255)), 1.7);
     private static readonly Pen HoverTracePen = new(new SolidColorBrush(Color.FromRgb(70, 180, 255)), 3.2);
+    private const double DefaultPixelsPerInternalUnit = 0.000025;
     private CadVector dragOffset;
     private BoardDragMode dragMode;
     private Point lastPanScreenPoint;
@@ -391,15 +392,16 @@ public sealed class BoardCanvasControl : Control
         BoardComponentInstance component,
         BoardFootprintPrimitive primitive)
     {
-        IBrush brush = LayerBrushFor(editor, primitive.LayerName, Color.FromRgb(226, 232, 240));
+        BoardFootprintPrimitiveRenderState renderState = CreateFootprintPrimitiveRenderState(editor, component, primitive, viewport.pixelsPerInternalUnit);
+        IBrush brush = LayerBrushFor(editor, renderState.LayerName, Color.FromRgb(226, 232, 240));
         Pen pen = new(brush, 1.2);
         switch (primitive)
         {
             case BoardFootprintPadPrimitive pad:
-                DrawPrimitivePad(context, viewport, center, component, pad.Position, pad.Size, pad.Shape, pad.DrillSize, brush, pen);
+                DrawPrimitivePad(context, viewport, center, component, pad.Position, pad.Shape, renderState, brush, pen);
                 break;
             case BoardFootprintSmdPrimitive smd:
-                DrawPrimitivePad(context, viewport, center, component, smd.Position, smd.Size, smd.Shape, drillSize: 0, brush, pen);
+                DrawPrimitivePad(context, viewport, center, component, smd.Position, smd.Shape, renderState, brush, pen);
                 break;
             case BoardFootprintHolePrimitive hole:
                 DrawHole(context, viewport, center, component, hole, brush, pen);
@@ -428,19 +430,16 @@ public sealed class BoardCanvasControl : Control
         Point center,
         BoardComponentInstance component,
         CadPoint position,
-        CadVector size,
         string shape,
-        long drillSize,
+        BoardFootprintPrimitiveRenderState renderState,
         IBrush brush,
         Pen pen)
     {
-        CadVector padSize = BoardFootprintGeometry.SizeForRotation(component, size);
         CadPoint padCenter = BoardFootprintGeometry.TransformLocalPoint(component, position);
-        CadPoint first = new(padCenter.X - (padSize.X / 2), padCenter.Y - (padSize.Y / 2));
-        CadPoint second = new(padCenter.X + (padSize.X / 2), padCenter.Y + (padSize.Y / 2));
+        Point screenCenter = Translate(viewport.Map(padCenter), center);
         Rect padRect = new Rect(
-            Translate(viewport.Map(first), center),
-            Translate(viewport.Map(second), center)).Normalize();
+            new Point(screenCenter.X - renderState.PadRadiusX, screenCenter.Y - renderState.PadRadiusY),
+            new Point(screenCenter.X + renderState.PadRadiusX, screenCenter.Y + renderState.PadRadiusY));
         if (shape is "Round" or "Oval")
         {
             context.DrawEllipse(brush, pen, padRect.Center, padRect.Width / 2, padRect.Height / 2);
@@ -450,11 +449,9 @@ public sealed class BoardCanvasControl : Control
             context.DrawRectangle(brush, pen, padRect, radiusX: shape == "RoundedRectangle" ? 2 : 0, radiusY: shape == "RoundedRectangle" ? 2 : 0);
         }
 
-        if (drillSize > 0)
+        if (renderState.DrillRadius > 0)
         {
-            Point drillCenter = Translate(viewport.Map(padCenter), center);
-            double radius = Math.Max(1.2, drillSize * 0.000025 / 2);
-            context.DrawEllipse(BackgroundBrush, null, drillCenter, radius, radius);
+            context.DrawEllipse(BackgroundBrush, null, screenCenter, renderState.DrillRadius, renderState.DrillRadius);
         }
     }
 
@@ -596,10 +593,61 @@ public sealed class BoardCanvasControl : Control
 
     public static BoardViaRenderState CreateViaRenderState(BoardVia via) =>
         new(
-            Math.Max(3.5, via.DiameterInternal * 0.000025 / 2),
-            Math.Max(1.5, via.DrillInternal * 0.000025 / 2),
+            Math.Max(3.5, via.DiameterInternal * DefaultPixelsPerInternalUnit / 2),
+            Math.Max(1.5, via.DrillInternal * DefaultPixelsPerInternalUnit / 2),
             via.FromLayerName,
             via.ToLayerName);
+
+    public static BoardFootprintPrimitiveRenderState CreateFootprintPrimitiveRenderState(
+        BoardEditorViewModel editor,
+        BoardComponentInstance component,
+        BoardFootprintPrimitive primitive,
+        double pixelsPerInternalUnit = DefaultPixelsPerInternalUnit)
+    {
+        string layerName = BoardFootprintGeometry.ResolveRenderLayerName(component, primitive);
+        return primitive switch
+        {
+            BoardFootprintPadPrimitive pad => CreatePadRenderState(component, pad.Size, pad.DrillSize, layerName, pixelsPerInternalUnit),
+            BoardFootprintSmdPrimitive smd => CreateSmdRenderState(component, smd.Size, layerName, pixelsPerInternalUnit),
+            _ => new BoardFootprintPrimitiveRenderState(layerName, 0, 0, 0, HasCopperRing: false)
+        };
+    }
+
+    private static BoardFootprintPrimitiveRenderState CreatePadRenderState(
+        BoardComponentInstance component,
+        CadVector size,
+        long drillSize,
+        string layerName,
+        double pixelsPerInternalUnit)
+    {
+        CadVector rotatedSize = BoardFootprintGeometry.SizeForRotation(component, size);
+        double padRadiusX = Math.Max(1.2, rotatedSize.X * pixelsPerInternalUnit / 2);
+        double padRadiusY = Math.Max(1.2, rotatedSize.Y * pixelsPerInternalUnit / 2);
+        double drillRadius = drillSize > 0
+            ? Math.Max(1.2, drillSize * pixelsPerInternalUnit / 2)
+            : 0;
+        return new BoardFootprintPrimitiveRenderState(
+            layerName,
+            padRadiusX,
+            padRadiusY,
+            drillRadius,
+            drillRadius > 0 && (padRadiusX > drillRadius || padRadiusY > drillRadius));
+    }
+
+    private static BoardFootprintPrimitiveRenderState CreateSmdRenderState(
+        BoardComponentInstance component,
+        CadVector size,
+        string layerName,
+        double pixelsPerInternalUnit)
+    {
+        CadVector rotatedSize = BoardFootprintGeometry.SizeForRotation(component, size);
+        return new BoardFootprintPrimitiveRenderState(
+            layerName,
+            Math.Max(1.2, rotatedSize.X * pixelsPerInternalUnit / 2),
+            Math.Max(1.2, rotatedSize.Y * pixelsPerInternalUnit / 2),
+            DrillRadius: 0,
+            HasCopperRing: false);
+    }
 
     private static IBrush LayerBrushFor(BoardEditorViewModel editor, string layerName, Color fallback)
     {
@@ -639,7 +687,7 @@ public sealed class BoardCanvasControl : Control
     private BoardCanvasViewport CreateViewport()
     {
         double zoom = Editor?.ZoomLevel ?? 1.0;
-        return new BoardCanvasViewport(Editor?.ViewportOrigin ?? new CadPoint(4_000_000, 0), 0.000025 * zoom);
+        return new BoardCanvasViewport(Editor?.ViewportOrigin ?? new CadPoint(4_000_000, 0), DefaultPixelsPerInternalUnit * zoom);
     }
 
     private void ItemsChanged(object? sender, NotifyCollectionChangedEventArgs e) =>
@@ -703,3 +751,10 @@ public sealed record BoardViaRenderState(
     double DrillRadius,
     string FromLayerName,
     string ToLayerName);
+
+public sealed record BoardFootprintPrimitiveRenderState(
+    string LayerName,
+    double PadRadiusX,
+    double PadRadiusY,
+    double DrillRadius,
+    bool HasCopperRing);

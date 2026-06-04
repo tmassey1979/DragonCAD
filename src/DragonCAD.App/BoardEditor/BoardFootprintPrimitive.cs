@@ -192,6 +192,19 @@ public static class BoardFootprintGeometry
             ? new CadVector(size.Y, size.X)
             : size;
 
+    public static string ResolveRenderLayerName(BoardComponentInstance component, BoardFootprintPrimitive primitive) =>
+        component.IsMirrored && primitive is BoardFootprintSmdPrimitive
+            ? OppositeCopperLayerName(primitive.LayerName)
+            : primitive.LayerName;
+
+    private static string OppositeCopperLayerName(string layerName) =>
+        layerName switch
+        {
+            "Top" => "Bottom",
+            "Bottom" => "Top",
+            _ => layerName
+        };
+
     private static bool PadContains(BoardComponentInstance component, CadPoint position, CadVector size, string shape, CadPoint point)
     {
         CadPoint center = TransformLocalPoint(component, position);

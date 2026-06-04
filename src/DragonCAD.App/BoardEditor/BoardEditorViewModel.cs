@@ -51,6 +51,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         new("Top", "#E63D32"),
         new("Bottom", "#2D8CFF"),
         new("Silkscreen", "#E2E8F0"),
+        new("Documentation", "#22C55E"),
         new("Dimension", "#A3E635"),
         new("Keepout", "#F43F5E"),
         new("Names", "#F8FAFC"),
@@ -72,7 +73,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
 
     public IReadOnlyList<BoardFootprintPrimitive> VisibleFootprintPrimitives(BoardComponentInstance component) =>
         component.FootprintPrimitives
-            .Where(primitive => Layers.Any(layer => layer.Name == primitive.LayerName && layer.IsVisible))
+            .Where(primitive => Layers.Any(layer => layer.Name == BoardFootprintGeometry.ResolveRenderLayerName(component, primitive) && layer.IsVisible))
             .ToArray();
 
     public string ActiveLayerName
@@ -1278,7 +1279,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
             BoardComponentInstance candidate = Components[index];
             if (candidate.FootprintPrimitives.Count == 0
                 ? ComponentBounds(candidate).Contains(point)
-                : BoardFootprintGeometry.HitTest(candidate, point) || ComponentPreviewBoundsContains(candidate, point))
+                : BoardFootprintGeometry.HitTest(candidate, point))
             {
                 return candidate;
             }
@@ -1376,29 +1377,6 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
                 component.Position.Y - 1_000_000,
                 component.Position.X + 1_500_000,
                 component.Position.Y + 1_000_000);
-
-    private static bool ComponentPreviewBoundsContains(BoardComponentInstance component, CadPoint point)
-    {
-        CadRectangle bounds = component.FootprintPreview.Bounds;
-        if (bounds.Width <= 0 && bounds.Height <= 0)
-        {
-            return false;
-        }
-
-        CadPoint[] corners =
-        [
-            BoardFootprintGeometry.TransformLocalPoint(component, new CadPoint(bounds.Left, bounds.Top)),
-            BoardFootprintGeometry.TransformLocalPoint(component, new CadPoint(bounds.Right, bounds.Top)),
-            BoardFootprintGeometry.TransformLocalPoint(component, new CadPoint(bounds.Right, bounds.Bottom)),
-            BoardFootprintGeometry.TransformLocalPoint(component, new CadPoint(bounds.Left, bounds.Bottom))
-        ];
-        CadRectangle transformedBounds = new(
-            corners.Min(candidate => candidate.X),
-            corners.Min(candidate => candidate.Y),
-            corners.Max(candidate => candidate.X),
-            corners.Max(candidate => candidate.Y));
-        return transformedBounds.Contains(point);
-    }
 
     private CadRectangle BoardContentsBounds()
     {
