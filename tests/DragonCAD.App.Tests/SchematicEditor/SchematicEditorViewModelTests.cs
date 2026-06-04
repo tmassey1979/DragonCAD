@@ -54,6 +54,68 @@ public sealed class SchematicEditorViewModelTests
     }
 
     [Fact]
+    public void ArmedPlacementCandidateRepeatsAcrossSchematicClicksWithDeterministicReferences()
+    {
+        SchematicEditorViewModel editor = new();
+        ComponentPlacementIntent intent = new("dragon:opamp", "Op Amp", 1, 1, "BuiltIn");
+
+        Assert.True(editor.TryArmComponentPlacement(intent));
+        SchematicComponentInstance? first = editor.PlaceArmedComponentAt(new CadPoint(400_000, 600_000));
+        SchematicComponentInstance? second = editor.PlaceArmedComponentAt(new CadPoint(2_300_000, 2_800_000));
+
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Assert.Equal("U1", first.ReferenceDesignator);
+        Assert.Equal("U2", second.ReferenceDesignator);
+        Assert.Equal(["dragon:opamp", "dragon:opamp"], editor.Components.Select(component => component.ComponentId));
+        Assert.Equal(intent, editor.ActivePlacementCandidate);
+    }
+
+    [Fact]
+    public void CancelPlacementClearsCandidateWithoutDeletingExistingPlacements()
+    {
+        SchematicEditorViewModel editor = new();
+        ComponentPlacementIntent intent = new("dragon:opamp", "Op Amp", 1, 1, "BuiltIn");
+        editor.TryArmComponentPlacement(intent);
+        SchematicComponentInstance? placed = editor.PlaceArmedComponentAt(new CadPoint(0, 0));
+
+        Assert.True(editor.CancelComponentPlacement());
+
+        Assert.Same(placed, Assert.Single(editor.Components));
+        Assert.Null(editor.ActivePlacementCandidate);
+        Assert.Null(editor.PlaceArmedComponentAt(new CadPoint(1_000_000, 0)));
+        Assert.Single(editor.Components);
+        Assert.Equal("Choose a trusted placeable component before dropping it on the schematic.", editor.StatusText);
+    }
+
+    [Fact]
+    public void ArmingDifferentPartReplacesActivePlacementCandidate()
+    {
+        SchematicEditorViewModel editor = new();
+        ComponentPlacementIntent first = new("dragon:first", "First", 1, 1, "BuiltIn");
+        ComponentPlacementIntent second = new("dragon:second", "Second", 1, 1, "BuiltIn");
+
+        Assert.True(editor.TryArmComponentPlacement(first));
+        Assert.True(editor.TryArmComponentPlacement(second));
+        SchematicComponentInstance? placed = editor.PlaceArmedComponentAt(new CadPoint(0, 0));
+
+        Assert.Equal(second, editor.ActivePlacementCandidate);
+        Assert.Equal("dragon:second", placed?.ComponentId);
+    }
+
+    [Fact]
+    public void InvalidPlacementIntentCannotArmAndShowsDiagnostic()
+    {
+        SchematicEditorViewModel editor = new();
+        ComponentPlacementIntent catalogOnly = new("dragon:catalog-only", "Catalog Only", 0, 0, "User");
+
+        Assert.False(editor.TryArmComponentPlacement(catalogOnly));
+
+        Assert.Null(editor.ActivePlacementCandidate);
+        Assert.Equal("Catalog Only cannot be placed because it is missing verified schematic or footprint geometry.", editor.StatusText);
+    }
+
+    [Fact]
     public void SelectComponentAtSelectsTheInstanceWhoseSymbolBoundsContainThePoint()
     {
         SchematicEditorViewModel editor = new();

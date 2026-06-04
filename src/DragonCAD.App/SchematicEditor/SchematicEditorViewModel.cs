@@ -32,6 +32,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
     private int? hoveredWireSegmentIndex;
     private SchematicNetLabel? hoveredNetLabel;
     private string hoverTargetText = "No hover target";
+    private ComponentPlacementIntent? activePlacementCandidate;
     private SchematicPinEndpoint? selectedPinEndpoint;
     private SchematicNetLabel? selectedNetLabel;
     private CadPoint? pendingWirePreviewPoint;
@@ -463,6 +464,63 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         }
     }
 
+    public ComponentPlacementIntent? ActivePlacementCandidate
+    {
+        get => activePlacementCandidate;
+        private set
+        {
+            if (activePlacementCandidate == value)
+            {
+                return;
+            }
+
+            activePlacementCandidate = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasActivePlacementCandidate));
+        }
+    }
+
+    public bool HasActivePlacementCandidate => ActivePlacementCandidate is not null;
+
+    public bool TryArmComponentPlacement(ComponentPlacementIntent intent)
+    {
+        ArgumentNullException.ThrowIfNull(intent);
+
+        if (intent.SymbolCount <= 0 || intent.FootprintCount <= 0)
+        {
+            ActivePlacementCandidate = null;
+            StatusText = $"{intent.DisplayName} cannot be placed because it is missing verified schematic or footprint geometry.";
+            return false;
+        }
+
+        ActivePlacementCandidate = intent;
+        StatusText = $"Placement armed: {intent.DisplayName}. Click the schematic to place; press Escape to cancel.";
+        return true;
+    }
+
+    public SchematicComponentInstance? PlaceArmedComponentAt(CadPoint requestedPosition)
+    {
+        if (ActivePlacementCandidate is null)
+        {
+            StatusText = "Choose a trusted placeable component before dropping it on the schematic.";
+            return null;
+        }
+
+        return PlaceComponent(ActivePlacementCandidate, requestedPosition);
+    }
+
+    public bool CancelComponentPlacement()
+    {
+        if (ActivePlacementCandidate is null)
+        {
+            return false;
+        }
+
+        ActivePlacementCandidate = null;
+        StatusText = "Placement cancelled. Click a schematic object to select it.";
+        return true;
+    }
+
     public SchematicComponentInstance PlaceComponent(ComponentPlacementIntent intent, CadPoint requestedPosition)
     {
         ArgumentNullException.ThrowIfNull(intent);
@@ -497,6 +555,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         Nets.Clear();
         NetLabelDiagnostics.Clear();
         ClearPendingRoutePoints();
+        ActivePlacementCandidate = null;
         PendingWireStart = null;
         PendingWirePreviewPoint = null;
         HoveredPin = null;

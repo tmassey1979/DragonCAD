@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using DragonCAD.App.Placement;
 using DragonCAD.Core.Components.Catalog;
 using DragonCAD.Core.Components.Definitions;
 using DragonCAD.Core.Geometry;
@@ -20,6 +21,8 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
     private string selectedVerifiedStatusFilter = "";
     private string selectedSourceFilter = "";
     private string selectedPackageAvailabilityMessage = "";
+    private string placementDiagnostic = "Select a trusted placeable component.";
+    private ComponentPlacementIntent? armedPlacement;
     private ComponentManagerRow? selectedComponent;
 
     private ComponentManagerViewModel(IReadOnlyList<ComponentManagerRow> components)
@@ -187,6 +190,39 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
         }
     }
 
+    public ComponentPlacementIntent? ArmedPlacement
+    {
+        get => armedPlacement;
+        private set
+        {
+            if (armedPlacement == value)
+            {
+                return;
+            }
+
+            armedPlacement = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(HasArmedPlacement));
+        }
+    }
+
+    public bool HasArmedPlacement => ArmedPlacement is not null;
+
+    public string PlacementDiagnostic
+    {
+        get => placementDiagnostic;
+        private set
+        {
+            if (placementDiagnostic == value)
+            {
+                return;
+            }
+
+            placementDiagnostic = value;
+            OnPropertyChanged();
+        }
+    }
+
     public static ComponentManagerViewModel FromCatalog(ComponentCatalog catalog)
     {
         ArgumentNullException.ThrowIfNull(catalog);
@@ -198,6 +234,37 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
             .ToArray();
 
         return new ComponentManagerViewModel(rows);
+    }
+
+    public bool TryArmSelectedComponentPlacement() =>
+        TryArmComponentPlacement(SelectedComponent);
+
+    public bool TryArmComponentPlacement(ComponentManagerRow? row)
+    {
+        if (row is null)
+        {
+            ArmedPlacement = null;
+            PlacementDiagnostic = "Select a trusted placeable component before placing it.";
+            return false;
+        }
+
+        if (!row.CanPlaceWithoutReview)
+        {
+            ArmedPlacement = null;
+            PlacementDiagnostic = PlacementDiagnosticForBlockedRow(row);
+            return false;
+        }
+
+        ArmedPlacement = new ComponentPlacementIntent(
+            row.ComponentId,
+            row.DisplayName,
+            row.SymbolCount,
+            row.FootprintCount,
+            row.Source,
+            row.SymbolPreview,
+            row.FootprintPreview);
+        PlacementDiagnostic = $"Placement armed: {row.DisplayName}";
+        return true;
     }
 
     public void ReplaceFromCatalog(ComponentCatalog catalog)
@@ -430,6 +497,15 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(SelectedPackageCountText));
         OnPropertyChanged(nameof(SelectedPackagePlacementReadiness));
     }
+
+    private static string PlacementDiagnosticForBlockedRow(ComponentManagerRow row) =>
+        row.PlacementState switch
+        {
+            ComponentPlacementState.CatalogOnly => $"{row.DisplayName} cannot be placed because it is catalog-only and is missing verified placement geometry.",
+            ComponentPlacementState.Draft => $"{row.DisplayName} cannot be placed until the draft component is reviewed.",
+            ComponentPlacementState.Untrusted => $"{row.DisplayName} cannot be placed because its source is not trusted for schematic placement.",
+            _ => $"{row.DisplayName} cannot be placed until it is verified."
+        };
 
     private ComponentManagerRow? ResolveFilteredSelection(ComponentManagerRow? previousSelection, IReadOnlyList<ComponentManagerRow> filteredRows)
     {
@@ -732,7 +808,7 @@ public sealed record ComponentManagerRow(
             return ComponentPlacementState.VerifiedPlaceable;
         }
 
-        return ComponentPlacementState.Draft;
+        return ComponentPlacementState.Untrusted;
     }
 
     private static IEnumerable<string> BuildWarnings(ComponentDefinition definition, ComponentPlacementState placementState)
@@ -744,6 +820,10 @@ public sealed record ComponentManagerRow(
         else if (placementState == ComponentPlacementState.CatalogOnly)
         {
             yield return "Catalog-only component is missing verified placement geometry.";
+        }
+        else if (placementState == ComponentPlacementState.Untrusted)
+        {
+            yield return "Source is not trusted for schematic placement.";
         }
 
         if (definition.Datasheets.Count == 0)
@@ -768,7 +848,8 @@ public enum ComponentPlacementState
 {
     VerifiedPlaceable,
     CatalogOnly,
-    Draft
+    Draft,
+    Untrusted
 }
 
 public sealed record ComponentVendorOffer(

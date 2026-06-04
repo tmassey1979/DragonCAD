@@ -1,4 +1,5 @@
 using DragonCAD.App.ComponentManager;
+using DragonCAD.App.Placement;
 using DragonCAD.Core.Components.Catalog;
 using DragonCAD.Core.Components.Definitions;
 using DragonCAD.Core.Components.Identity;
@@ -885,6 +886,131 @@ public sealed class ComponentManagerViewModelTests
             ["1x03 Header - 3 pads", "1x04 Header - 4 pads"],
             row.PackageOptions.Select(option => option.DisplayText));
         Assert.All(row.PackageOptions, option => Assert.Equal("", option.VariantId));
+    }
+
+    [Fact]
+    public void TrustedSelectedComponentCanArmPlacementFromFilteredChooser()
+    {
+        ComponentCatalog catalog = new(
+            BuiltInDefinitions:
+            [
+                Component(
+                    "dragon:trusted-opamp",
+                    "Trusted Op Amp",
+                    ComponentKind.IntegratedCircuit,
+                    "Dragon",
+                    "DOP-1",
+                    symbolCount: 1,
+                    footprintCount: 1,
+                    provenance: [new ComponentProvenanceRecord(ComponentProvenanceKind.Native, "DragonCAD", "Curated native part")]),
+                Component("dragon:resistor", "Resistor", ComponentKind.Passive, "Dragon", "RES")
+            ],
+            UserDefinitions: [],
+            ProjectDefinitions: []);
+        ComponentManagerViewModel viewModel = ComponentManagerViewModel.FromCatalog(catalog);
+        viewModel.SearchText = "trusted";
+
+        Assert.True(viewModel.TryArmSelectedComponentPlacement());
+
+        ComponentPlacementIntent armed = Assert.IsType<ComponentPlacementIntent>(viewModel.ArmedPlacement);
+        Assert.Equal("dragon:trusted-opamp", armed.ComponentId);
+        Assert.Equal("Trusted Op Amp", armed.DisplayName);
+        Assert.Equal("Placement armed: Trusted Op Amp", viewModel.PlacementDiagnostic);
+    }
+
+    [Fact]
+    public void ChoosingDifferentTrustedPartReplacesActivePlacementCandidate()
+    {
+        ComponentCatalog catalog = new(
+            BuiltInDefinitions:
+            [
+                Component(
+                    "dragon:first",
+                    "First",
+                    ComponentKind.IntegratedCircuit,
+                    "Dragon",
+                    "FIRST",
+                    symbolCount: 1,
+                    footprintCount: 1,
+                    provenance: [new ComponentProvenanceRecord(ComponentProvenanceKind.Native, "DragonCAD", "Curated native part")]),
+                Component(
+                    "dragon:second",
+                    "Second",
+                    ComponentKind.IntegratedCircuit,
+                    "Dragon",
+                    "SECOND",
+                    symbolCount: 1,
+                    footprintCount: 1,
+                    provenance: [new ComponentProvenanceRecord(ComponentProvenanceKind.Native, "DragonCAD", "Curated native part")])
+            ],
+            UserDefinitions: [],
+            ProjectDefinitions: []);
+        ComponentManagerViewModel viewModel = ComponentManagerViewModel.FromCatalog(catalog);
+        ComponentManagerRow first = viewModel.Components.Single(row => row.DisplayName == "First");
+        ComponentManagerRow second = viewModel.Components.Single(row => row.DisplayName == "Second");
+
+        Assert.True(viewModel.TryArmComponentPlacement(first));
+        Assert.True(viewModel.TryArmComponentPlacement(second));
+
+        Assert.Equal("dragon:second", viewModel.ArmedPlacement?.ComponentId);
+        Assert.Equal("Placement armed: Second", viewModel.PlacementDiagnostic);
+    }
+
+    [Fact]
+    public void CatalogOnlyDraftAndUntrustedRowsCannotArmPlacementAndShowDiagnostics()
+    {
+        ComponentCatalog catalog = new(
+            BuiltInDefinitions:
+            [
+                Component(
+                    "dragon:catalog-only",
+                    "Catalog Only",
+                    ComponentKind.IntegratedCircuit,
+                    "Dragon",
+                    "CAT",
+                    symbolCount: 0,
+                    footprintCount: 0)
+            ],
+            UserDefinitions:
+            [
+                Component(
+                    "dragon:untrusted",
+                    "Untrusted",
+                    ComponentKind.IntegratedCircuit,
+                    "Dragon",
+                    "UNTRUSTED",
+                    symbolCount: 1,
+                    footprintCount: 1,
+                    provenance: [new ComponentProvenanceRecord(ComponentProvenanceKind.EagleImport, "Eagle", "Imported library part")])
+            ],
+            ProjectDefinitions:
+            [
+                Component(
+                    "dragon:draft",
+                    "Draft",
+                    ComponentKind.IntegratedCircuit,
+                    "Dragon",
+                    "DRAFT",
+                    symbolCount: 1,
+                    footprintCount: 1,
+                    provenance: [new ComponentProvenanceRecord(ComponentProvenanceKind.DatasheetGenerated, "AI", "Pending review")])
+            ]);
+        ComponentManagerViewModel viewModel = ComponentManagerViewModel.FromCatalog(catalog);
+        ComponentManagerRow catalogOnly = viewModel.Components.Single(row => row.DisplayName == "Catalog Only");
+        ComponentManagerRow draft = viewModel.Components.Single(row => row.DisplayName == "Draft");
+        ComponentManagerRow untrusted = viewModel.Components.Single(row => row.DisplayName == "Untrusted");
+
+        Assert.False(viewModel.TryArmComponentPlacement(catalogOnly));
+        Assert.Null(viewModel.ArmedPlacement);
+        Assert.Equal("Catalog Only cannot be placed because it is catalog-only and is missing verified placement geometry.", viewModel.PlacementDiagnostic);
+
+        Assert.False(viewModel.TryArmComponentPlacement(draft));
+        Assert.Null(viewModel.ArmedPlacement);
+        Assert.Equal("Draft cannot be placed until the draft component is reviewed.", viewModel.PlacementDiagnostic);
+
+        Assert.False(viewModel.TryArmComponentPlacement(untrusted));
+        Assert.Null(viewModel.ArmedPlacement);
+        Assert.Equal("Untrusted cannot be placed because its source is not trusted for schematic placement.", viewModel.PlacementDiagnostic);
     }
 
     private static ComponentDefinition Component(
