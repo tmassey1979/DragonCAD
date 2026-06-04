@@ -1,0 +1,9 @@
+{
+  "outputs": [],
+  "attributes": [
+    {
+      "name": "board.layers",
+      "value": "Top,Bottom,Silkscreen,Dimension,Keepout,Names,Values,Drills"
+    }
+  ]
+}

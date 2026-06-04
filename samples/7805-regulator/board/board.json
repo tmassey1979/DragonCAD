@@ -1,0 +1,56 @@
+{
+  "documentId": "board",
+  "placements": [
+    {
+      "schematicComponentId": "cin",
+      "reference": "CIN",
+      "footprintId": "dragoncad:sample/cin",
+      "x": -9000000,
+      "y": 8000000,
+      "rotation": 0
+    },
+    {
+      "schematicComponentId": "cout",
+      "reference": "COUT",
+      "footprintId": "dragoncad:sample/cout",
+      "x": 9000000,
+      "y": 8000000,
+      "rotation": 0
+    },
+    {
+      "schematicComponentId": "u1",
+      "reference": "U1",
+      "footprintId": "dragoncad:sample/lm7805-to220",
+      "x": 0,
+      "y": 0,
+      "rotation": 0
+    }
+  ],
+  "traces": [
+    {
+      "netName": "GND",
+      "layer": "Bottom",
+      "width": 500000
+    },
+    {
+      "netName": "GND",
+      "layer": "Bottom",
+      "width": 500000
+    },
+    {
+      "netName": "GND",
+      "layer": "Top",
+      "width": 500000
+    },
+    {
+      "netName": "VIN",
+      "layer": "Top",
+      "width": 500000
+    },
+    {
+      "netName": "VOUT",
+      "layer": "Top",
+      "width": 500000
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "references": [
+    {
+      "libraryId": "built-in",
+      "path": "DragonCAD.App/BuiltInLibraries",
+      "checksum": null
+    }
+  ]
+}

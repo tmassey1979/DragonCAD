@@ -26,8 +26,8 @@ public sealed class ProjectCenterViewModel : INotifyPropertyChanged
         PinnedFolders = new ObservableCollection<ProjectCenterPinnedFolder>(CreateDefaultPinnedFolders());
         CreateProjectCommand = new DelegateCommand(CreateProject);
         OpenFolderCommand = new DelegateCommand(OpenFolder);
-        Load7805SampleCommand = new DelegateCommand(() => LoadSampleById("7805"));
-        LoadArduinoUnoSampleCommand = new DelegateCommand(() => LoadSampleById("arduino-uno"));
+        Load7805SampleCommand = new DelegateCommand(() => LoadSampleById(SampleProjectIds.Regulator7805));
+        LoadArduinoUnoSampleCommand = new DelegateCommand(() => LoadSampleById(SampleProjectIds.ArduinoUno));
         SampleProjects = CreateSampleProjects();
     }
 
@@ -124,12 +124,12 @@ public sealed class ProjectCenterViewModel : INotifyPropertyChanged
     private IReadOnlyList<ProjectCenterSampleProject> CreateSampleProjects() =>
         [
             new(
-                "7805",
+                SampleProjectIds.Regulator7805,
                 "7805 Regulator",
                 "Small linear-regulator board with input, output, and ground nets.",
                 Load7805SampleCommand),
             new(
-                "arduino-uno",
+                SampleProjectIds.ArduinoUno,
                 "Arduino Uno Rev3",
                 "Reference controller sample with headers, USB bridge, and routed board context.",
                 LoadArduinoUnoSampleCommand)

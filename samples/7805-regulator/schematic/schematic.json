@@ -1,0 +1,34 @@
+{
+  "documentId": "schematic",
+  "components": [
+    {
+      "identityId": "cin",
+      "reference": "CIN",
+      "componentId": "dragoncad:sample/cin"
+    },
+    {
+      "identityId": "cout",
+      "reference": "COUT",
+      "componentId": "dragoncad:sample/cout"
+    },
+    {
+      "identityId": "u1",
+      "reference": "U1",
+      "componentId": "dragoncad:sample/lm7805-to220"
+    }
+  ],
+  "nets": [
+    {
+      "name": "GND",
+      "pins": [ "CIN.N", "COUT.N", "U1.GND" ]
+    },
+    {
+      "name": "VIN",
+      "pins": [ "CIN.P", "U1.IN" ]
+    },
+    {
+      "name": "VOUT",
+      "pins": [ "COUT.P", "U1.OUT" ]
+    }
+  ]
+}

@@ -1,0 +1,311 @@
+{
+  "SchematicComponents": [
+    {
+      "InstanceId": "u1",
+      "ReferenceDesignator": "U1",
+      "ComponentId": "dragoncad:sample/lm7805-to220",
+      "DisplayName": "LM7805 5V regulator TO-220",
+      "Position": { "X": 0, "Y": 0 },
+      "SymbolPreview": {
+        "Bounds": { "Left": -4000000, "Top": -4000000, "Right": 4000000, "Bottom": 4000000 },
+        "Lines": [
+          { "Start": { "X": -2500000, "Y": -3000000 }, "End": { "X": 2500000, "Y": -3000000 } },
+          { "Start": { "X": 2500000, "Y": -3000000 }, "End": { "X": 2500000, "Y": 3000000 } },
+          { "Start": { "X": 2500000, "Y": 3000000 }, "End": { "X": -2500000, "Y": 3000000 } },
+          { "Start": { "X": -2500000, "Y": 3000000 }, "End": { "X": -2500000, "Y": -3000000 } }
+        ],
+        "Pins": [
+          { "Name": "IN", "ConnectPoint": { "X": -4000000, "Y": -1500000 }, "BodyPoint": { "X": -2500000, "Y": -1500000 }, "Orientation": "Right" },
+          { "Name": "GND", "ConnectPoint": { "X": 0, "Y": 4000000 }, "BodyPoint": { "X": 0, "Y": 3000000 }, "Orientation": "Up" },
+          { "Name": "OUT", "ConnectPoint": { "X": 4000000, "Y": -1500000 }, "BodyPoint": { "X": 2500000, "Y": -1500000 }, "Orientation": "Left" }
+        ]
+      },
+      "FootprintPreview": {
+        "Bounds": { "Left": -3500000, "Top": -2000000, "Right": 3500000, "Bottom": 4500000 },
+        "Lines": [
+          { "Start": { "X": -3500000, "Y": -2000000 }, "End": { "X": 3500000, "Y": -2000000 } },
+          { "Start": { "X": 3500000, "Y": -2000000 }, "End": { "X": 3500000, "Y": 4500000 } },
+          { "Start": { "X": 3500000, "Y": 4500000 }, "End": { "X": -3500000, "Y": 4500000 } },
+          { "Start": { "X": -3500000, "Y": 4500000 }, "End": { "X": -3500000, "Y": -2000000 } }
+        ],
+        "Pads": [
+          { "Name": "IN", "Position": { "X": -2540000, "Y": 0 }, "Size": { "X": 1300000, "Y": 1300000 }, "Shape": "Round", "Technology": "ThroughHole" },
+          { "Name": "GND", "Position": { "X": 0, "Y": 0 }, "Size": { "X": 1300000, "Y": 1300000 }, "Shape": "Round", "Technology": "ThroughHole" },
+          { "Name": "OUT", "Position": { "X": 2540000, "Y": 0 }, "Size": { "X": 1300000, "Y": 1300000 }, "Shape": "Round", "Technology": "ThroughHole" }
+        ]
+      },
+      "Value": "7805",
+      "RotationDegrees": 0,
+      "IsMirrored": false
+    },
+    {
+      "InstanceId": "cin",
+      "ReferenceDesignator": "CIN",
+      "ComponentId": "dragoncad:sample/cin",
+      "DisplayName": "0.33uF input capacitor",
+      "Position": { "X": -9000000, "Y": 0 },
+      "SymbolPreview": {
+        "Bounds": { "Left": -2000000, "Top": -3000000, "Right": 2000000, "Bottom": 3000000 },
+        "Lines": [
+          { "Start": { "X": -1000000, "Y": -500000 }, "End": { "X": 1000000, "Y": -500000 } },
+          { "Start": { "X": -1000000, "Y": 500000 }, "End": { "X": 1000000, "Y": 500000 } }
+        ],
+        "Pins": [
+          { "Name": "P", "ConnectPoint": { "X": 0, "Y": -3000000 }, "BodyPoint": { "X": 0, "Y": -500000 }, "Orientation": "Down" },
+          { "Name": "N", "ConnectPoint": { "X": 0, "Y": 3000000 }, "BodyPoint": { "X": 0, "Y": 500000 }, "Orientation": "Up" }
+        ]
+      },
+      "FootprintPreview": {
+        "Bounds": { "Left": -1600000, "Top": -1000000, "Right": 1600000, "Bottom": 1000000 },
+        "Lines": [
+          { "Start": { "X": -1600000, "Y": -1000000 }, "End": { "X": 1600000, "Y": -1000000 } },
+          { "Start": { "X": 1600000, "Y": -1000000 }, "End": { "X": 1600000, "Y": 1000000 } },
+          { "Start": { "X": 1600000, "Y": 1000000 }, "End": { "X": -1600000, "Y": 1000000 } },
+          { "Start": { "X": -1600000, "Y": 1000000 }, "End": { "X": -1600000, "Y": -1000000 } }
+        ],
+        "Pads": [
+          { "Name": "P", "Position": { "X": -700000, "Y": 0 }, "Size": { "X": 800000, "Y": 800000 }, "Shape": "Round", "Technology": "ThroughHole" },
+          { "Name": "N", "Position": { "X": 700000, "Y": 0 }, "Size": { "X": 800000, "Y": 800000 }, "Shape": "Round", "Technology": "ThroughHole" }
+        ]
+      },
+      "Value": "0.33uF",
+      "RotationDegrees": 0,
+      "IsMirrored": false
+    },
+    {
+      "InstanceId": "cout",
+      "ReferenceDesignator": "COUT",
+      "ComponentId": "dragoncad:sample/cout",
+      "DisplayName": "0.1uF output capacitor",
+      "Position": { "X": 9000000, "Y": 0 },
+      "SymbolPreview": {
+        "Bounds": { "Left": -2000000, "Top": -3000000, "Right": 2000000, "Bottom": 3000000 },
+        "Lines": [
+          { "Start": { "X": -1000000, "Y": -500000 }, "End": { "X": 1000000, "Y": -500000 } },
+          { "Start": { "X": -1000000, "Y": 500000 }, "End": { "X": 1000000, "Y": 500000 } }
+        ],
+        "Pins": [
+          { "Name": "P", "ConnectPoint": { "X": 0, "Y": -3000000 }, "BodyPoint": { "X": 0, "Y": -500000 }, "Orientation": "Down" },
+          { "Name": "N", "ConnectPoint": { "X": 0, "Y": 3000000 }, "BodyPoint": { "X": 0, "Y": 500000 }, "Orientation": "Up" }
+        ]
+      },
+      "FootprintPreview": {
+        "Bounds": { "Left": -1600000, "Top": -1000000, "Right": 1600000, "Bottom": 1000000 },
+        "Lines": [
+          { "Start": { "X": -1600000, "Y": -1000000 }, "End": { "X": 1600000, "Y": -1000000 } },
+          { "Start": { "X": 1600000, "Y": -1000000 }, "End": { "X": 1600000, "Y": 1000000 } },
+          { "Start": { "X": 1600000, "Y": 1000000 }, "End": { "X": -1600000, "Y": 1000000 } },
+          { "Start": { "X": -1600000, "Y": 1000000 }, "End": { "X": -1600000, "Y": -1000000 } }
+        ],
+        "Pads": [
+          { "Name": "P", "Position": { "X": -700000, "Y": 0 }, "Size": { "X": 800000, "Y": 800000 }, "Shape": "Round", "Technology": "ThroughHole" },
+          { "Name": "N", "Position": { "X": 700000, "Y": 0 }, "Size": { "X": 800000, "Y": 800000 }, "Shape": "Round", "Technology": "ThroughHole" }
+        ]
+      },
+      "Value": "0.1uF",
+      "RotationDegrees": 0,
+      "IsMirrored": false
+    }
+  ],
+  "SchematicWires": [
+    {
+      "WireId": "wire-vin",
+      "Start": { "InstanceId": "u1", "ReferenceDesignator": "U1", "PinName": "IN", "Position": { "X": -4000000, "Y": -1500000 } },
+      "End": { "InstanceId": "cin", "ReferenceDesignator": "CIN", "PinName": "P", "Position": { "X": -9000000, "Y": -3000000 } },
+      "RoutePoints": [ { "X": -6000000, "Y": -2000000 } ],
+      "NetName": "VIN",
+      "ManualNetName": "VIN",
+      "LabelNetName": ""
+    },
+    {
+      "WireId": "wire-vout",
+      "Start": { "InstanceId": "u1", "ReferenceDesignator": "U1", "PinName": "OUT", "Position": { "X": 4000000, "Y": -1500000 } },
+      "End": { "InstanceId": "cout", "ReferenceDesignator": "COUT", "PinName": "P", "Position": { "X": 9000000, "Y": -3000000 } },
+      "RoutePoints": [ { "X": 6000000, "Y": -2000000 } ],
+      "NetName": "VOUT",
+      "ManualNetName": "VOUT",
+      "LabelNetName": ""
+    },
+    {
+      "WireId": "wire-gnd-cin",
+      "Start": { "InstanceId": "u1", "ReferenceDesignator": "U1", "PinName": "GND", "Position": { "X": 0, "Y": 4000000 } },
+      "End": { "InstanceId": "cin", "ReferenceDesignator": "CIN", "PinName": "N", "Position": { "X": -9000000, "Y": 3000000 } },
+      "RoutePoints": [ { "X": -4000000, "Y": 5000000 } ],
+      "NetName": "GND",
+      "ManualNetName": "GND",
+      "LabelNetName": ""
+    },
+    {
+      "WireId": "wire-gnd-cout",
+      "Start": { "InstanceId": "u1", "ReferenceDesignator": "U1", "PinName": "GND", "Position": { "X": 0, "Y": 4000000 } },
+      "End": { "InstanceId": "cout", "ReferenceDesignator": "COUT", "PinName": "N", "Position": { "X": 9000000, "Y": 3000000 } },
+      "RoutePoints": [ { "X": 4000000, "Y": 5000000 } ],
+      "NetName": "GND",
+      "ManualNetName": "GND",
+      "LabelNetName": ""
+    },
+    {
+      "WireId": "wire-gnd-cap-link",
+      "Start": { "InstanceId": "cin", "ReferenceDesignator": "CIN", "PinName": "N", "Position": { "X": -9000000, "Y": 3000000 } },
+      "End": { "InstanceId": "cout", "ReferenceDesignator": "COUT", "PinName": "N", "Position": { "X": 9000000, "Y": 3000000 } },
+      "RoutePoints": [ { "X": 0, "Y": 7000000 } ],
+      "NetName": "GND",
+      "ManualNetName": "GND",
+      "LabelNetName": ""
+    }
+  ],
+  "SchematicNets": [
+    { "Name": "GND", "PinNames": [ "CIN.N", "COUT.N", "U1.GND" ], "WireIds": [ "wire-gnd-cin", "wire-gnd-cout", "wire-gnd-cap-link" ] },
+    { "Name": "VIN", "PinNames": [ "CIN.P", "U1.IN" ], "WireIds": [ "wire-vin" ] },
+    { "Name": "VOUT", "PinNames": [ "COUT.P", "U1.OUT" ], "WireIds": [ "wire-vout" ] }
+  ],
+  "SchematicNetLabels": [
+    { "LabelId": "label-vin", "NetName": "VIN", "Position": { "X": -6500000, "Y": -4500000 }, "AssociatedWireId": "wire-vin" },
+    { "LabelId": "label-vout", "NetName": "VOUT", "Position": { "X": 6500000, "Y": -4500000 }, "AssociatedWireId": "wire-vout" },
+    { "LabelId": "label-gnd", "NetName": "GND", "Position": { "X": 0, "Y": 8500000 }, "AssociatedWireId": "wire-gnd-cap-link" }
+  ],
+  "BoardComponents": [
+    {
+      "SyncId": "u1",
+      "ReferenceDesignator": "U1",
+      "ComponentId": "dragoncad:sample/lm7805-to220",
+      "DisplayName": "LM7805 5V regulator TO-220",
+      "Position": { "X": 0, "Y": 0 },
+      "FootprintPreview": {
+        "Bounds": { "Left": -3500000, "Top": -2000000, "Right": 3500000, "Bottom": 4500000 },
+        "Lines": [
+          { "Start": { "X": -3500000, "Y": -2000000 }, "End": { "X": 3500000, "Y": -2000000 } },
+          { "Start": { "X": 3500000, "Y": -2000000 }, "End": { "X": 3500000, "Y": 4500000 } },
+          { "Start": { "X": 3500000, "Y": 4500000 }, "End": { "X": -3500000, "Y": 4500000 } },
+          { "Start": { "X": -3500000, "Y": 4500000 }, "End": { "X": -3500000, "Y": -2000000 } }
+        ],
+        "Pads": [
+          { "Name": "IN", "Position": { "X": -2540000, "Y": 0 }, "Size": { "X": 1300000, "Y": 1300000 }, "Shape": "Round", "Technology": "ThroughHole" },
+          { "Name": "GND", "Position": { "X": 0, "Y": 0 }, "Size": { "X": 1300000, "Y": 1300000 }, "Shape": "Round", "Technology": "ThroughHole" },
+          { "Name": "OUT", "Position": { "X": 2540000, "Y": 0 }, "Size": { "X": 1300000, "Y": 1300000 }, "Shape": "Round", "Technology": "ThroughHole" }
+        ]
+      },
+      "Value": "7805",
+      "RotationDegrees": 0,
+      "IsMirrored": false
+    },
+    {
+      "SyncId": "cin",
+      "ReferenceDesignator": "CIN",
+      "ComponentId": "dragoncad:sample/cin",
+      "DisplayName": "0.33uF input capacitor",
+      "Position": { "X": -9000000, "Y": 8000000 },
+      "FootprintPreview": {
+        "Bounds": { "Left": -1600000, "Top": -1000000, "Right": 1600000, "Bottom": 1000000 },
+        "Lines": [
+          { "Start": { "X": -1600000, "Y": -1000000 }, "End": { "X": 1600000, "Y": -1000000 } },
+          { "Start": { "X": 1600000, "Y": -1000000 }, "End": { "X": 1600000, "Y": 1000000 } },
+          { "Start": { "X": 1600000, "Y": 1000000 }, "End": { "X": -1600000, "Y": 1000000 } },
+          { "Start": { "X": -1600000, "Y": 1000000 }, "End": { "X": -1600000, "Y": -1000000 } }
+        ],
+        "Pads": [
+          { "Name": "P", "Position": { "X": -700000, "Y": 0 }, "Size": { "X": 800000, "Y": 800000 }, "Shape": "Round", "Technology": "ThroughHole" },
+          { "Name": "N", "Position": { "X": 700000, "Y": 0 }, "Size": { "X": 800000, "Y": 800000 }, "Shape": "Round", "Technology": "ThroughHole" }
+        ]
+      },
+      "Value": "0.33uF",
+      "RotationDegrees": 0,
+      "IsMirrored": false
+    },
+    {
+      "SyncId": "cout",
+      "ReferenceDesignator": "COUT",
+      "ComponentId": "dragoncad:sample/cout",
+      "DisplayName": "0.1uF output capacitor",
+      "Position": { "X": 9000000, "Y": 8000000 },
+      "FootprintPreview": {
+        "Bounds": { "Left": -1600000, "Top": -1000000, "Right": 1600000, "Bottom": 1000000 },
+        "Lines": [
+          { "Start": { "X": -1600000, "Y": -1000000 }, "End": { "X": 1600000, "Y": -1000000 } },
+          { "Start": { "X": 1600000, "Y": -1000000 }, "End": { "X": 1600000, "Y": 1000000 } },
+          { "Start": { "X": 1600000, "Y": 1000000 }, "End": { "X": -1600000, "Y": 1000000 } },
+          { "Start": { "X": -1600000, "Y": 1000000 }, "End": { "X": -1600000, "Y": -1000000 } }
+        ],
+        "Pads": [
+          { "Name": "P", "Position": { "X": -700000, "Y": 0 }, "Size": { "X": 800000, "Y": 800000 }, "Shape": "Round", "Technology": "ThroughHole" },
+          { "Name": "N", "Position": { "X": 700000, "Y": 0 }, "Size": { "X": 800000, "Y": 800000 }, "Shape": "Round", "Technology": "ThroughHole" }
+        ]
+      },
+      "Value": "0.1uF",
+      "RotationDegrees": 0,
+      "IsMirrored": false
+    }
+  ],
+  "BoardTraces": [
+    {
+      "TraceId": "trace-vin",
+      "LayerName": "Top",
+      "RoutePoints": [ { "X": -2540000, "Y": 0 }, { "X": -6200000, "Y": 2000000 }, { "X": -9700000, "Y": 8000000 } ],
+      "WidthInternal": 500000,
+      "StartPadSyncId": "u1",
+      "StartPadReferenceDesignator": "U1",
+      "StartPadName": "IN",
+      "EndPadSyncId": "cin",
+      "EndPadReferenceDesignator": "CIN",
+      "EndPadName": "P"
+    },
+    {
+      "TraceId": "trace-vout",
+      "LayerName": "Top",
+      "RoutePoints": [ { "X": 2540000, "Y": 0 }, { "X": 6200000, "Y": 2000000 }, { "X": 8300000, "Y": 8000000 } ],
+      "WidthInternal": 500000,
+      "StartPadSyncId": "u1",
+      "StartPadReferenceDesignator": "U1",
+      "StartPadName": "OUT",
+      "EndPadSyncId": "cout",
+      "EndPadReferenceDesignator": "COUT",
+      "EndPadName": "P"
+    },
+    {
+      "TraceId": "trace-gnd-cin",
+      "LayerName": "Bottom",
+      "RoutePoints": [ { "X": 0, "Y": 0 }, { "X": -3500000, "Y": 5500000 }, { "X": -8300000, "Y": 8000000 } ],
+      "WidthInternal": 500000,
+      "StartPadSyncId": "u1",
+      "StartPadReferenceDesignator": "U1",
+      "StartPadName": "GND",
+      "EndPadSyncId": "cin",
+      "EndPadReferenceDesignator": "CIN",
+      "EndPadName": "N"
+    },
+    {
+      "TraceId": "trace-gnd-cout",
+      "LayerName": "Bottom",
+      "RoutePoints": [ { "X": 0, "Y": 0 }, { "X": 3500000, "Y": 5500000 }, { "X": 9700000, "Y": 8000000 } ],
+      "WidthInternal": 500000,
+      "StartPadSyncId": "u1",
+      "StartPadReferenceDesignator": "U1",
+      "StartPadName": "GND",
+      "EndPadSyncId": "cout",
+      "EndPadReferenceDesignator": "COUT",
+      "EndPadName": "N"
+    },
+    {
+      "TraceId": "trace-gnd-cap-link",
+      "LayerName": "Top",
+      "RoutePoints": [ { "X": -8300000, "Y": 8000000 }, { "X": 0, "Y": 11000000 }, { "X": 9700000, "Y": 8000000 } ],
+      "WidthInternal": 500000,
+      "StartPadSyncId": "cin",
+      "StartPadReferenceDesignator": "CIN",
+      "StartPadName": "N",
+      "EndPadSyncId": "cout",
+      "EndPadReferenceDesignator": "COUT",
+      "EndPadName": "N"
+    }
+  ],
+  "BoardVias": [
+    {
+      "ViaId": "via-gnd-stitch",
+      "Position": { "X": 0, "Y": 5500000 },
+      "FromLayerName": "Top",
+      "ToLayerName": "Bottom",
+      "DiameterInternal": 800000,
+      "DrillInternal": 350000
+    }
+  ]
+}
