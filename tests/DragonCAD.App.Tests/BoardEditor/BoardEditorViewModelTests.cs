@@ -1002,6 +1002,38 @@ public sealed class BoardEditorViewModelTests
     }
 
     [Fact]
+    public void InsertViaIntoSelectedTraceSegmentSplitsDiagonalRouteAndSwitchesActiveLayer()
+    {
+        BoardEditorViewModel board = new();
+        board.SetRouteCornerMode("45");
+        board.ActivateRouteTool();
+        board.SetFreeRouteMode(true);
+        board.TraceClickAt(new CadPoint(0, 0));
+        board.CompleteTraceAt(new CadPoint(2_000_000, 2_000_000));
+        board.ActivateSelectTool();
+        Assert.True(board.SelectAt(new CadPoint(1_000_000, 1_000_000)));
+        string selectedTraceId = Assert.Single(board.Traces).TraceId;
+
+        BoardVia via = board.InsertViaIntoSelectedTraceSegment(new CadPoint(1_400_000, 1_200_000));
+
+        Assert.Equal(new CadPoint(1_000_000, 1_000_000), via.Position);
+        Assert.Equal("Top", via.FromLayerName);
+        Assert.Equal("Bottom", via.ToLayerName);
+        Assert.Equal("Bottom", board.ActiveLayerName);
+        BoardTrace trace = Assert.Single(board.Traces);
+        Assert.Equal(selectedTraceId, trace.TraceId);
+        Assert.Equal(
+            [
+                new CadPoint(0, 0),
+                new CadPoint(1_000_000, 1_000_000),
+                new CadPoint(2_000_000, 2_000_000)
+            ],
+            trace.RoutePoints);
+        Assert.Same(trace, board.SelectedTrace);
+        Assert.Equal(2, board.SelectedTraceSegmentIndex);
+    }
+
+    [Fact]
     public void InsertViaIntoSelectedTraceSegmentReportsDiagnosticWithoutSelection()
     {
         BoardEditorViewModel board = new();
