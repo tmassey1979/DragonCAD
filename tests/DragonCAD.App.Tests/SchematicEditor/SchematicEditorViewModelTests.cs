@@ -1030,6 +1030,36 @@ public sealed class SchematicEditorViewModelTests
     }
 
     [Fact]
+    public void RenderableWireSegmentsExposeSelectionAndHoverStateForCanvasHighlighting()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+        SchematicWire wire = Assert.Single(editor.Wires);
+
+        editor.SelectWireAt(new CadPoint(2_000_000, 1_000_000));
+        editor.UpdateHoverTargetAt(new CadPoint(3_000_000, 2_000_000));
+
+        SchematicWireSegmentRenderItem[] segments = editor.RenderableWireSegments.ToArray();
+
+        Assert.Equal(4, segments.Length);
+        Assert.Contains(
+            segments,
+            segment =>
+                segment.WireId == wire.WireId &&
+                segment.SegmentIndex == 2 &&
+                segment.Start == new CadPoint(2_000_000, 0) &&
+                segment.End == new CadPoint(2_000_000, 2_000_000) &&
+                segment.IsSelected &&
+                !segment.IsHovered);
+        Assert.Contains(
+            segments,
+            segment =>
+                segment.WireId == wire.WireId &&
+                segment.SegmentIndex == 3 &&
+                !segment.IsSelected &&
+                segment.IsHovered);
+    }
+
+    [Fact]
     public void SelectWireVertexAtSelectsNearestInteriorVertexHandle()
     {
         SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
@@ -1121,6 +1151,30 @@ public sealed class SchematicEditorViewModelTests
         Assert.Equal(original.End, reconnected.End);
         Assert.All(AdjacentSegments(reconnected), segment => Assert.True(IsOrthogonal(segment.Start, segment.End)));
         Assert.Equal("Reconnected wire endpoint to U3.ALT.", editor.StatusText);
+    }
+
+    [Fact]
+    public void DeleteSelectedWireObjectUsesSegmentSelectionBeforeWholeWireSelection()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+        editor.SelectWireAt(new CadPoint(2_000_000, 1_000_000));
+
+        Assert.True(editor.DeleteSelectedWireObject());
+
+        SchematicWire updated = Assert.Single(editor.Wires);
+        Assert.Equal(
+            [
+                new CadPoint(1_000_000, 0),
+                new CadPoint(4_000_000, 0)
+            ],
+            updated.RoutePoints);
+        Assert.Equal(updated, editor.SelectedWire);
+        Assert.Null(editor.SelectedWireSegmentIndex);
+
+        Assert.True(editor.DeleteSelectedWireObject());
+        Assert.Empty(editor.Wires);
+        Assert.Empty(editor.Nets);
+        Assert.Null(editor.SelectedWire);
     }
 
     [Fact]

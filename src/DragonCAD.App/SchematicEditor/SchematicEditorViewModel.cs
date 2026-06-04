@@ -50,6 +50,19 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
     public ObservableCollection<SchematicNetLabelDiagnostic> NetLabelDiagnostics { get; } = [];
 
+    public IEnumerable<SchematicWireSegmentRenderItem> RenderableWireSegments =>
+        Wires.SelectMany(wire =>
+            wire.RoutePoints
+                .Skip(1)
+                .Select((point, index) => new SchematicWireSegmentRenderItem(
+                    wire.WireId,
+                    index + 1,
+                    wire.RoutePoints[index],
+                    point,
+                    wire.NetName,
+                    wire.WireId == SelectedWire?.WireId && SelectedWireSegmentIndex == index + 1,
+                    wire.WireId == HoveredWire?.WireId && HoveredWireSegmentIndex == index + 1)));
+
     public IEnumerable<SchematicWireVertexHandle> SelectedWireVertexHandles
     {
         get
@@ -234,6 +247,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             selectedWire = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(SelectedWireVertexHandles));
+            OnPropertyChanged(nameof(RenderableWireSegments));
         }
     }
 
@@ -249,6 +263,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
             selectedWireSegmentIndex = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(RenderableWireSegments));
         }
     }
 
@@ -310,6 +325,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
             hoveredWire = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(RenderableWireSegments));
         }
     }
 
@@ -325,6 +341,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
             hoveredWireSegmentIndex = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(RenderableWireSegments));
         }
     }
 
@@ -1380,6 +1397,23 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         RebuildNets();
         StatusText = "Deleted selected wire.";
         return true;
+    }
+
+    public bool DeleteSelectedWireObject()
+    {
+        if (SelectedWire is null)
+        {
+            StatusText = "Select a wire before deleting it.";
+            return false;
+        }
+
+        if (SelectedWireSegmentIndex is not null && SelectedWire.RoutePoints.Count > 2)
+        {
+            DeleteSelectedWireSegment();
+            return true;
+        }
+
+        return DeleteSelectedWire();
     }
 
     public bool DeleteSelectedComponent()

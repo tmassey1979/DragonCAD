@@ -24,6 +24,15 @@ public sealed record SchematicWireVertexHandle(
     bool IsSelected,
     bool IsEndpoint = false);
 
+public sealed record SchematicWireSegmentRenderItem(
+    string WireId,
+    int SegmentIndex,
+    CadPoint Start,
+    CadPoint End,
+    string NetName,
+    bool IsSelected,
+    bool IsHovered);
+
 public sealed record SchematicNet(
     string Name,
     IReadOnlyList<string> PinNames,

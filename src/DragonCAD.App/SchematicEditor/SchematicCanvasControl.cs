@@ -115,12 +115,17 @@ public sealed class SchematicCanvasControl : Control
         {
             bool isSelectedWire = Editor.SelectedWire?.WireId == wire.WireId;
             bool isHoveredWire = Editor.HoveredWire?.WireId == wire.WireId;
+            Pen wirePen = isSelectedWire && Editor.SelectedWireSegmentIndex is null && Editor.SelectedWireVertexIndex is null
+                ? WireSelectionPen
+                : isHoveredWire && Editor.HoveredWireSegmentIndex is null
+                    ? HoverWirePen
+                    : WirePen;
             DrawCompletedWire(
                 context,
                 viewport,
                 bounds.Center,
                 wire,
-                isSelectedWire ? WireSelectionPen : isHoveredWire ? HoverWirePen : WirePen,
+                wirePen,
                 isSelectedWire ? Editor.SelectedWireSegmentIndex : isHoveredWire ? Editor.HoveredWireSegmentIndex : null);
         }
 
@@ -725,6 +730,7 @@ public sealed class SchematicCanvasControl : Control
             nameof(SchematicEditorViewModel.SelectedWire) or
             nameof(SchematicEditorViewModel.SelectedWireSegmentIndex) or
             nameof(SchematicEditorViewModel.SelectedWireVertexIndex) or
+            nameof(SchematicEditorViewModel.RenderableWireSegments) or
             nameof(SchematicEditorViewModel.SelectedWireVertexHandles) or
             nameof(SchematicEditorViewModel.SelectedNetLabel) or
             nameof(SchematicEditorViewModel.SelectedPinEndpoint) or
