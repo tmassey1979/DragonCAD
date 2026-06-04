@@ -29,13 +29,22 @@ public sealed class HelpTopicRegistryTests
         Assert.Contains(registry.Topics, topic => topic.Id == "tutorials.7805-regulator" && topic.GroupId == "tutorials");
         Assert.Contains(registry.Topics, topic => topic.Id == "tutorials.arduino-uno" && topic.GroupId == "tutorials");
         Assert.Contains(registry.Topics, topic => topic.Id == "schematic-editing.placing-wires" && topic.GroupId == "schematic-editing");
+        Assert.Contains(registry.Topics, topic => topic.Id == "schematic-editing.placing-symbols" && topic.GroupId == "schematic-editing");
+        Assert.Contains(registry.Topics, topic => topic.Id == "schematic-editing.net-editing" && topic.GroupId == "schematic-editing");
         Assert.Contains(registry.Topics, topic => topic.Id == "pcb-layout.board-basics" && topic.GroupId == "pcb-layout");
+        Assert.Contains(registry.Topics, topic => topic.Id == "pcb-layout.routing" && topic.GroupId == "pcb-layout");
+        Assert.Contains(registry.Topics, topic => topic.Id == "pcb-layout.vias" && topic.GroupId == "pcb-layout");
+        Assert.Contains(registry.Topics, topic => topic.Id == "pcb-layout.layers" && topic.GroupId == "pcb-layout");
+        Assert.Contains(registry.Topics, topic => topic.Id == "pcb-layout.grids" && topic.GroupId == "pcb-layout");
         Assert.Contains(registry.Topics, topic => topic.Id == "component-libraries.library-basics" && topic.GroupId == "component-libraries");
+        Assert.Contains(registry.Topics, topic => topic.Id == "component-libraries.component-editing" && topic.GroupId == "component-libraries");
         Assert.Contains(registry.Topics, topic => topic.Id == "fabrication.outputs" && topic.GroupId == "fabrication");
         Assert.Contains(registry.Topics, topic => topic.Id == "marketplace.vendor-catalogs" && topic.GroupId == "marketplace");
+        Assert.Contains(registry.Topics, topic => topic.Id == "marketplace.safe-placement" && topic.GroupId == "marketplace");
         Assert.Contains(registry.Topics, topic => topic.Id == "project-system.project-folders" && topic.GroupId == "project-system");
         Assert.Contains(registry.Topics, topic => topic.Id == "eagle-migration.importing-eagle-projects" && topic.GroupId == "eagle-migration");
         Assert.Contains(registry.Topics, topic => topic.Id == "troubleshooting.common-issues" && topic.GroupId == "troubleshooting");
+        Assert.Contains(registry.Topics, topic => topic.Id == "troubleshooting.editor-recovery" && topic.GroupId == "troubleshooting");
         Assert.Contains(registry.Topics, topic => topic.Id == "command-reference.shortcuts" && topic.GroupId == "command-reference");
 
         Assert.All(
@@ -46,6 +55,33 @@ public sealed class HelpTopicRegistryTests
                 Assert.False(string.IsNullOrWhiteSpace(topic.DocumentPath));
                 Assert.False(string.IsNullOrWhiteSpace(topic.WikiSlug));
             });
+    }
+
+    [Fact]
+    public void BuiltInHelpIndexCoversInitialEditorWorkflowTopics()
+    {
+        HelpTopicRegistry registry = HelpTopicRegistry.CreateDefault();
+
+        string[] expectedTopicIds =
+        [
+            "schematic-editing.placing-symbols",
+            "schematic-editing.placing-wires",
+            "schematic-editing.net-editing",
+            "pcb-layout.routing",
+            "pcb-layout.vias",
+            "pcb-layout.layers",
+            "pcb-layout.grids",
+            "component-libraries.component-editing",
+            "marketplace.safe-placement",
+            "troubleshooting.editor-recovery",
+            "tutorials.7805-regulator",
+            "tutorials.arduino-uno"
+        ];
+
+        Assert.All(expectedTopicIds, topicId => Assert.Contains(registry.Topics, topic => topic.Id == topicId));
+        Assert.Contains(registry.Topics, topic => topic.Title.Contains("Sample projects", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(registry.Categories, category => category.Id == "command-reference");
+        Assert.Contains(registry.Categories, category => category.Id == "troubleshooting");
     }
 
     [Fact]
@@ -161,7 +197,7 @@ public sealed class HelpTopicRegistryTests
         Assert.Contains("Source: `docs/help/getting-started/workspace.md`", workspacePage);
         Assert.Contains("[Help Home](Home.md)", workspacePage);
         Assert.Contains("[Board editing basics](Board-Editing-Basics.md)", workspacePage);
-        Assert.Contains("Generated pages: 13", result.Summary);
+        Assert.Contains("Generated pages: 23", result.Summary);
     }
 
     [Fact]
@@ -187,7 +223,7 @@ public sealed class HelpTopicRegistryTests
         HelpWikiSyncResult result = HelpWikiSyncCommand.SyncDryRun(HelpTopicRegistry.CreateDefault(), workspace.RootPath);
 
         Assert.True(result.Validation.IsValid);
-        Assert.Equal(11, result.Created.Count);
+        Assert.Equal(21, result.Created.Count);
         Assert.Contains("Workspace-Basics", result.Updated);
         Assert.Contains("Vendor-Catalogs", result.Unchanged);
         Assert.Contains("Removed-Generated", result.Removed);
