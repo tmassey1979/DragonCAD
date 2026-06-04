@@ -11,7 +11,7 @@ public static class BomCsvFormatter
         ArgumentNullException.ThrowIfNull(lines);
 
         StringBuilder builder = new();
-        AppendRow(builder, ["References", "Quantity", "Part", "Value", "Package"]);
+        AppendRow(builder, ["References", "Quantity", "Part", "Value", "Package", "ManufacturerPartNumber", "Notes"]);
 
         foreach (BomLine line in lines)
         {
@@ -22,7 +22,9 @@ public static class BomCsvFormatter
                     line.Quantity.ToString(System.Globalization.CultureInfo.InvariantCulture),
                     line.Identity.Part,
                     line.Identity.Value,
-                    line.Identity.Package
+                    line.Identity.Package,
+                    line.Identity.ManufacturerPartNumber,
+                    line.Notes
                 ]);
         }
 

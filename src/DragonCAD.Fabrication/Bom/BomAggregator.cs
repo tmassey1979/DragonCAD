@@ -12,12 +12,20 @@ public static class BomAggregator
             .OrderBy(group => group.Key.Part, StringComparer.Ordinal)
             .ThenBy(group => group.Key.Value, StringComparer.Ordinal)
             .ThenBy(group => group.Key.Package, StringComparer.Ordinal)
+            .ThenBy(group => group.Key.ManufacturerPartNumber, StringComparer.Ordinal)
             .Select(group => new BomLine(
                 group.Key,
                 group
                     .Select(component => component.Reference)
                     .OrderBy(reference => reference, StringComparer.Ordinal)
-                    .ToArray()))
+                    .ToArray(),
+                string.Join(
+                    "; ",
+                    group
+                        .Select(component => component.Notes)
+                        .Where(note => note.Length > 0)
+                        .Distinct(StringComparer.Ordinal)
+                        .OrderBy(note => note, StringComparer.Ordinal))))
             .ToArray();
     }
 
@@ -29,12 +37,16 @@ public static class BomAggregator
             Identity = new BomPartIdentity(
                 Normalize(component.Part),
                 Normalize(component.Value),
-                Normalize(component.Package));
+                Normalize(component.Package),
+                Normalize(component.ManufacturerPartNumber));
+            Notes = Normalize(component.Notes);
         }
 
         public string Reference { get; }
 
         public BomPartIdentity Identity { get; }
+
+        public string Notes { get; }
     }
 
     private static string Normalize(string? value)
