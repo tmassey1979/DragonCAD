@@ -9,6 +9,124 @@ namespace DragonCAD.App.Tests.ComponentEditor;
 public sealed class ComponentEditorWorkspaceTests
 {
     [Fact]
+    public void WorkspaceCommandsOpenNewComponentWithEmptyEditorSections()
+    {
+        ComponentEditorWorkspaceHost host = new();
+
+        host.NewComponentCommand.Execute(null);
+
+        ComponentEditorWorkspace workspace = Assert.Single(host.OpenWorkspaces);
+        Assert.Same(workspace, host.ActiveWorkspace);
+        Assert.Equal(ComponentEditorSessionKind.New, workspace.SessionKind);
+        Assert.Equal("dragon:new-component-001", workspace.ViewModel.ComponentId);
+        Assert.Equal(ComponentEditorSectionState.Empty, workspace.SymbolSection.State);
+        Assert.Equal(ComponentEditorSectionState.Empty, workspace.FootprintSection.State);
+        Assert.Equal(ComponentEditorSectionState.Empty, workspace.PackageSection.State);
+        Assert.Equal(ComponentEditorSectionState.Empty, workspace.MappingSection.State);
+    }
+
+    [Fact]
+    public void WorkspaceCommandsOpenEditCopyWithTrustedLibrarySections()
+    {
+        ComponentDefinition trusted = ValidComponent("dragon:trusted-copy", "Trusted Copy");
+        ComponentEditorWorkspaceHost host = new();
+
+        host.EditComponentCommand.Execute(trusted);
+
+        ComponentEditorWorkspace workspace = Assert.Single(host.OpenWorkspaces);
+        Assert.Equal(ComponentEditorSessionKind.Edit, workspace.SessionKind);
+        Assert.True(workspace.IsTrustedLibraryEntry);
+        Assert.Equal(["Primary Symbol - 1 pin"], workspace.SymbolSection.Items.Select(item => item.DisplayText));
+        Assert.Equal(["SOIC-8 - 1 pad"], workspace.FootprintSection.Items.Select(item => item.DisplayText));
+        Assert.Equal(["SOIC package - SOIC-8"], workspace.PackageSection.Items.Select(item => item.DisplayText));
+        Assert.Equal(["SOIC package: 1 -> 1"], workspace.MappingSection.Items.Select(item => item.DisplayText));
+
+        workspace.ViewModel.DisplayName = "Edited Copy";
+
+        Assert.Equal("Trusted Copy", trusted.DisplayName);
+        Assert.True(workspace.IsDirty);
+    }
+
+    [Fact]
+    public void DirtyWorkspaceCloseRequestBlocksCloseUntilDecisionIsConfirmed()
+    {
+        ComponentEditorWorkspaceHost host = new();
+        host.NewComponentCommand.Execute(null);
+        ComponentEditorWorkspace workspace = host.ActiveWorkspace!;
+        workspace.ViewModel.SetDisplayName("Unsaved Component");
+
+        ComponentEditorCloseDecision decision = host.RequestClose(workspace);
+
+        Assert.Equal(ComponentEditorCloseDecisionKind.PromptRequired, decision.Kind);
+        Assert.Equal("Unsaved changes in dragon:new-component-001", decision.Title);
+        Assert.Same(decision, host.PendingCloseDecision);
+        Assert.Same(workspace, host.ActiveWorkspace);
+
+        host.CancelClose();
+
+        Assert.Null(host.PendingCloseDecision);
+        Assert.Same(workspace, host.ActiveWorkspace);
+
+        ComponentEditorCloseDecision secondDecision = host.RequestClose(workspace);
+        host.ConfirmClose(secondDecision);
+
+        Assert.Empty(host.OpenWorkspaces);
+        Assert.Null(host.ActiveWorkspace);
+        Assert.Null(host.PendingCloseDecision);
+    }
+
+    [Fact]
+    public void CleanWorkspaceCloseRequestClosesWithoutPrompt()
+    {
+        ComponentEditorWorkspaceHost host = new();
+        host.NewComponentCommand.Execute(null);
+        ComponentEditorWorkspace workspace = host.ActiveWorkspace!;
+
+        ComponentEditorCloseDecision decision = host.RequestClose(workspace);
+
+        Assert.Equal(ComponentEditorCloseDecisionKind.CloseNow, decision.Kind);
+        Assert.Empty(host.OpenWorkspaces);
+        Assert.Null(host.PendingCloseDecision);
+    }
+
+    [Fact]
+    public void ValidationReportsMissingPackageNameAndIncompleteMappingBeforeSave()
+    {
+        ComponentPinId pinId = new("dragon:invalid-save:pin:1");
+        ComponentVariantId variantId = new("dragon:invalid-save:variant:nameless");
+        ComponentDefinition invalid = new(
+            new ComponentId("dragon:invalid-save"),
+            "Invalid Save",
+            ComponentKind.Custom,
+            "",
+            "",
+            Description: "",
+            Attributes: [],
+            Pins: [new ComponentPin(pinId, "IO1", "1", ComponentPinElectricalType.Bidirectional)],
+            Gates: [],
+            Symbols: [],
+            Footprints: [],
+            Variants: [new ComponentVariant(variantId, " ", new ComponentFootprintId("dragon:invalid-save:footprint:missing"), [])],
+            PinPadMappings: [new ComponentPinPadMapping(variantId, pinId, new ComponentPadId("dragon:invalid-save:pad:missing"))],
+            Datasheets: [],
+            Sourcing: [],
+            PackageModels3D: [],
+            Provenance: []);
+
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartEdit(invalid);
+
+        Assert.Equal(
+            [
+                ComponentEditorValidationIssueKind.MissingSymbol,
+                ComponentEditorValidationIssueKind.MissingFootprint,
+                ComponentEditorValidationIssueKind.MissingPackageName,
+                ComponentEditorValidationIssueKind.IncompleteMapping
+            ],
+            workspace.ValidationSummary.Issues.Select(issue => issue.Kind));
+        Assert.Equal(ComponentEditorSaveReadiness.BlockedByValidation, workspace.SaveReadiness.State);
+    }
+
+    [Fact]
     public void NewSessionStartsWithDeterministicValidationSummaryAndCannotSaveUntilChangedAndValid()
     {
         ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:new-component");

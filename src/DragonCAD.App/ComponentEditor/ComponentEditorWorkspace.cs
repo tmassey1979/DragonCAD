@@ -34,6 +34,30 @@ public sealed class ComponentEditorWorkspace
 
     public ComponentEditorValidationSummary ValidationSummary => ComponentEditorValidationSummary.FromDefinition(ViewModel.ToDefinition());
 
+    public ComponentEditorDirtyStateSummary DirtyState => IsDirty
+        ? new ComponentEditorDirtyStateSummary(true, "Unsaved changes")
+        : new ComponentEditorDirtyStateSummary(false, "No unsaved changes");
+
+    public ComponentEditorSectionSummary SymbolSection => ComponentEditorSectionSummary.FromItems(
+        "Symbols",
+        ViewModel.SymbolSummaries,
+        "No symbols");
+
+    public ComponentEditorSectionSummary FootprintSection => ComponentEditorSectionSummary.FromItems(
+        "Footprints",
+        ViewModel.FootprintSummaries,
+        "No footprints");
+
+    public ComponentEditorSectionSummary PackageSection => ComponentEditorSectionSummary.FromItems(
+        "Packages",
+        ViewModel.PackageSummaries,
+        "No packages");
+
+    public ComponentEditorSectionSummary MappingSection => ComponentEditorSectionSummary.FromItems(
+        "Device Mapping",
+        ViewModel.MappingSummaries,
+        "No pin-pad mappings");
+
     public IReadOnlyList<ComponentEditorValidationIssueDisplay> ValidationIssueDisplay =>
         ValidationSummary.Issues.Count == 0
             ? [new ComponentEditorValidationIssueDisplay(ComponentEditorValidationIssueKind.None, "No validation issues")]
@@ -144,6 +168,33 @@ public sealed record ComponentEditorSaveReadinessSummary(
 public sealed record ComponentEditorTrustedPromotionReadiness(
     bool CanPromote,
     string Message);
+
+public sealed record ComponentEditorDirtyStateSummary(
+    bool HasUnsavedChanges,
+    string DisplayText);
+
+public sealed record ComponentEditorSectionSummary(
+    string Title,
+    ComponentEditorSectionState State,
+    IReadOnlyList<ComponentEditorAssetSummary> Items,
+    string EmptyText)
+{
+    public static ComponentEditorSectionSummary FromItems(
+        string title,
+        IReadOnlyList<ComponentEditorAssetSummary> items,
+        string emptyText) =>
+        new(
+            title,
+            items.Count == 0 ? ComponentEditorSectionState.Empty : ComponentEditorSectionState.Ready,
+            items,
+            emptyText);
+}
+
+public enum ComponentEditorSectionState
+{
+    Empty,
+    Ready
+}
 
 public sealed class ComponentEditorViewModel : INotifyPropertyChanged
 {
@@ -301,6 +352,31 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             variant.Name,
             $"{variant.Name} - {FootprintNameFor(variant.FootprintId)}"))
         .ToArray();
+
+    public IReadOnlyList<ComponentEditorAssetSummary> MappingSummaries
+    {
+        get
+        {
+            Dictionary<ComponentVariantId, ComponentVariant> variantsById = variants.ToDictionary(variant => variant.Id);
+            Dictionary<ComponentPinId, ComponentPin> pinsById = pins.ToDictionary(pin => pin.Id);
+            Dictionary<ComponentFootprintId, ComponentFootprint> footprintsById = footprints.ToDictionary(footprint => footprint.Id);
+
+            return pinPadMappings
+                .OrderBy(mapping => MappingVariantName(mapping, variantsById), StringComparer.Ordinal)
+                .ThenBy(mapping => MappingPinNumber(mapping, pinsById), StringComparer.Ordinal)
+                .Select(mapping =>
+                {
+                    string variantName = MappingVariantName(mapping, variantsById);
+                    string pinNumber = MappingPinNumber(mapping, pinsById);
+                    string padName = MappingPadName(mapping, variantsById, footprintsById);
+                    return new ComponentEditorAssetSummary(
+                        $"{mapping.VariantId.Value}:{mapping.PinId.Value}:{mapping.PadId.Value}",
+                        $"{pinNumber} -> {padName}",
+                        $"{variantName}: {pinNumber} -> {padName}");
+                })
+                .ToArray();
+        }
+    }
 
     public static ComponentEditorViewModel FromDefinition(ComponentDefinition definition)
     {
@@ -543,6 +619,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(Symbols));
         OnPropertyChanged(nameof(SymbolSummaries));
         OnPropertyChanged(nameof(PinPadMappings));
+        OnPropertyChanged(nameof(MappingSummaries));
         return ComponentEditorCommandResult.Success();
     }
 
@@ -582,6 +659,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             .ToArray();
         OnPropertyChanged(nameof(Symbols));
         OnPropertyChanged(nameof(SymbolSummaries));
+        OnPropertyChanged(nameof(MappingSummaries));
         return ComponentEditorCommandResult.Success();
     }
 
@@ -607,6 +685,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
         footprints = footprints.Append(footprint).ToArray();
         OnPropertyChanged(nameof(Footprints));
         OnPropertyChanged(nameof(FootprintSummaries));
+        OnPropertyChanged(nameof(MappingSummaries));
     }
 
     public ComponentEditorCommandResult AddPad(string footprintNameOrId, string name, CadPoint position, CadVector size) =>
@@ -658,6 +737,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             .ToArray();
         OnPropertyChanged(nameof(Footprints));
         OnPropertyChanged(nameof(FootprintSummaries));
+        OnPropertyChanged(nameof(MappingSummaries));
         return ComponentEditorCommandResult.Success();
     }
 
@@ -679,6 +759,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             .ToArray();
         OnPropertyChanged(nameof(Footprints));
         OnPropertyChanged(nameof(FootprintSummaries));
+        OnPropertyChanged(nameof(MappingSummaries));
         return ComponentEditorCommandResult.Success();
     }
 
@@ -726,6 +807,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(Footprints));
         OnPropertyChanged(nameof(FootprintSummaries));
         OnPropertyChanged(nameof(PinPadMappings));
+        OnPropertyChanged(nameof(MappingSummaries));
         return ComponentEditorCommandResult.Success();
     }
 
@@ -745,6 +827,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             .ToArray();
         OnPropertyChanged(nameof(Variants));
         OnPropertyChanged(nameof(PackageSummaries));
+        OnPropertyChanged(nameof(MappingSummaries));
     }
 
     public ComponentEditorCommandResult MapPinToPad(string pinNumberOrName, string padName)
@@ -799,6 +882,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             .Append(new ComponentPinPadMapping(variant.Id, pin.Id, pad.Id))
             .ToArray();
         OnPropertyChanged(nameof(PinPadMappings));
+        OnPropertyChanged(nameof(MappingSummaries));
         return ComponentEditorCommandResult.Success();
     }
 
@@ -953,6 +1037,39 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
 
     private string FootprintNameFor(ComponentFootprintId footprintId) =>
         footprints.FirstOrDefault(footprint => footprint.Id == footprintId)?.Name ?? footprintId.Value;
+
+    private static string MappingVariantName(
+        ComponentPinPadMapping mapping,
+        IReadOnlyDictionary<ComponentVariantId, ComponentVariant> variantsById) =>
+        variantsById.TryGetValue(mapping.VariantId, out ComponentVariant? variant)
+            ? DisplayNameOrId(variant.Name, variant.Id.Value)
+            : mapping.VariantId.Value;
+
+    private static string MappingPinNumber(
+        ComponentPinPadMapping mapping,
+        IReadOnlyDictionary<ComponentPinId, ComponentPin> pinsById) =>
+        pinsById.TryGetValue(mapping.PinId, out ComponentPin? pin)
+            ? DisplayNameOrId(pin.Number, pin.Id.Value)
+            : mapping.PinId.Value;
+
+    private static string MappingPadName(
+        ComponentPinPadMapping mapping,
+        IReadOnlyDictionary<ComponentVariantId, ComponentVariant> variantsById,
+        IReadOnlyDictionary<ComponentFootprintId, ComponentFootprint> footprintsById)
+    {
+        if (!variantsById.TryGetValue(mapping.VariantId, out ComponentVariant? variant) ||
+            !footprintsById.TryGetValue(variant.FootprintId, out ComponentFootprint? footprint))
+        {
+            return mapping.PadId.Value;
+        }
+
+        return DisplayNameOrId(
+            footprint.Pads.FirstOrDefault(pad => pad.Id == mapping.PadId)?.Name,
+            mapping.PadId.Value);
+    }
+
+    private static string DisplayNameOrId(string? displayName, string id) =>
+        string.IsNullOrWhiteSpace(displayName) ? id : displayName;
 
     private static string SplitPascalCase(string value)
     {
@@ -1191,6 +1308,16 @@ public sealed record ComponentEditorValidationSummary(
                 "Missing package");
         }
 
+        foreach (ComponentVariant variant in definition.Variants.OrderBy(variant => variant.Id.Value, StringComparer.Ordinal))
+        {
+            if (string.IsNullOrWhiteSpace(variant.Name))
+            {
+                yield return new ComponentEditorValidationIssue(
+                    ComponentEditorValidationIssueKind.MissingPackageName,
+                    $"Missing package name {variant.Id.Value}");
+            }
+        }
+
         foreach (ComponentEditorValidationIssue issue in MissingPinReferences(definition))
         {
             yield return issue;
@@ -1321,6 +1448,7 @@ public enum ComponentEditorValidationIssueKind
     MissingPins,
     MissingFootprint,
     MissingPackage,
+    MissingPackageName,
     MissingMapping,
     MissingPin,
     DuplicatePinName,
