@@ -243,6 +243,112 @@ public sealed class SchematicEditorViewModelTests
     }
 
     [Fact]
+    public void SelectedComponentMetadataExposesEditableReferenceValueAttributesAndPackage()
+    {
+        SchematicEditorViewModel editor = new();
+        SchematicComponentInstance placed = editor.PlaceComponent(
+            IntentWithPackage("hawkcad:timer", "Timer", "DIP-8", "dip8"),
+            new CadPoint(0, 0));
+        editor.SelectedComponent = placed;
+
+        Assert.True(editor.TryApplySelectedComponentPackage(PackageOption("DIP-8", "dip8", "dip8-variant")));
+        editor.UpdateSelectedComponentProperties("U7", "NE555", "555 timer");
+        editor.SetSelectedComponentAttribute("Tolerance", "1%");
+
+        Assert.NotNull(editor.SelectedComponentMetadata);
+        SchematicSelectedComponentMetadata metadata = editor.SelectedComponentMetadata!;
+        Assert.Equal("U7", metadata.ReferenceDesignator);
+        Assert.Equal("NE555", metadata.DisplayName);
+        Assert.Equal("555 timer", metadata.Value);
+        Assert.Equal("1%", metadata.Attributes["Tolerance"]);
+        Assert.Equal("DIP-8", metadata.ActivePackageLabel);
+        Assert.Equal("dip8", metadata.ActivePackageFootprintId);
+    }
+
+    [Fact]
+    public void AttributeAddUpdateRemoveUpdatesSelectionSummaryAndDirtyState()
+    {
+        SchematicEditorViewModel editor = new();
+        SchematicComponentInstance placed = editor.PlaceComponent(
+            IntentWithPackage("hawkcad:timer", "Timer", "DIP-8", "dip8"),
+            new CadPoint(0, 0));
+        editor.SelectedComponent = placed;
+        Assert.True(editor.TryApplySelectedComponentPackage(PackageOption("DIP-8", "dip8", "dip8-variant")));
+        editor.MarkClean();
+
+        SchematicComponentInstance added = editor.SetSelectedComponentAttribute("Tolerance", "1%");
+
+        Assert.True(editor.IsDirty);
+        Assert.Equal("1%", added.Attributes!["Tolerance"]);
+        Assert.Contains("Tolerance=1%", editor.SelectionSummary, StringComparison.Ordinal);
+
+        editor.MarkClean();
+        SchematicComponentInstance updated = editor.SetSelectedComponentAttribute("Tolerance", "5%");
+
+        Assert.True(editor.IsDirty);
+        Assert.Equal("5%", updated.Attributes!["Tolerance"]);
+        Assert.Contains("Tolerance=5%", editor.SelectionSummary, StringComparison.Ordinal);
+
+        editor.MarkClean();
+        SchematicComponentInstance removed = editor.RemoveSelectedComponentAttribute("Tolerance");
+
+        Assert.True(editor.IsDirty);
+        Assert.False(removed.Attributes!.ContainsKey("Tolerance"));
+        Assert.DoesNotContain("Tolerance=", editor.SelectionSummary, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TryApplySelectedComponentPackageValidatesAndAppliesPackageMetadata()
+    {
+        SchematicEditorViewModel editor = new();
+        SchematicComponentInstance placed = editor.PlaceComponent(
+            IntentWithPackage("hawkcad:timer", "Timer", "DIP-8", "dip8"),
+            new CadPoint(0, 0));
+        editor.SelectedComponent = placed;
+        editor.SetSelectedComponentAttribute("Tolerance", "1%");
+        editor.MarkClean();
+
+        bool applied = editor.TryApplySelectedComponentPackage(PackageOption("SOIC-8", "soic8", "soic8-variant"));
+
+        Assert.True(applied);
+        Assert.True(editor.IsDirty);
+        Assert.Empty(editor.SelectedComponentMetadataDiagnostics);
+        Assert.NotNull(editor.SelectedComponent);
+        SchematicComponentInstance updated = editor.SelectedComponent!;
+        Assert.Equal("SOIC-8", updated.ActivePackageLabel);
+        Assert.Equal("soic8", updated.ActivePackageFootprintId);
+        Assert.Equal("soic8-variant", updated.ActivePackageVariantId);
+        Assert.Equal("1%", updated.Attributes!["Tolerance"]);
+        Assert.Contains("SOIC-8", editor.SelectionSummary, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TryApplySelectedComponentPackageReportsDiagnosticAndPreservesPackageWhenInvalid()
+    {
+        SchematicEditorViewModel editor = new();
+        SchematicComponentInstance placed = editor.PlaceComponent(
+            IntentWithPackage("hawkcad:timer", "Timer", "DIP-8", "dip8"),
+            new CadPoint(0, 0));
+        editor.SelectedComponent = placed;
+        Assert.True(editor.TryApplySelectedComponentPackage(PackageOption("DIP-8", "dip8", "dip8-variant")));
+        editor.MarkClean();
+
+        bool applied = editor.TryApplySelectedComponentPackage(
+            new ComponentPackageOption("", "", "Unmapped package", "Unmapped package", 0, false, false, ComponentFootprintPreview.Empty));
+
+        Assert.False(applied);
+        Assert.False(editor.IsDirty);
+        Assert.NotNull(editor.SelectedComponent);
+        SchematicComponentInstance preserved = editor.SelectedComponent!;
+        Assert.Equal("DIP-8", preserved.ActivePackageLabel);
+        Assert.Equal("dip8", preserved.ActivePackageFootprintId);
+        SchematicSelectedComponentMetadataDiagnostic diagnostic = Assert.Single(editor.SelectedComponentMetadataDiagnostics);
+        Assert.Equal("DragonCAD.Schematic.InvalidPackageMapping", diagnostic.Code);
+        Assert.Contains("Unmapped package", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Contains("preserved", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void RotateSelectedComponentClockwiseRotatesPinsAndAttachedWires()
     {
         SchematicEditorViewModel editor = new();
@@ -1497,6 +1603,48 @@ public sealed class SchematicEditorViewModelTests
                     new ComponentPreviewLine(new CadPoint(-1_000_000, 1_000_000), new CadPoint(-1_000_000, -1_000_000))
                 ],
                 [new ComponentSymbolPinPreview(pinName, pinPosition, new CadPoint(0, 0), "Right")]));
+
+    private static ComponentPlacementIntent IntentWithPackage(
+        string componentId,
+        string displayName,
+        string packageLabel,
+        string footprintId) =>
+        new(
+            componentId,
+            displayName,
+            SymbolCount: 1,
+            FootprintCount: 1,
+            Source: "BuiltIn",
+            SymbolPreview: new ComponentSymbolPreview(
+                new CadRectangle(-1_000_000, -1_000_000, 1_000_000, 1_000_000),
+                [
+                    new ComponentPreviewLine(new CadPoint(-1_000_000, -1_000_000), new CadPoint(1_000_000, -1_000_000)),
+                    new ComponentPreviewLine(new CadPoint(1_000_000, -1_000_000), new CadPoint(1_000_000, 1_000_000)),
+                    new ComponentPreviewLine(new CadPoint(1_000_000, 1_000_000), new CadPoint(-1_000_000, 1_000_000)),
+                    new ComponentPreviewLine(new CadPoint(-1_000_000, 1_000_000), new CadPoint(-1_000_000, -1_000_000))
+                ],
+                []),
+            FootprintPreview: FootprintPreview(packageLabel, footprintId));
+
+    private static ComponentPackageOption PackageOption(string label, string footprintId, string variantId) =>
+        new(
+            variantId,
+            footprintId,
+            label,
+            label,
+            PadCount: 2,
+            HasModel3D: false,
+            IsActive: true,
+            FootprintPreview: FootprintPreview(label, footprintId));
+
+    private static ComponentFootprintPreview FootprintPreview(string packageLabel, string footprintId) =>
+        new(
+            new CadRectangle(-500_000, -500_000, 500_000, 500_000),
+            [new ComponentPreviewLine(new CadPoint(-500_000, -500_000), new CadPoint(500_000, 500_000))],
+            [
+                new ComponentFootprintPadPreview($"{footprintId}-1", new CadPoint(-250_000, 0), new CadVector(250_000, 250_000), "Round", "ThroughHole"),
+                new ComponentFootprintPadPreview($"{footprintId}-2", new CadPoint(250_000, 0), new CadVector(250_000, 250_000), "Round", "ThroughHole")
+            ]);
 
     private static ComponentPlacementIntent IntentWithLongPinLead(
         string componentId,

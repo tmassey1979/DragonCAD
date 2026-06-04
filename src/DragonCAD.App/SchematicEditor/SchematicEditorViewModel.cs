@@ -14,6 +14,8 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
     private const long PinEndpointHitTolerance = 1_250_000;
     private const double PinLeadHitTolerance = 350_000;
     private const double WireSegmentHitTolerance = 700_000;
+    private static readonly IReadOnlyDictionary<string, string> EmptyComponentAttributes =
+        new Dictionary<string, string>(StringComparer.Ordinal);
 
     private CadGrid placementGrid = new(new CadVector(CadUnit.InternalUnitsPerMillimeter, CadUnit.InternalUnitsPerMillimeter));
     private int nextComponentNumber = 1;
@@ -39,6 +41,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
     private readonly List<CadPoint> pendingWireRoutePoints = [];
     private double zoomLevel = 1.0;
     private CadPoint viewportOrigin = new(0, 0);
+    private bool isDirty;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -51,6 +54,23 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
     public ObservableCollection<SchematicNet> Nets { get; } = [];
 
     public ObservableCollection<SchematicNetLabelDiagnostic> NetLabelDiagnostics { get; } = [];
+
+    public ObservableCollection<SchematicSelectedComponentMetadataDiagnostic> SelectedComponentMetadataDiagnostics { get; } = [];
+
+    public bool IsDirty
+    {
+        get => isDirty;
+        private set
+        {
+            if (isDirty == value)
+            {
+                return;
+            }
+
+            isDirty = value;
+            OnPropertyChanged();
+        }
+    }
 
     public IEnumerable<SchematicWireSegmentRenderItem> RenderableWireSegments =>
         Wires.SelectMany(wire =>
@@ -235,8 +255,21 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             selectedComponent = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(SelectionSummary));
+            OnPropertyChanged(nameof(SelectedComponentMetadata));
         }
     }
+
+    public SchematicSelectedComponentMetadata? SelectedComponentMetadata =>
+        SelectedComponent is null
+            ? null
+            : new SchematicSelectedComponentMetadata(
+                SelectedComponent.ReferenceDesignator,
+                SelectedComponent.DisplayName,
+                SelectedComponent.Value,
+                SelectedComponent.Attributes ?? EmptyComponentAttributes,
+                SelectedComponent.ActivePackageVariantId,
+                SelectedComponent.ActivePackageFootprintId,
+                ActivePackageLabelFor(SelectedComponent));
 
     public SchematicWire? SelectedWire
     {
@@ -420,7 +453,18 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         {
             if (SelectedComponent is not null)
             {
-                return $"Component {SelectedComponent.ReferenceDesignator}: {SelectedComponent.DisplayName}";
+                string valueText = string.IsNullOrWhiteSpace(SelectedComponent.Value)
+                    ? ""
+                    : $" value {SelectedComponent.Value}";
+                string activePackageLabel = ActivePackageLabelFor(SelectedComponent);
+                IReadOnlyDictionary<string, string> attributes = SelectedComponent.Attributes ?? EmptyComponentAttributes;
+                string packageText = activePackageLabel == "No package"
+                    ? ""
+                    : $" package {activePackageLabel}";
+                string attributesText = attributes.Count == 0
+                    ? ""
+                    : $" attributes {string.Join(", ", attributes.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => $"{pair.Key}={pair.Value}"))}";
+                return $"Component {SelectedComponent.ReferenceDesignator}: {SelectedComponent.DisplayName}{valueText}{packageText}{attributesText}";
             }
 
             if (SelectedPinEndpoint is not null)
@@ -554,6 +598,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         NetLabels.Clear();
         Nets.Clear();
         NetLabelDiagnostics.Clear();
+        SelectedComponentMetadataDiagnostics.Clear();
         ClearPendingRoutePoints();
         ActivePlacementCandidate = null;
         PendingWireStart = null;
@@ -567,6 +612,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         SelectedWireSegmentIndex = null;
         SelectedWireVertexIndex = null;
         nextComponentNumber = 1;
+        IsDirty = false;
         StatusText = "Schematic cleared.";
     }
 
@@ -884,8 +930,84 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         SelectedComponent = updated;
         RefreshWireEndpointReferenceDesignators(updated);
         RebuildNets();
+        IsDirty = true;
         StatusText = $"Updated {updated.ReferenceDesignator} properties.";
         return updated;
+    }
+
+    public void MarkClean() => IsDirty = false;
+
+    public SchematicComponentInstance SetSelectedComponentAttribute(string name, string value)
+    {
+        string normalizedName = name.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedName))
+        {
+            throw new InvalidOperationException("Attribute name is required.");
+        }
+
+        SchematicComponentInstance selected = RequireSelectedComponentInDocument(out int index);
+        Dictionary<string, string> attributes = new(selected.Attributes ?? EmptyComponentAttributes, StringComparer.Ordinal)
+        {
+            [normalizedName] = value.Trim()
+        };
+
+        SchematicComponentInstance updated = selected with { Attributes = attributes };
+        ReplaceSelectedComponent(index, updated);
+        IsDirty = true;
+        StatusText = $"Updated {updated.ReferenceDesignator} attribute {normalizedName}.";
+        return updated;
+    }
+
+    public SchematicComponentInstance RemoveSelectedComponentAttribute(string name)
+    {
+        string normalizedName = name.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedName))
+        {
+            throw new InvalidOperationException("Attribute name is required.");
+        }
+
+        SchematicComponentInstance selected = RequireSelectedComponentInDocument(out int index);
+        Dictionary<string, string> attributes = new(selected.Attributes ?? EmptyComponentAttributes, StringComparer.Ordinal);
+        attributes.Remove(normalizedName);
+
+        SchematicComponentInstance updated = selected with { Attributes = attributes };
+        ReplaceSelectedComponent(index, updated);
+        IsDirty = true;
+        StatusText = $"Removed {updated.ReferenceDesignator} attribute {normalizedName}.";
+        return updated;
+    }
+
+    public bool TryApplySelectedComponentPackage(ComponentPackageOption option)
+    {
+        ArgumentNullException.ThrowIfNull(option);
+
+        SchematicComponentInstance selected = RequireSelectedComponentInDocument(out int index);
+        SelectedComponentMetadataDiagnostics.Clear();
+        if (string.IsNullOrWhiteSpace(option.FootprintId) ||
+            option.PadCount <= 0 ||
+            option.FootprintPreview.Pads.Count == 0)
+        {
+            string packageLabel = string.IsNullOrWhiteSpace(option.Label) ? "Selected package" : option.Label.Trim();
+            string message = $"{packageLabel} cannot be applied because no footprint mapping exists; preserved {ActivePackageLabelFor(selected)}.";
+            SelectedComponentMetadataDiagnostics.Add(new SchematicSelectedComponentMetadataDiagnostic(
+                "DragonCAD.Schematic.InvalidPackageMapping",
+                packageLabel,
+                message));
+            StatusText = message;
+            return false;
+        }
+
+        SchematicComponentInstance updated = selected with
+        {
+            FootprintPreview = option.FootprintPreview,
+            ActivePackageVariantId = option.VariantId.Trim(),
+            ActivePackageFootprintId = option.FootprintId.Trim(),
+            ActivePackageLabel = option.Label.Trim()
+        };
+        ReplaceSelectedComponent(index, updated);
+        IsDirty = true;
+        StatusText = $"Updated {updated.ReferenceDesignator} package to {updated.ActivePackageLabel}.";
+        return true;
     }
 
     public void ZoomIn()
@@ -2188,6 +2310,30 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         RebuildNetLabelDiagnostics();
     }
 
+    private SchematicComponentInstance RequireSelectedComponentInDocument(out int index)
+    {
+        if (SelectedComponent is null)
+        {
+            throw new InvalidOperationException("No schematic component is selected.");
+        }
+
+        index = Components.IndexOf(SelectedComponent);
+        if (index < 0)
+        {
+            throw new InvalidOperationException("The selected schematic component is no longer in the document.");
+        }
+
+        return SelectedComponent;
+    }
+
+    private void ReplaceSelectedComponent(int index, SchematicComponentInstance updated)
+    {
+        Components[index] = updated;
+        SelectedComponent = updated;
+        OnPropertyChanged(nameof(SelectionSummary));
+        OnPropertyChanged(nameof(SelectedComponentMetadata));
+    }
+
     private void RebuildNetLabelDiagnostics()
     {
         IEnumerable<IGrouping<string, SchematicNetLabel>> duplicateGroups = NetLabels
@@ -2221,6 +2367,11 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         !string.IsNullOrWhiteSpace(wire.LabelNetName) && wire.ManualNetName == wire.LabelNetName
             ? ""
             : wire.ManualNetName;
+
+    private static string ActivePackageLabelFor(SchematicComponentInstance component) =>
+        string.IsNullOrWhiteSpace(component.ActivePackageLabel)
+            ? "No package"
+            : component.ActivePackageLabel;
 
     private static void AddEdge(Dictionary<string, List<string>> adjacency, string start, string end)
     {

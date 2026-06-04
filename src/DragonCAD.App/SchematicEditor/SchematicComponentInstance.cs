@@ -14,7 +14,11 @@ public sealed record SchematicComponentInstance(
     string Value = "",
     int RotationDegrees = 0,
     bool IsMirrored = false,
-    SchematicSymbolRenderPreview? SymbolRenderPreview = null)
+    SchematicSymbolRenderPreview? SymbolRenderPreview = null,
+    IReadOnlyDictionary<string, string>? Attributes = null,
+    string ActivePackageVariantId = "",
+    string ActivePackageFootprintId = "",
+    string ActivePackageLabel = "No package")
 {
     public SchematicComponentInstance(
         string instanceId,
@@ -27,3 +31,17 @@ public sealed record SchematicComponentInstance(
     {
     }
 }
+
+public sealed record SchematicSelectedComponentMetadata(
+    string ReferenceDesignator,
+    string DisplayName,
+    string Value,
+    IReadOnlyDictionary<string, string> Attributes,
+    string ActivePackageVariantId,
+    string ActivePackageFootprintId,
+    string ActivePackageLabel);
+
+public sealed record SchematicSelectedComponentMetadataDiagnostic(
+    string Code,
+    string Target,
+    string Message);
