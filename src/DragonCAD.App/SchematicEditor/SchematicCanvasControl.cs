@@ -433,6 +433,22 @@ public sealed class SchematicCanvasControl : Control
         SchematicNetLabelRenderItem label)
     {
         Point mapped = Translate(viewport.Map(new CadPoint(0, 0), label.Position), center);
+        int rotationDegrees = NormalizeRotation(label.RotationDegrees);
+        if (rotationDegrees != 0)
+        {
+            using (context.PushTransform(Matrix.CreateRotation(rotationDegrees * Math.PI / 180.0, mapped)))
+            {
+                DrawNetLabelAt(context, mapped, label);
+            }
+
+            return;
+        }
+
+        DrawNetLabelAt(context, mapped, label);
+    }
+
+    private static void DrawNetLabelAt(DrawingContext context, Point mapped, SchematicNetLabelRenderItem label)
+    {
         FormattedText text = new(
             label.NetName,
             System.Globalization.CultureInfo.CurrentCulture,
@@ -452,6 +468,12 @@ public sealed class SchematicCanvasControl : Control
         context.DrawLine(PinPen, new Point(mapped.X - 4, mapped.Y), new Point(mapped.X + 4, mapped.Y));
         context.DrawLine(PinPen, new Point(mapped.X, mapped.Y - 4), new Point(mapped.X, mapped.Y + 4));
         context.DrawText(text, origin);
+    }
+
+    private static int NormalizeRotation(int rotationDegrees)
+    {
+        int normalized = rotationDegrees % 360;
+        return normalized < 0 ? normalized + 360 : normalized;
     }
 
     private void DrawInstance(

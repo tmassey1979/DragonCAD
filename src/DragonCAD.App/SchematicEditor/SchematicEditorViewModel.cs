@@ -91,7 +91,8 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             label.NetName,
             label.Position,
             label.LabelId == SelectedNetLabel?.LabelId,
-            label.LabelId == HoveredNetLabel?.LabelId));
+            label.LabelId == HoveredNetLabel?.LabelId,
+            label.RotationDegrees));
 
     public CadRectangle SheetBounds { get; } =
         new(-140_000_000, -100_000_000, 140_000_000, 100_000_000);
@@ -628,6 +629,29 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         RebuildNets();
         StatusText = $"Moved net label {moved.NetName} to {FormatMillimeters(moved.Position.X)} mm, {FormatMillimeters(moved.Position.Y)} mm.";
         return moved;
+    }
+
+    public SchematicNetLabel RotateSelectedNetLabelClockwise()
+    {
+        if (SelectedNetLabel is null)
+        {
+            throw new InvalidOperationException("No schematic net label is selected.");
+        }
+
+        int index = NetLabels.IndexOf(SelectedNetLabel);
+        if (index < 0)
+        {
+            throw new InvalidOperationException("The selected schematic net label is no longer in the document.");
+        }
+
+        SchematicNetLabel rotated = SelectedNetLabel with
+        {
+            RotationDegrees = NormalizeRotation(SelectedNetLabel.RotationDegrees + 90)
+        };
+        NetLabels[index] = rotated;
+        SelectedNetLabel = rotated;
+        StatusText = $"Rotated net label {rotated.NetName} to {rotated.RotationDegrees} degrees.";
+        return rotated;
     }
 
     public SchematicNetLabel RenameSelectedNetLabel(string netName)

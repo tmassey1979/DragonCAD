@@ -535,6 +535,7 @@ public sealed class SchematicEditorViewModelTests
 
         Assert.Equal("+5V", label.NetName);
         Assert.Equal(new CadPoint(2_000_000, -2_000_000), label.Position);
+        Assert.Equal(0, label.RotationDegrees);
         Assert.False(string.IsNullOrWhiteSpace(label.LabelId));
         Assert.Same(label, editor.SelectedNetLabel);
         Assert.Null(editor.SelectedComponent);
@@ -570,9 +571,31 @@ public sealed class SchematicEditorViewModelTests
         Assert.Equal(original.LabelId, moved.LabelId);
         Assert.Equal("RESET", moved.NetName);
         Assert.Equal(new CadPoint(3_000_000, -2_000_000), moved.Position);
+        Assert.Equal(original.RotationDegrees, moved.RotationDegrees);
         Assert.Same(moved, editor.SelectedNetLabel);
         Assert.Equal(moved, Assert.Single(editor.NetLabels));
         Assert.Equal("Moved net label RESET to 3.000 mm, -2.000 mm.", editor.StatusText);
+    }
+
+    [Fact]
+    public void RotateSelectedNetLabelClockwisePreservesIdentityAndUpdatesRenderMetadata()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+        SchematicNetLabel original = editor.PlaceNetLabel("RESET", new CadPoint(2_000_000, 1_000_000));
+
+        SchematicNetLabel rotated = editor.RotateSelectedNetLabelClockwise();
+
+        Assert.Equal(original.LabelId, rotated.LabelId);
+        Assert.Equal("RESET", rotated.NetName);
+        Assert.Equal(original.Position, rotated.Position);
+        Assert.Equal(original.AssociatedWireId, rotated.AssociatedWireId);
+        Assert.Equal(90, rotated.RotationDegrees);
+        Assert.Same(rotated, editor.SelectedNetLabel);
+        Assert.Equal(rotated, Assert.Single(editor.NetLabels));
+        SchematicNetLabelRenderItem renderItem = Assert.Single(editor.RenderableNetLabels);
+        Assert.Equal(rotated.LabelId, renderItem.LabelId);
+        Assert.Equal(90, renderItem.RotationDegrees);
+        Assert.Equal("Rotated net label RESET to 90 degrees.", editor.StatusText);
     }
 
     [Fact]
@@ -603,6 +626,7 @@ public sealed class SchematicEditorViewModelTests
 
         SchematicWire wire = Assert.Single(editor.Wires);
         Assert.Equal("ENABLE", renamed.NetName);
+        Assert.Equal(0, renamed.RotationDegrees);
         Assert.Equal("ENABLE", wire.NetName);
         Assert.Equal("ENABLE", wire.ManualNetName);
         Assert.Equal("ENABLE", Assert.Single(editor.Nets).Name);
@@ -683,6 +707,7 @@ public sealed class SchematicEditorViewModelTests
                 Assert.Equal(power.LabelId, label.LabelId);
                 Assert.Equal("+5V", label.NetName);
                 Assert.Equal(power.Position, label.Position);
+                Assert.Equal(power.RotationDegrees, label.RotationDegrees);
                 Assert.False(label.IsSelected);
                 Assert.True(label.IsHovered);
             },
@@ -691,6 +716,7 @@ public sealed class SchematicEditorViewModelTests
                 Assert.Equal(ground.LabelId, label.LabelId);
                 Assert.Equal("GND", label.NetName);
                 Assert.Equal(ground.Position, label.Position);
+                Assert.Equal(ground.RotationDegrees, label.RotationDegrees);
                 Assert.True(label.IsSelected);
                 Assert.False(label.IsHovered);
             });

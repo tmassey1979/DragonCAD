@@ -49,7 +49,8 @@ public sealed record SchematicNetLabel(
     string LabelId,
     string NetName,
     CadPoint Position,
-    string AssociatedWireId = "");
+    string AssociatedWireId = "",
+    int RotationDegrees = 0);
 
 public sealed record SchematicNetLabelDiagnostic(
     string Code,
@@ -62,4 +63,5 @@ public sealed record SchematicNetLabelRenderItem(
     string NetName,
     CadPoint Position,
     bool IsSelected,
-    bool IsHovered);
+    bool IsHovered,
+    int RotationDegrees = 0);
