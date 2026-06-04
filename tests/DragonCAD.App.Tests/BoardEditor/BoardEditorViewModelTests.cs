@@ -1073,6 +1073,110 @@ public sealed class BoardEditorViewModelTests
         Assert.Equal("Mirrored board component U1.", board.StatusText);
     }
 
+    [Fact]
+    public void SelectBoardObjectsInGroupsComponentsTracesViasAndSupportedFootprintPrimitiveKinds()
+    {
+        BoardEditorViewModel board = new();
+        board.Components.Add(new BoardComponentInstance(
+            "sync-u1",
+            "U1",
+            "fixture:controller",
+            "Controller",
+            new CadPoint(1_000_000, 1_000_000),
+            ComponentFootprintPreview.Empty,
+            FootprintPrimitives:
+            [
+                BoardFootprintPrimitive.Keepout(new CadRectangle(-500_000, -400_000, 500_000, 400_000), "Keepout"),
+                BoardFootprintPrimitive.Text("U1", new CadPoint(-300_000, 100_000), 250_000, "Names")
+            ]));
+        board.Traces.Add(new BoardTrace(
+            "trace-1",
+            "Bottom",
+            [new CadPoint(0, 3_000_000), new CadPoint(2_000_000, 3_000_000)],
+            WidthInternal: 400_000));
+        board.Vias.Add(new BoardVia("via-1", new CadPoint(3_000_000, 1_000_000), "Top", "Bottom"));
+
+        BoardSelectionSnapshot selection = board.SelectBoardObjectsIn(new CadRectangle(-1_000_000, 0, 4_000_000, 4_000_000));
+
+        Assert.Equal(["sync-u1"], selection.ComponentSyncIds);
+        Assert.Equal(["trace-1"], selection.TraceIds);
+        Assert.Equal(["via-1"], selection.ViaIds);
+        Assert.Equal(["Keepout", "Text"], selection.FootprintPrimitiveKinds.Order());
+        Assert.Equal(3, board.SelectedObjectCount);
+        Assert.Equal("Selected 3 board objects.", board.StatusText);
+    }
+
+    [Fact]
+    public void PasteBoardClipboardCreatesNewIdsAndOffsetsGeometryOnGrid()
+    {
+        BoardEditorViewModel board = BoardWithCopiedGroupSelection();
+        string sourceComponentSyncId = Assert.Single(board.SelectedBoardComponents).SyncId;
+        string sourceTraceId = Assert.Single(board.SelectedBoardTraces).TraceId;
+        string sourceViaId = Assert.Single(board.SelectedBoardVias).ViaId;
+
+        board.CopySelectedBoardObjects();
+        BoardSelectionSnapshot pastedSelection = board.PasteBoardClipboard();
+
+        Assert.Equal(2, board.Components.Count);
+        Assert.Equal(2, board.Traces.Count);
+        Assert.Equal(2, board.Vias.Count);
+
+        BoardComponentInstance pastedComponent = Assert.Single(board.Components, component => component.SyncId != sourceComponentSyncId);
+        BoardTrace pastedTrace = Assert.Single(board.Traces, trace => trace.TraceId != sourceTraceId);
+        BoardVia pastedVia = Assert.Single(board.Vias, via => via.ViaId != sourceViaId);
+
+        Assert.Equal(new CadPoint(3_000_000, 3_000_000), pastedComponent.Position);
+        Assert.Equal([new CadPoint(3_000_000, 5_000_000), new CadPoint(5_000_000, 5_000_000)], pastedTrace.RoutePoints);
+        Assert.Equal(new CadPoint(5_000_000, 3_000_000), pastedVia.Position);
+        Assert.Equal([pastedComponent.SyncId], pastedSelection.ComponentSyncIds);
+        Assert.Equal([pastedTrace.TraceId], pastedSelection.TraceIds);
+        Assert.Equal([pastedVia.ViaId], pastedSelection.ViaIds);
+        Assert.Equal("Pasted 3 board objects.", board.StatusText);
+    }
+
+    [Fact]
+    public void PasteBoardClipboardPreservesTraceViaAndComponentMetadataWithoutSchematicSyncIds()
+    {
+        BoardEditorViewModel board = BoardWithCopiedGroupSelection();
+
+        board.CopySelectedBoardObjects();
+        board.PasteBoardClipboard();
+
+        BoardComponentInstance pastedComponent = board.Components.Single(component => component.SyncId != "sync-u1");
+        BoardTrace pastedTrace = board.Traces.Single(trace => trace.TraceId != "trace-1");
+        BoardVia pastedVia = board.Vias.Single(via => via.ViaId != "via-1");
+
+        Assert.NotEqual("sync-u1", pastedComponent.SyncId);
+        Assert.StartsWith("copy-", pastedComponent.SyncId, StringComparison.Ordinal);
+        Assert.Equal("U1", pastedComponent.ReferenceDesignator);
+        Assert.Equal("fixture:controller", pastedComponent.ComponentId);
+        Assert.Equal(180, pastedComponent.RotationDegrees);
+        Assert.True(pastedComponent.IsMirrored);
+        Assert.Equal(2, pastedComponent.FootprintPrimitives.Count);
+        Assert.Equal("Bottom", pastedTrace.LayerName);
+        Assert.Equal(400_000, pastedTrace.WidthInternal);
+        Assert.Null(pastedTrace.StartPadSyncId);
+        Assert.Null(pastedTrace.EndPadSyncId);
+        Assert.Equal("Top", pastedVia.FromLayerName);
+        Assert.Equal("Bottom", pastedVia.ToLayerName);
+        Assert.Equal(900_000, pastedVia.DiameterInternal);
+        Assert.Equal(450_000, pastedVia.DrillInternal);
+    }
+
+    [Fact]
+    public void DuplicateSelectedBoardObjectsCopiesAndPastesSelection()
+    {
+        BoardEditorViewModel board = BoardWithCopiedGroupSelection();
+
+        BoardSelectionSnapshot duplicatedSelection = board.DuplicateSelectedBoardObjects();
+
+        Assert.Equal(2, board.Components.Count);
+        Assert.Equal(2, board.Traces.Count);
+        Assert.Equal(2, board.Vias.Count);
+        Assert.Equal(3, duplicatedSelection.TotalObjects);
+        Assert.Equal("Duplicated 3 board objects.", board.StatusText);
+    }
+
     private static ComponentFootprintPreview FootprintWithTwoPads() =>
         new(
             new CadRectangle(-1_000_000, -500_000, 1_000_000, 500_000),
@@ -1081,6 +1185,45 @@ public sealed class BoardEditorViewModelTests
                 new ComponentFootprintPadPreview("1", new CadPoint(-500_000, 0), new CadVector(400_000, 300_000), "Round", "ThroughHole"),
                 new ComponentFootprintPadPreview("2", new CadPoint(500_000, 0), new CadVector(400_000, 300_000), "Round", "ThroughHole")
             ]);
+
+    private static BoardEditorViewModel BoardWithCopiedGroupSelection()
+    {
+        BoardEditorViewModel board = new();
+        board.Components.Add(new BoardComponentInstance(
+            "sync-u1",
+            "U1",
+            "fixture:controller",
+            "Controller",
+            new CadPoint(1_000_000, 1_000_000),
+            ComponentFootprintPreview.Empty,
+            RotationDegrees: 180,
+            IsMirrored: true,
+            FootprintPrimitives:
+            [
+                BoardFootprintPrimitive.Keepout(new CadRectangle(-500_000, -400_000, 500_000, 400_000), "Keepout"),
+                BoardFootprintPrimitive.Text("U1", new CadPoint(-300_000, 100_000), 250_000, "Names")
+            ]));
+        board.Traces.Add(new BoardTrace(
+            "trace-1",
+            "Bottom",
+            [new CadPoint(1_000_000, 3_000_000), new CadPoint(3_000_000, 3_000_000)],
+            WidthInternal: 400_000,
+            StartPadSyncId: "sync-u1",
+            StartPadReferenceDesignator: "U1",
+            StartPadName: "1",
+            EndPadSyncId: "sync-u2",
+            EndPadReferenceDesignator: "U2",
+            EndPadName: "2"));
+        board.Vias.Add(new BoardVia(
+            "via-1",
+            new CadPoint(3_000_000, 1_000_000),
+            "Top",
+            "Bottom",
+            DiameterInternal: 900_000,
+            DrillInternal: 450_000));
+        board.SelectBoardObjectsIn(new CadRectangle(0, 0, 4_000_000, 4_000_000));
+        return board;
+    }
 
     public static TheoryData<CadPoint, IReadOnlyList<CadPoint>> FortyFiveDegreeRouteCases() =>
         new()

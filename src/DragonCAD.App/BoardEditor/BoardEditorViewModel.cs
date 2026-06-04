@@ -37,6 +37,11 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     private string routeCornerMode = "90";
     private readonly List<CadPoint> pendingTraceRoutePoints = [];
     private readonly Dictionary<string, BoardAirwire> retiredAirwiresByTraceId = new(StringComparer.Ordinal);
+    private readonly List<BoardComponentInstance> selectedBoardComponents = [];
+    private readonly List<BoardTrace> selectedBoardTraces = [];
+    private readonly List<BoardVia> selectedBoardVias = [];
+    private readonly List<string> selectedFootprintPrimitiveKinds = [];
+    private BoardClipboardSnapshot? boardClipboard;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -47,6 +52,16 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     public ObservableCollection<BoardTrace> Traces { get; } = [];
 
     public ObservableCollection<BoardVia> Vias { get; } = [];
+
+    public IReadOnlyList<BoardComponentInstance> SelectedBoardComponents => selectedBoardComponents;
+
+    public IReadOnlyList<BoardTrace> SelectedBoardTraces => selectedBoardTraces;
+
+    public IReadOnlyList<BoardVia> SelectedBoardVias => selectedBoardVias;
+
+    public IReadOnlyList<string> SelectedFootprintPrimitiveKinds => selectedFootprintPrimitiveKinds;
+
+    public int SelectedObjectCount => selectedBoardComponents.Count + selectedBoardTraces.Count + selectedBoardVias.Count;
 
     public ObservableCollection<BoardLayer> Layers { get; } =
     [
@@ -416,6 +431,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         SelectedTrace = null;
         SelectedVia = null;
         SelectedTraceSegmentIndex = null;
+        ClearBoardGroupSelection();
         ClearHover();
         StatusText = "Board cleared.";
     }
@@ -510,10 +526,12 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         {
             SelectedComponent = null;
             SelectedTraceSegmentIndex = null;
+            ClearBoardGroupSelection();
             StatusText = "No board component selected.";
             return null;
         }
 
+        ClearBoardGroupSelection();
         SelectedComponent = candidate;
         SelectedTrace = null;
         SelectedVia = null;
@@ -535,6 +553,156 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         }
 
         return SelectComponentAt(point) is not null;
+    }
+
+    public BoardSelectionSnapshot SelectBoardObjectsIn(CadRectangle selectionBounds)
+    {
+        selectedBoardComponents.Clear();
+        selectedBoardTraces.Clear();
+        selectedBoardVias.Clear();
+        selectedFootprintPrimitiveKinds.Clear();
+
+        foreach (BoardComponentInstance component in Components)
+        {
+            if (!Intersects(selectionBounds, ComponentBounds(component)))
+            {
+                continue;
+            }
+
+            selectedBoardComponents.Add(component);
+            AddSelectedFootprintPrimitiveKinds(selectionBounds, component);
+        }
+
+        foreach (BoardTrace trace in Traces)
+        {
+            if (TraceIntersects(selectionBounds, trace))
+            {
+                selectedBoardTraces.Add(trace);
+            }
+        }
+
+        foreach (BoardVia via in Vias)
+        {
+            if (Intersects(selectionBounds, ViaBounds(via)))
+            {
+                selectedBoardVias.Add(via);
+            }
+        }
+
+        SelectedComponent = selectedBoardComponents.Count == 1 && SelectedObjectCount == 1 ? selectedBoardComponents[0] : null;
+        SelectedTrace = selectedBoardTraces.Count == 1 && SelectedObjectCount == 1 ? selectedBoardTraces[0] : null;
+        SelectedVia = selectedBoardVias.Count == 1 && SelectedObjectCount == 1 ? selectedBoardVias[0] : null;
+        SelectedTraceSegmentIndex = null;
+        OnBoardSelectionChanged();
+
+        BoardSelectionSnapshot snapshot = CreateSelectionSnapshot();
+        StatusText = snapshot.TotalObjects == 1
+            ? "Selected 1 board object."
+            : $"Selected {snapshot.TotalObjects} board objects.";
+        return snapshot;
+    }
+
+    public BoardSelectionSnapshot CopySelectedBoardObjects()
+    {
+        if (SelectedObjectCount == 0)
+        {
+            StatusText = "Select board objects before copying.";
+            return CreateSelectionSnapshot();
+        }
+
+        boardClipboard = new BoardClipboardSnapshot(
+            [.. selectedBoardComponents],
+            [.. selectedBoardTraces],
+            [.. selectedBoardVias]);
+        BoardSelectionSnapshot snapshot = CreateSelectionSnapshot();
+        StatusText = snapshot.TotalObjects == 1
+            ? "Copied 1 board object."
+            : $"Copied {snapshot.TotalObjects} board objects.";
+        return snapshot;
+    }
+
+    public BoardSelectionSnapshot PasteBoardClipboard()
+    {
+        if (boardClipboard is null || boardClipboard.TotalObjects == 0)
+        {
+            StatusText = "Copy board objects before pasting.";
+            return CreateSelectionSnapshot();
+        }
+
+        CadVector offset = new(GridSpacingInternal * 2, GridSpacingInternal * 2);
+        selectedBoardComponents.Clear();
+        selectedBoardTraces.Clear();
+        selectedBoardVias.Clear();
+        selectedFootprintPrimitiveKinds.Clear();
+
+        foreach (BoardComponentInstance component in boardClipboard.Components)
+        {
+            BoardComponentInstance pasted = component with
+            {
+                SyncId = $"copy-{Guid.NewGuid():N}",
+                Position = placementGrid.Snap(component.Position + offset)
+            };
+            Components.Add(pasted);
+            selectedBoardComponents.Add(pasted);
+            AddSelectedFootprintPrimitiveKinds(ComponentBounds(pasted), pasted);
+        }
+
+        foreach (BoardTrace trace in boardClipboard.Traces)
+        {
+            BoardTrace pasted = trace with
+            {
+                TraceId = Guid.NewGuid().ToString("N"),
+                RoutePoints = trace.RoutePoints.Select(point => placementGrid.Snap(point + offset)).ToArray(),
+                StartPadSyncId = null,
+                StartPadReferenceDesignator = null,
+                StartPadName = null,
+                EndPadSyncId = null,
+                EndPadReferenceDesignator = null,
+                EndPadName = null
+            };
+            Traces.Add(pasted);
+            selectedBoardTraces.Add(pasted);
+        }
+
+        foreach (BoardVia via in boardClipboard.Vias)
+        {
+            BoardVia pasted = via with
+            {
+                ViaId = Guid.NewGuid().ToString("N"),
+                Position = placementGrid.Snap(via.Position + offset)
+            };
+            Vias.Add(pasted);
+            selectedBoardVias.Add(pasted);
+        }
+
+        SelectedComponent = selectedBoardComponents.Count == 1 && SelectedObjectCount == 1 ? selectedBoardComponents[0] : null;
+        SelectedTrace = selectedBoardTraces.Count == 1 && SelectedObjectCount == 1 ? selectedBoardTraces[0] : null;
+        SelectedVia = selectedBoardVias.Count == 1 && SelectedObjectCount == 1 ? selectedBoardVias[0] : null;
+        SelectedTraceSegmentIndex = null;
+        OnPropertyChanged(nameof(VisibleTraces));
+        OnPropertyChanged(nameof(VisibleVias));
+        OnBoardSelectionChanged();
+
+        BoardSelectionSnapshot snapshot = CreateSelectionSnapshot();
+        StatusText = snapshot.TotalObjects == 1
+            ? "Pasted 1 board object."
+            : $"Pasted {snapshot.TotalObjects} board objects.";
+        return snapshot;
+    }
+
+    public BoardSelectionSnapshot DuplicateSelectedBoardObjects()
+    {
+        BoardSelectionSnapshot copied = CopySelectedBoardObjects();
+        if (copied.TotalObjects == 0)
+        {
+            return copied;
+        }
+
+        BoardSelectionSnapshot pasted = PasteBoardClipboard();
+        StatusText = pasted.TotalObjects == 1
+            ? "Duplicated 1 board object."
+            : $"Duplicated {pasted.TotalObjects} board objects.";
+        return pasted;
     }
 
     public void UpdateHoverAt(CadPoint point)
@@ -951,6 +1119,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         SelectedTrace = null;
         SelectedVia = null;
         SelectedTraceSegmentIndex = null;
+        ClearBoardGroupSelection();
         StatusText = "Board route tool active.";
     }
 
@@ -1228,6 +1397,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
             return null;
         }
 
+        ClearBoardGroupSelection();
         SelectedComponent = null;
         SelectedVia = null;
         SelectedTrace = traceHit.Trace;
@@ -1272,6 +1442,7 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
             return null;
         }
 
+        ClearBoardGroupSelection();
         SelectedComponent = null;
         SelectedTrace = null;
         SelectedTraceSegmentIndex = null;
@@ -1295,6 +1466,142 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
 
         return null;
     }
+
+    private void ClearBoardGroupSelection()
+    {
+        if (SelectedObjectCount == 0 && selectedFootprintPrimitiveKinds.Count == 0)
+        {
+            return;
+        }
+
+        selectedBoardComponents.Clear();
+        selectedBoardTraces.Clear();
+        selectedBoardVias.Clear();
+        selectedFootprintPrimitiveKinds.Clear();
+        OnBoardSelectionChanged();
+    }
+
+    private BoardSelectionSnapshot CreateSelectionSnapshot() =>
+        new(
+            selectedBoardComponents.Select(component => component.SyncId).ToArray(),
+            selectedBoardTraces.Select(trace => trace.TraceId).ToArray(),
+            selectedBoardVias.Select(via => via.ViaId).ToArray(),
+            selectedFootprintPrimitiveKinds.Distinct(StringComparer.Ordinal).ToArray());
+
+    private void OnBoardSelectionChanged()
+    {
+        OnPropertyChanged(nameof(SelectedBoardComponents));
+        OnPropertyChanged(nameof(SelectedBoardTraces));
+        OnPropertyChanged(nameof(SelectedBoardVias));
+        OnPropertyChanged(nameof(SelectedFootprintPrimitiveKinds));
+        OnPropertyChanged(nameof(SelectedObjectCount));
+    }
+
+    private void AddSelectedFootprintPrimitiveKinds(CadRectangle selectionBounds, BoardComponentInstance component)
+    {
+        foreach (BoardFootprintPrimitive primitive in component.FootprintPrimitives)
+        {
+            if (Intersects(selectionBounds, PrimitiveBounds(component, primitive)) &&
+                !selectedFootprintPrimitiveKinds.Contains(primitive.Kind, StringComparer.Ordinal))
+            {
+                selectedFootprintPrimitiveKinds.Add(primitive.Kind);
+            }
+        }
+    }
+
+    private static bool TraceIntersects(CadRectangle selectionBounds, BoardTrace trace)
+    {
+        if (trace.RoutePoints.Count == 0)
+        {
+            return false;
+        }
+
+        if (trace.RoutePoints.Any(selectionBounds.Contains))
+        {
+            return true;
+        }
+
+        for (int index = 1; index < trace.RoutePoints.Count; index++)
+        {
+            if (Intersects(selectionBounds, BoundsOfPoints([trace.RoutePoints[index - 1], trace.RoutePoints[index]])))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static CadRectangle ViaBounds(BoardVia via)
+    {
+        long radius = via.DiameterInternal / 2;
+        return new CadRectangle(
+            via.Position.X - radius,
+            via.Position.Y - radius,
+            via.Position.X + radius,
+            via.Position.Y + radius);
+    }
+
+    private static CadRectangle PrimitiveBounds(BoardComponentInstance component, BoardFootprintPrimitive primitive) =>
+        primitive switch
+        {
+            BoardFootprintPadPrimitive pad => PadBounds(component, pad.Position, pad.Size),
+            BoardFootprintSmdPrimitive smd => PadBounds(component, smd.Position, smd.Size),
+            BoardFootprintHolePrimitive hole => CircleBounds(BoardFootprintGeometry.TransformLocalPoint(component, hole.Position), hole.DrillSize / 2),
+            BoardFootprintKeepoutPrimitive keepout => TransformBounds(component, keepout.Bounds),
+            BoardFootprintLinePrimitive line => BoundsOfPoints(
+                [
+                    BoardFootprintGeometry.TransformLocalPoint(component, line.Start),
+                    BoardFootprintGeometry.TransformLocalPoint(component, line.End)
+                ]),
+            BoardFootprintArcPrimitive arc => CircleBounds(BoardFootprintGeometry.TransformLocalPoint(component, arc.Center), arc.Radius),
+            BoardFootprintTextPrimitive text => TextBounds(component, text),
+            _ => ComponentBounds(component)
+        };
+
+    private static CadRectangle PadBounds(BoardComponentInstance component, CadPoint localPosition, CadVector localSize)
+    {
+        CadPoint center = BoardFootprintGeometry.TransformLocalPoint(component, localPosition);
+        CadVector size = BoardFootprintGeometry.SizeForRotation(component, localSize);
+        return new CadRectangle(
+            center.X - (size.X / 2),
+            center.Y - (size.Y / 2),
+            center.X + (size.X / 2),
+            center.Y + (size.Y / 2));
+    }
+
+    private static CadRectangle TextBounds(BoardComponentInstance component, BoardFootprintTextPrimitive text)
+    {
+        CadPoint position = BoardFootprintGeometry.TransformLocalPoint(component, text.Position);
+        long width = Math.Max(text.Size, text.Value.Length * text.Size / 2);
+        CadVector size = BoardFootprintGeometry.SizeForRotation(component, new CadVector(width, text.Size));
+        return new CadRectangle(position.X, position.Y, position.X + size.X, position.Y + size.Y);
+    }
+
+    private static CadRectangle CircleBounds(CadPoint center, long radius) =>
+        new(center.X - radius, center.Y - radius, center.X + radius, center.Y + radius);
+
+    private static CadRectangle TransformBounds(BoardComponentInstance component, CadRectangle bounds)
+    {
+        CadPoint[] corners =
+        [
+            BoardFootprintGeometry.TransformLocalPoint(component, new CadPoint(bounds.Left, bounds.Top)),
+            BoardFootprintGeometry.TransformLocalPoint(component, new CadPoint(bounds.Right, bounds.Top)),
+            BoardFootprintGeometry.TransformLocalPoint(component, new CadPoint(bounds.Right, bounds.Bottom)),
+            BoardFootprintGeometry.TransformLocalPoint(component, new CadPoint(bounds.Left, bounds.Bottom))
+        ];
+        return new CadRectangle(
+            corners.Min(point => point.X),
+            corners.Min(point => point.Y),
+            corners.Max(point => point.X),
+            corners.Max(point => point.Y));
+    }
+
+    private static bool Intersects(CadRectangle left, CadRectangle right) =>
+        left.Left <= right.Right &&
+        left.Right >= right.Left &&
+        left.Top <= right.Bottom &&
+        left.Bottom >= right.Top;
 
     private TraceHit? FindTraceAt(CadPoint point)
     {
@@ -1824,6 +2131,14 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     private sealed record SegmentHit(double Distance, int SegmentIndex);
 
     private sealed record TraceHit(BoardTrace Trace, int SegmentIndex);
+
+    private sealed record BoardClipboardSnapshot(
+        IReadOnlyList<BoardComponentInstance> Components,
+        IReadOnlyList<BoardTrace> Traces,
+        IReadOnlyList<BoardVia> Vias)
+    {
+        public int TotalObjects => Components.Count + Traces.Count + Vias.Count;
+    }
 
     private sealed record BoardPadHit(string SyncId, string ReferenceDesignator, string PadName, CadPoint Position);
 

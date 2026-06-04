@@ -27,14 +27,23 @@ public sealed class BoardCanvasControl : Control
     private static readonly Pen SelectedComponentPen = new(new SolidColorBrush(Color.FromRgb(255, 176, 52)), 2.2);
     private static readonly Pen HoverSelectionPen = new(new SolidColorBrush(Color.FromRgb(70, 180, 255)), 1.7);
     private static readonly Pen HoverTracePen = new(new SolidColorBrush(Color.FromRgb(70, 180, 255)), 3.2);
+    private static readonly Pen AreaSelectionPen = new(new SolidColorBrush(Color.FromRgb(70, 180, 255)), 1.2, DashStyle.Dash);
+    private static readonly IBrush AreaSelectionBrush = new SolidColorBrush(Color.FromArgb(36, 70, 180, 255));
     private const double DefaultPixelsPerInternalUnit = 0.000025;
     private CadVector dragOffset;
     private BoardDragMode dragMode;
     private Point lastPanScreenPoint;
+    private CadPoint areaSelectionStart;
+    private CadPoint areaSelectionCurrent;
 
     static BoardCanvasControl()
     {
         AffectsRender<BoardCanvasControl>(EditorProperty);
+    }
+
+    public BoardCanvasControl()
+    {
+        Focusable = true;
     }
 
     public BoardEditorViewModel? Editor
@@ -87,7 +96,8 @@ public sealed class BoardCanvasControl : Control
         DrawGrid(context, bounds, center, viewport, Editor);
         foreach (BoardTrace trace in Editor.VisibleTraces)
         {
-            bool isSelectedTrace = Editor.SelectedTrace?.TraceId == trace.TraceId;
+            bool isSelectedTrace = Editor.SelectedTrace?.TraceId == trace.TraceId ||
+                Editor.SelectedBoardTraces.Any(selected => selected.TraceId == trace.TraceId);
             bool isHoveredTrace = Editor.HoveredTrace?.TraceId == trace.TraceId;
             DrawTrace(context, viewport, center, Editor, trace, isSelectedTrace, isHoveredTrace);
         }
@@ -96,7 +106,9 @@ public sealed class BoardCanvasControl : Control
         foreach (BoardVia via in Editor.VisibleVias)
         {
             bool isHoveredVia = Editor.HoveredVia?.ViaId == via.ViaId;
-            DrawVia(context, viewport, center, Editor, via, Editor.SelectedVia?.ViaId == via.ViaId, isHoveredVia);
+            bool isSelectedVia = Editor.SelectedVia?.ViaId == via.ViaId ||
+                Editor.SelectedBoardVias.Any(selected => selected.ViaId == via.ViaId);
+            DrawVia(context, viewport, center, Editor, via, isSelectedVia, isHoveredVia);
         }
 
         foreach (BoardAirwire airwire in Editor.Airwires)
@@ -115,8 +127,14 @@ public sealed class BoardCanvasControl : Control
                 center,
                 Editor,
                 component,
-                Editor.SelectedComponent?.SyncId == component.SyncId,
+                Editor.SelectedComponent?.SyncId == component.SyncId ||
+                    Editor.SelectedBoardComponents.Any(selected => selected.SyncId == component.SyncId),
                 ReferenceEquals(component, Editor.HoveredComponent));
+        }
+
+        if (dragMode == BoardDragMode.AreaSelection)
+        {
+            DrawAreaSelection(context, viewport, center);
         }
     }
 
@@ -129,6 +147,7 @@ public sealed class BoardCanvasControl : Control
         }
 
         CadPoint point = CreateViewport().ScreenToCad(e.GetPosition(this), Bounds.Center);
+        Focus();
         if (Editor.ActiveTool == "Route")
         {
             Editor.TraceClickAt(point);
@@ -140,8 +159,19 @@ public sealed class BoardCanvasControl : Control
         bool selected = Editor.SelectAt(point);
         if (!selected)
         {
-            dragMode = BoardDragMode.Pan;
-            lastPanScreenPoint = e.GetPosition(this);
+            PointerPointProperties properties = e.GetCurrentPoint(this).Properties;
+            if (properties.IsLeftButtonPressed)
+            {
+                dragMode = BoardDragMode.AreaSelection;
+                areaSelectionStart = point;
+                areaSelectionCurrent = point;
+            }
+            else
+            {
+                dragMode = BoardDragMode.Pan;
+                lastPanScreenPoint = e.GetPosition(this);
+            }
+
             Editor.ClearHover();
             Cursor = new Cursor(StandardCursorType.SizeAll);
             e.Pointer.Capture(this);
@@ -202,6 +232,15 @@ public sealed class BoardCanvasControl : Control
             return;
         }
 
+        if (dragMode == BoardDragMode.AreaSelection)
+        {
+            areaSelectionCurrent = point;
+            InvalidateVisual();
+            Cursor = new Cursor(StandardCursorType.Cross);
+            e.Handled = true;
+            return;
+        }
+
         MoveSelectionTo(point);
         Cursor = new Cursor(StandardCursorType.SizeAll);
         e.Handled = true;
@@ -221,11 +260,44 @@ public sealed class BoardCanvasControl : Control
             MoveSelectionTo(point);
         }
 
+        if (dragMode == BoardDragMode.AreaSelection)
+        {
+            CadPoint point = CreateViewport().ScreenToCad(e.GetPosition(this), Bounds.Center);
+            areaSelectionCurrent = point;
+            Editor.SelectBoardObjectsIn(CadRectangle.FromCorners(areaSelectionStart, areaSelectionCurrent));
+            InvalidateVisual();
+        }
+
         dragMode = BoardDragMode.None;
         Editor.ClearHover();
         Cursor = CursorForEditorState();
         e.Pointer.Capture(null);
         e.Handled = true;
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (Editor is null || !e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        {
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case Key.C:
+                Editor.CopySelectedBoardObjects();
+                e.Handled = true;
+                break;
+            case Key.V:
+                Editor.PasteBoardClipboard();
+                e.Handled = true;
+                break;
+            case Key.D:
+                Editor.DuplicateSelectedBoardObjects();
+                e.Handled = true;
+                break;
+        }
     }
 
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
@@ -591,6 +663,14 @@ public sealed class BoardCanvasControl : Control
         context.DrawEllipse(BackgroundBrush, null, position, renderState.DrillRadius, renderState.DrillRadius);
     }
 
+    private void DrawAreaSelection(DrawingContext context, BoardCanvasViewport viewport, Point center)
+    {
+        Rect selection = new(
+            Translate(viewport.Map(areaSelectionStart), center),
+            Translate(viewport.Map(areaSelectionCurrent), center));
+        context.DrawRectangle(AreaSelectionBrush, AreaSelectionPen, selection.Normalize());
+    }
+
     public static BoardViaRenderState CreateViaRenderState(BoardVia via) =>
         new(
             Math.Max(3.5, via.DiameterInternal * DefaultPixelsPerInternalUnit / 2),
@@ -713,7 +793,11 @@ public sealed class BoardCanvasControl : Control
             nameof(BoardEditorViewModel.VisibleVias) or
             nameof(BoardEditorViewModel.ActiveLayerName) or
             nameof(BoardEditorViewModel.SelectedTrace) or
-            nameof(BoardEditorViewModel.SelectedVia))
+            nameof(BoardEditorViewModel.SelectedVia) or
+            nameof(BoardEditorViewModel.SelectedBoardComponents) or
+            nameof(BoardEditorViewModel.SelectedBoardTraces) or
+            nameof(BoardEditorViewModel.SelectedBoardVias) or
+            nameof(BoardEditorViewModel.SelectedObjectCount))
         {
             InvalidateVisual();
         }
@@ -742,7 +826,8 @@ public sealed class BoardCanvasControl : Control
         Pan,
         Component,
         Via,
-        TraceSegment
+        TraceSegment,
+        AreaSelection
     }
 }
 
