@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using Avalonia;
 using DragonCAD.App.ComponentManager;
@@ -1418,8 +1419,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             return false;
         }
 
-        if (!TryBuildRouteWithoutVertex(SelectedWire.RoutePoints, vertexIndex, out List<CadPoint>? updatedRoute) ||
-            updatedRoute is null)
+        if (!TryBuildRouteWithoutVertex(SelectedWire.RoutePoints, vertexIndex, out List<CadPoint>? updatedRoute))
         {
             StatusText = $"Wire vertex {vertexIndex} cannot be deleted because the route would become invalid.";
             return false;
@@ -1916,7 +1916,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
     private static bool TryBuildRouteWithoutVertex(
         IReadOnlyList<CadPoint> routePoints,
         int vertexIndex,
-        out List<CadPoint>? updatedRoute)
+        [NotNullWhen(true)] out List<CadPoint>? updatedRoute)
     {
         updatedRoute = null;
         if (vertexIndex <= 0 || vertexIndex >= routePoints.Count - 1)
