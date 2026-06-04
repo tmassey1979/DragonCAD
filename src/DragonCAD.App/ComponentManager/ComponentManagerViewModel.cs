@@ -268,7 +268,10 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
 
         if (package.Length > 0)
         {
-            rows = rows.Where(row => row.PackageOptions.Any(option => option.Matches(package)) || Contains(row.ActivePackageLabel, package));
+            rows = rows
+                .Select(row => ResolvePackageFilterMatch(row, package))
+                .Where(row => row is not null)
+                .Select(row => row!);
         }
 
         if (selectedVendorAvailabilityFilter == "Vendor offers")
@@ -313,7 +316,9 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
 
         UpdateResultGroups(filteredRows);
 
-        SelectedComponent = ResolveFilteredSelection(previousSelection, filteredRows);
+        ComponentManagerRow? resolvedSelection = ResolveFilteredSelection(previousSelection, filteredRows);
+        SelectedComponent = resolvedSelection;
+        UpdatePackageFilterAvailabilityMessage(previousSelection, resolvedSelection, package);
     }
 
     private void SetTextFilter(ref string field, string value)
@@ -442,6 +447,53 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
         ComponentManagerRow? sameComponent = filteredRows.FirstOrDefault(row =>
             string.Equals(row.ComponentId, previousSelection.ComponentId, StringComparison.Ordinal));
         return sameComponent ?? filteredRows.FirstOrDefault();
+    }
+
+    private ComponentManagerRow? ResolvePackageFilterMatch(ComponentManagerRow row, string packageFilterText)
+    {
+        ComponentPackageOption[] matchingOptions = row.PackageOptions
+            .Where(option => option.Matches(packageFilterText))
+            .ToArray();
+        if (matchingOptions.Length == 0)
+        {
+            return Contains(row.Value, packageFilterText) ? row : null;
+        }
+
+        if (row.SelectedPackageOption is { } selectedPackage &&
+            matchingOptions.Any(option => PackageOptionMatches(option, selectedPackage)))
+        {
+            return row;
+        }
+
+        ComponentManagerRow updatedRow = row.WithSelectedPackageOption(matchingOptions[0]);
+        ReplaceRow(allComponents, row, updatedRow);
+        return updatedRow;
+    }
+
+    private void UpdatePackageFilterAvailabilityMessage(
+        ComponentManagerRow? previousSelection,
+        ComponentManagerRow? resolvedSelection,
+        string packageFilterText)
+    {
+        if (packageFilterText.Length == 0 || previousSelection?.SelectedPackageOption is null)
+        {
+            return;
+        }
+
+        if (resolvedSelection is null ||
+            !string.Equals(resolvedSelection.ComponentId, previousSelection.ComponentId, StringComparison.Ordinal))
+        {
+            SelectedPackageAvailabilityMessage = $"Active package '{previousSelection.ActivePackageLabel}' is filtered out by package filter '{packageFilterText}'.";
+            return;
+        }
+
+        if (resolvedSelection.SelectedPackageOption is { } resolvedPackage &&
+            PackageOptionMatches(resolvedPackage, previousSelection.SelectedPackageOption))
+        {
+            return;
+        }
+
+        SelectedPackageAvailabilityMessage = $"Active package '{previousSelection.ActivePackageLabel}' is filtered out by package filter '{packageFilterText}'; using '{resolvedSelection.ActivePackageLabel}'.";
     }
 
     private static ComponentManagerRow PreserveSelectedPackage(
@@ -762,8 +814,11 @@ public sealed record ComponentPackageOption(
     int PadCount,
     bool HasModel3D,
     bool IsActive,
-    ComponentFootprintPreview FootprintPreview)
+    ComponentFootprintPreview FootprintPreview,
+    IReadOnlyList<string>? SearchMetadataInput = null)
 {
+    public IReadOnlyList<string> SearchMetadata { get; init; } = SearchMetadataInput ?? [];
+
     public static ComponentPackageOption[] FromDefinition(ComponentDefinition definition)
     {
         Dictionary<string, ComponentFootprint> footprintsById = definition.Footprints
@@ -791,7 +846,8 @@ public sealed record ComponentPackageOption(
                         padCount,
                         variantsWithModel3D.Contains(variant.Id.Value),
                         index == 0,
-                        footprint is null ? ComponentFootprintPreview.Empty : ComponentFootprintPreview.FromFootprint(footprint));
+                        footprint is null ? ComponentFootprintPreview.Empty : ComponentFootprintPreview.FromFootprint(footprint),
+                        BuildPackageSearchMetadata(definition, variant, footprint));
                 })
                 .ToArray();
         }
@@ -807,7 +863,8 @@ public sealed record ComponentPackageOption(
                 footprint.Pads.Count,
                 false,
                 index == 0,
-                ComponentFootprintPreview.FromFootprint(footprint)))
+                ComponentFootprintPreview.FromFootprint(footprint),
+                BuildPackageSearchMetadata(definition, variant: null, footprint)))
             .ToArray();
     }
 
@@ -815,7 +872,43 @@ public sealed record ComponentPackageOption(
         Contains(VariantId, searchText) ||
         Contains(FootprintId, searchText) ||
         Contains(Label, searchText) ||
-        Contains(DisplayText, searchText);
+        Contains(DisplayText, searchText) ||
+        SearchMetadata.Any(value => Contains(value, searchText));
+
+    private static string[] BuildPackageSearchMetadata(
+        ComponentDefinition definition,
+        ComponentVariant? variant,
+        ComponentFootprint? footprint)
+    {
+        List<string> metadata = [];
+        AddAttributes(metadata, definition.Attributes);
+        if (variant is not null)
+        {
+            AddAttributes(metadata, variant.Attributes);
+        }
+
+        if (footprint is not null)
+        {
+            metadata.Add(footprint.Name);
+            metadata.AddRange(footprint.Pads.Select(pad => pad.Technology.ToString()));
+            metadata.AddRange(footprint.Pads.Select(pad => pad.Shape.ToString()));
+        }
+
+        return metadata
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static void AddAttributes(List<string> metadata, IEnumerable<ComponentAttribute> attributes)
+    {
+        foreach (ComponentAttribute attribute in attributes)
+        {
+            metadata.Add(attribute.Name);
+            metadata.Add(attribute.Value);
+            metadata.Add($"{attribute.Name}: {attribute.Value}");
+        }
+    }
 
     private static string BuildDisplayText(string label, int padCount, bool hasModel3D)
     {

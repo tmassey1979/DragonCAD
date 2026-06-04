@@ -697,6 +697,83 @@ public sealed class ComponentManagerViewModelTests
     }
 
     [Fact]
+    public void PackageFilterSelectsMatchingPackageWhenActivePackageIsFilteredOut()
+    {
+        ComponentFootprintId soic8FootprintId = new("dragon:opamp:footprint:soic-8");
+        ComponentFootprintId tssop8FootprintId = new("dragon:opamp:footprint:tssop-8");
+        ComponentVariantId soic8VariantId = new("dragon:opamp:variant:soic-8");
+        ComponentVariantId tssop8VariantId = new("dragon:opamp:variant:tssop-8");
+        ComponentDefinition opAmp = MultiPackageComponent(soic8FootprintId, tssop8FootprintId, soic8VariantId, tssop8VariantId);
+        ComponentManagerViewModel viewModel = ComponentManagerViewModel.FromCatalog(new ComponentCatalog(BuiltInDefinitions: [opAmp], UserDefinitions: [], ProjectDefinitions: []));
+        ComponentManagerRow row = Assert.Single(viewModel.Components);
+        viewModel.SelectPackageOption(row, row.PackageOptions[1]);
+
+        viewModel.PackageFilter = "SOIC-8";
+
+        ComponentManagerRow filteredRow = Assert.Single(viewModel.Components);
+        Assert.Equal("Dual Op Amp", filteredRow.DisplayName);
+        Assert.Equal("SOIC package (SOIC-8)", filteredRow.ActivePackageLabel);
+        Assert.Equal("SOIC package (SOIC-8)", viewModel.SelectedPackageName);
+        Assert.Equal("Active package 'TSSOP package (TSSOP-8)' is filtered out by package filter 'SOIC-8'; using 'SOIC package (SOIC-8)'.", viewModel.SelectedPackageAvailabilityMessage);
+    }
+
+    [Fact]
+    public void PackageFilterMatchesFootprintTypeValueAndPackageMetadata()
+    {
+        ComponentFootprintId axialFootprintId = new("dragon:resistor:footprint:axial");
+        ComponentFootprintId chipFootprintId = new("dragon:resistor:footprint:0603");
+        ComponentDefinition resistor = new(
+            new ComponentId("dragon:resistor"),
+            "Resistor",
+            ComponentKind.Passive,
+            "Dragon",
+            "R-1",
+            Description: "",
+            Attributes: [new ComponentAttribute("Value", "10 kOhm")],
+            Pins: [],
+            Gates: [],
+            Symbols: [],
+            Footprints:
+            [
+                new ComponentFootprint(
+                    axialFootprintId,
+                    "Axial resistor",
+                    [new ComponentFootprintPad(new ComponentPadId("dragon:resistor:axial:pad:1"), "1", new CadPoint(0, 0), new CadVector(60_000, 80_000), ComponentPadTechnology.ThroughHole, ComponentPadShape.Round)],
+                    [],
+                    []),
+                new ComponentFootprint(
+                    chipFootprintId,
+                    "0603 chip resistor",
+                    [new ComponentFootprintPad(new ComponentPadId("dragon:resistor:0603:pad:1"), "1", new CadPoint(0, 0), new CadVector(60_000, 80_000), ComponentPadTechnology.SurfaceMount, ComponentPadShape.Rectangle)],
+                    [],
+                    [])
+            ],
+            Variants:
+            [
+                new ComponentVariant(new ComponentVariantId("dragon:resistor:variant:axial"), "Default axial", axialFootprintId, [new ComponentAttribute("Tolerance", "5%")]),
+                new ComponentVariant(new ComponentVariantId("dragon:resistor:variant:0603"), "Precision chip", chipFootprintId, [new ComponentAttribute("Tolerance", "1%"), new ComponentAttribute("Power", "0.1 W")])
+            ],
+            PinPadMappings: [],
+            Datasheets: [],
+            Sourcing: [],
+            PackageModels3D: [],
+            Provenance: []);
+        ComponentManagerViewModel viewModel = ComponentManagerViewModel.FromCatalog(new ComponentCatalog(BuiltInDefinitions: [resistor], UserDefinitions: [], ProjectDefinitions: []));
+
+        viewModel.PackageFilter = "SurfaceMount";
+        ComponentManagerRow filteredRow = Assert.Single(viewModel.Components);
+        Assert.Equal("Precision chip (0603 chip resistor)", filteredRow.ActivePackageLabel);
+
+        viewModel.PackageFilter = "10 kOhm";
+        filteredRow = Assert.Single(viewModel.Components);
+        Assert.Equal("Precision chip (0603 chip resistor)", filteredRow.ActivePackageLabel);
+
+        viewModel.PackageFilter = "1%";
+        filteredRow = Assert.Single(viewModel.Components);
+        Assert.Equal("Precision chip (0603 chip resistor)", filteredRow.ActivePackageLabel);
+    }
+
+    [Fact]
     public void ReplaceFromCatalogExplainsWhenActivePackageIsMissing()
     {
         ComponentFootprintId soic8FootprintId = new("dragon:opamp:footprint:soic-8");
