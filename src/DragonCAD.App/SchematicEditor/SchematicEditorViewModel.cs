@@ -231,6 +231,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
             selectedComponent = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectionSummary));
         }
     }
 
@@ -246,6 +247,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
             selectedWire = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectionSummary));
             OnPropertyChanged(nameof(SelectedWireVertexHandles));
             OnPropertyChanged(nameof(RenderableWireSegments));
         }
@@ -263,6 +265,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
             selectedWireSegmentIndex = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectionSummary));
             OnPropertyChanged(nameof(RenderableWireSegments));
         }
     }
@@ -279,6 +282,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
             selectedWireVertexIndex = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectionSummary));
             OnPropertyChanged(nameof(SelectedWireVertexHandles));
         }
     }
@@ -387,6 +391,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
             selectedPinEndpoint = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectionSummary));
         }
     }
 
@@ -402,6 +407,42 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
             selectedNetLabel = value;
             OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectionSummary));
+        }
+    }
+
+    public string SelectionSummary
+    {
+        get
+        {
+            if (SelectedComponent is not null)
+            {
+                return $"Component {SelectedComponent.ReferenceDesignator}: {SelectedComponent.DisplayName}";
+            }
+
+            if (SelectedPinEndpoint is not null)
+            {
+                return $"Pin {SelectedPinEndpoint.ReferenceDesignator}.{SelectedPinEndpoint.PinName}";
+            }
+
+            if (SelectedNetLabel is not null)
+            {
+                return $"Net label {SelectedNetLabel.NetName}";
+            }
+
+            if (SelectedWire is not null && SelectedWireVertexIndex is { } vertexIndex)
+            {
+                return $"Wire {SelectedWire.NetName} vertex {vertexIndex}";
+            }
+
+            if (SelectedWire is not null && SelectedWireSegmentIndex is { } segmentIndex)
+            {
+                return $"Wire {SelectedWire.NetName} segment {segmentIndex}";
+            }
+
+            return SelectedWire is not null
+                ? $"Wire {SelectedWire.NetName}"
+                : "No schematic object selected";
         }
     }
 
@@ -1356,6 +1397,45 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         return SelectedWire;
     }
 
+    public bool DeleteSelectedWireVertex()
+    {
+        if (SelectedWire is null || SelectedWireVertexIndex is null)
+        {
+            StatusText = "Select a wire vertex before deleting it.";
+            return false;
+        }
+
+        int wireIndex = Wires.IndexOf(SelectedWire);
+        if (wireIndex < 0)
+        {
+            throw new InvalidOperationException("The selected schematic wire is no longer in the document.");
+        }
+
+        int vertexIndex = SelectedWireVertexIndex.Value;
+        if (IsEndpointVertexIndex(SelectedWire.RoutePoints, vertexIndex))
+        {
+            StatusText = "Wire endpoint vertices cannot be deleted; reconnect or delete the wire instead.";
+            return false;
+        }
+
+        if (!TryBuildRouteWithoutVertex(SelectedWire.RoutePoints, vertexIndex, out List<CadPoint>? updatedRoute) ||
+            updatedRoute is null)
+        {
+            StatusText = $"Wire vertex {vertexIndex} cannot be deleted because the route would become invalid.";
+            return false;
+        }
+
+        SchematicWire updated = SelectedWire with { RoutePoints = updatedRoute };
+        Wires[wireIndex] = updated;
+        SelectedWire = updated;
+        SelectedWireVertexIndex = null;
+        SelectedWireSegmentIndex = null;
+        RebuildNets();
+        SelectedWire = Wires.Single(wire => wire.WireId == updated.WireId);
+        StatusText = $"Deleted wire vertex {vertexIndex} on {SelectedWire.NetName}.";
+        return true;
+    }
+
     public SchematicWire RenameSelectedWireNet(string netName)
     {
         if (SelectedWire is null)
@@ -1411,6 +1491,11 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         {
             StatusText = "Select a wire before deleting it.";
             return false;
+        }
+
+        if (SelectedWireVertexIndex is not null)
+        {
+            return DeleteSelectedWireVertex();
         }
 
         if (SelectedWireSegmentIndex is not null && SelectedWire.RoutePoints.Count > 2)
@@ -1826,6 +1911,63 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         while (removedPoint);
 
         return compacted;
+    }
+
+    private static bool TryBuildRouteWithoutVertex(
+        IReadOnlyList<CadPoint> routePoints,
+        int vertexIndex,
+        out List<CadPoint>? updatedRoute)
+    {
+        updatedRoute = null;
+        if (vertexIndex <= 0 || vertexIndex >= routePoints.Count - 1)
+        {
+            return false;
+        }
+
+        CadPoint previous = routePoints[vertexIndex - 1];
+        CadPoint current = routePoints[vertexIndex];
+        CadPoint next = routePoints[vertexIndex + 1];
+        CadPoint adjustedNext = next;
+        if (previous.X != next.X && previous.Y != next.Y)
+        {
+            if (vertexIndex + 1 == routePoints.Count - 1)
+            {
+                return false;
+            }
+
+            if (previous.X == current.X && current.Y == next.Y)
+            {
+                adjustedNext = new CadPoint(next.X, previous.Y);
+            }
+            else if (previous.Y == current.Y && current.X == next.X)
+            {
+                adjustedNext = new CadPoint(previous.X, next.Y);
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        updatedRoute = [];
+        for (int index = 0; index < routePoints.Count; index++)
+        {
+            if (index == vertexIndex)
+            {
+                continue;
+            }
+
+            CadPoint point = index == vertexIndex + 1 ? adjustedNext : routePoints[index];
+            if (updatedRoute.Count == 0 || updatedRoute[^1] != point)
+            {
+                updatedRoute.Add(point);
+            }
+        }
+
+        return updatedRoute.Count >= 2 &&
+            updatedRoute[0] == routePoints[0] &&
+            updatedRoute[^1] == routePoints[^1] &&
+            updatedRoute.Zip(updatedRoute.Skip(1)).All(pair => pair.First.X == pair.Second.X || pair.First.Y == pair.Second.Y);
     }
 
     private static bool IsEndpointVertexIndex(IReadOnlyList<CadPoint> routePoints, int vertexIndex) =>

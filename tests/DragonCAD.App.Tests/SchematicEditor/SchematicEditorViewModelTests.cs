@@ -1140,6 +1140,19 @@ public sealed class SchematicEditorViewModelTests
     }
 
     [Fact]
+    public void SelectWireVertexAtUpdatesSelectionSummaryWithoutSegmentSelection()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+        editor.SelectWireAt(new CadPoint(2_000_000, 1_000_000));
+
+        editor.SelectWireVertexAt(new CadPoint(2_000_000, 2_000_000));
+
+        Assert.Equal("Wire N$1 vertex 2", editor.SelectionSummary);
+        Assert.Equal(2, editor.SelectedWireVertexIndex);
+        Assert.Null(editor.SelectedWireSegmentIndex);
+    }
+
+    [Fact]
     public void MoveSelectedWireVertexToSnapsInteriorVertexAndPreservesOrthogonalRoute()
     {
         SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
@@ -1212,6 +1225,56 @@ public sealed class SchematicEditorViewModelTests
         Assert.Equal(original.End, reconnected.End);
         Assert.All(AdjacentSegments(reconnected), segment => Assert.True(IsOrthogonal(segment.Start, segment.End)));
         Assert.Equal("Reconnected wire endpoint to U3.ALT.", editor.StatusText);
+    }
+
+    [Fact]
+    public void DeleteSelectedWireVertexRemovesInteriorVertexWhenRouteRemainsValid()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+        editor.SelectWireVertexAt(new CadPoint(2_000_000, 2_000_000));
+
+        Assert.True(editor.DeleteSelectedWireVertex());
+
+        SchematicWire updated = Assert.Single(editor.Wires);
+        Assert.Equal(
+            [
+                new CadPoint(1_000_000, 0),
+                new CadPoint(2_000_000, 0),
+                new CadPoint(4_000_000, 0)
+            ],
+            updated.RoutePoints);
+        Assert.Equal(updated, editor.SelectedWire);
+        Assert.Null(editor.SelectedWireVertexIndex);
+        Assert.All(AdjacentSegments(updated), segment => Assert.True(IsOrthogonal(segment.Start, segment.End)));
+        Assert.Equal("Deleted wire vertex 2 on N$1.", editor.StatusText);
+    }
+
+    [Fact]
+    public void DeleteSelectedWireVertexRejectsEndpointWithoutChangingWire()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+        SchematicWire original = Assert.Single(editor.Wires);
+        editor.SelectWireVertexAt(new CadPoint(1_000_000, 0));
+
+        Assert.False(editor.DeleteSelectedWireVertex());
+
+        SchematicWire unchanged = Assert.Single(editor.Wires);
+        Assert.Equal(original, unchanged);
+        Assert.Equal(0, editor.SelectedWireVertexIndex);
+        Assert.Equal("Wire endpoint vertices cannot be deleted; reconnect or delete the wire instead.", editor.StatusText);
+    }
+
+    [Fact]
+    public void DeleteSelectedWireObjectUsesVertexSelectionBeforeSegmentOrWireSelection()
+    {
+        SchematicEditorViewModel editor = CreateEditorWithRoutedWire();
+        editor.SelectWireVertexAt(new CadPoint(2_000_000, 2_000_000));
+
+        Assert.True(editor.DeleteSelectedWireObject());
+
+        Assert.Single(editor.Wires);
+        Assert.Null(editor.SelectedWireVertexIndex);
+        Assert.Equal("Deleted wire vertex 2 on N$1.", editor.StatusText);
     }
 
     [Fact]
