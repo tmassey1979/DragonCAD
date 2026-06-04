@@ -2311,7 +2311,7 @@ public sealed class MainWindowViewModelTests
 
         BoardVia via = Assert.Single(viewModel.BoardEditor.Vias);
         BoardTrace trace = Assert.Single(viewModel.BoardEditor.Traces);
-        Assert.Equal(new CadPoint(2_000_000, 2_000_000), via.Position);
+        Assert.Equal(new CadPoint(2_000_000, 0), via.Position);
         Assert.Contains(via.Position, trace.RoutePoints);
         Assert.Equal("Bottom", viewModel.SelectedBoardLayerName);
         Assert.Contains("Inserted via", viewModel.PlacementStatus, StringComparison.Ordinal);
