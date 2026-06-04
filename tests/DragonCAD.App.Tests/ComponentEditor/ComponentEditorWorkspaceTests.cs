@@ -463,6 +463,194 @@ public sealed class ComponentEditorWorkspaceTests
     }
 
     [Fact]
+    public void FootprintToolActivationExposesExplicitAuthoringTools()
+    {
+        ComponentEditorViewModel editor = ComponentEditorWorkspace.StartNew("dragon:footprint-tools").ViewModel;
+
+        Assert.Equal(ComponentEditorFootprintTool.Select, editor.ActiveFootprintTool);
+        Assert.Equal(
+            [
+                ComponentEditorFootprintTool.Select,
+                ComponentEditorFootprintTool.ThroughHolePad,
+                ComponentEditorFootprintTool.SmdPad,
+                ComponentEditorFootprintTool.Outline,
+                ComponentEditorFootprintTool.Hole,
+                ComponentEditorFootprintTool.SilkscreenText,
+                ComponentEditorFootprintTool.Keepout
+            ],
+            editor.AvailableFootprintTools);
+
+        editor.ActivateFootprintTool(ComponentEditorFootprintTool.ThroughHolePad);
+
+        Assert.Equal(ComponentEditorFootprintTool.ThroughHolePad, editor.ActiveFootprintTool);
+    }
+
+    [Fact]
+    public void ThroughHolePadToolPreviewsAndCommitsPadWithDrillShapeAndLayerIntent()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:through-hole-pad-tool");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.AddFootprint("DIP-8", []);
+        editor.ActivateFootprintTool(ComponentEditorFootprintTool.ThroughHolePad);
+
+        ComponentEditorFootprintPlacementPreview preview = editor.PreviewFootprintPlacement(new CadPoint(151_000, 249_999));
+        ComponentEditorCommandResult result = editor.PlaceThroughHolePad(
+            "DIP-8",
+            " 1 ",
+            new CadPoint(151_000, 249_999),
+            diameter: 1_300_000,
+            drillSize: 700_000,
+            ComponentPadShape.Oval,
+            ComponentEditorFootprintLayerIntent.AllCopper);
+
+        Assert.Equal(ComponentEditorFootprintTool.ThroughHolePad, preview.Tool);
+        Assert.Equal(new CadPoint(200_000, 200_000), preview.Center);
+        Assert.Empty(result.Diagnostics);
+        ComponentFootprintPad pad = Assert.Single(Assert.Single(editor.Footprints).Pads);
+        Assert.Equal("1", pad.Name);
+        Assert.Equal(new CadPoint(200_000, 200_000), pad.Position);
+        Assert.Equal(new CadVector(1_300_000, 1_300_000), pad.Size);
+        Assert.Equal(700_000, pad.DrillSize);
+        Assert.Equal(ComponentPadShape.Oval, pad.Shape);
+        Assert.Equal(ComponentPadTechnology.ThroughHole, pad.Technology);
+        ComponentEditorFootprintPadPrimitive primitive = Assert.IsType<ComponentEditorFootprintPadPrimitive>(Assert.Single(editor.FootprintPrimitives));
+        Assert.Equal(ComponentEditorFootprintLayerIntent.AllCopper, primitive.LayerIntent);
+    }
+
+    [Fact]
+    public void SmdPadToolPreviewsAndCommitsPadWithSizeRotationAndLayerIntent()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:smd-pad-tool");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.AddFootprint("QFN-16", []);
+        editor.ActivateFootprintTool(ComponentEditorFootprintTool.SmdPad);
+
+        ComponentEditorFootprintPlacementPreview preview = editor.PreviewFootprintPlacement(new CadPoint(51_000, 49_999));
+        ComponentEditorCommandResult result = editor.PlaceSmdPad(
+            "QFN-16",
+            "EP",
+            new CadPoint(51_000, 49_999),
+            new CadVector(1_000_000, 800_000),
+            rotationDegrees: 90,
+            ComponentEditorFootprintLayerIntent.TopCopper);
+
+        Assert.Equal(ComponentEditorFootprintTool.SmdPad, preview.Tool);
+        Assert.Equal(new CadPoint(100_000, 0), preview.Center);
+        Assert.Empty(result.Diagnostics);
+        ComponentFootprintPad pad = Assert.Single(Assert.Single(editor.Footprints).Pads);
+        Assert.Equal(new CadVector(1_000_000, 800_000), pad.Size);
+        Assert.Equal(ComponentPadTechnology.SurfaceMount, pad.Technology);
+        Assert.Equal(ComponentPadShape.Rectangle, pad.Shape);
+        ComponentEditorFootprintPadPrimitive primitive = Assert.IsType<ComponentEditorFootprintPadPrimitive>(Assert.Single(editor.FootprintPrimitives));
+        Assert.Equal(90, primitive.RotationDegrees);
+        Assert.Equal(ComponentEditorFootprintLayerIntent.TopCopper, primitive.LayerIntent);
+    }
+
+    [Fact]
+    public void OutlineToolPreviewsAndCommitsGridSnappedFootprintLine()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:outline-tool");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.AddFootprint("SOIC-8", []);
+        editor.ActivateFootprintTool(ComponentEditorFootprintTool.Outline);
+
+        ComponentEditorFootprintPlacementPreview preview = editor.PreviewFootprintPlacement(new CadPoint(51_000, 149_999), new CadPoint(251_000, 249_999));
+        ComponentEditorCommandResult result = editor.PlaceFootprintOutline("SOIC-8", new CadPoint(51_000, 149_999), new CadPoint(251_000, 249_999));
+
+        Assert.Equal(ComponentEditorFootprintTool.Outline, preview.Tool);
+        Assert.Equal(new CadPoint(100_000, 100_000), preview.Start);
+        Assert.Equal(new CadPoint(300_000, 200_000), preview.End);
+        Assert.Empty(result.Diagnostics);
+        ComponentLine line = Assert.Single(Assert.Single(editor.Footprints).Courtyard);
+        Assert.Equal(new CadPoint(100_000, 100_000), line.Start);
+        Assert.Equal(new CadPoint(300_000, 200_000), line.End);
+        Assert.IsType<ComponentEditorFootprintLinePrimitive>(Assert.Single(editor.FootprintPrimitives));
+    }
+
+    [Fact]
+    public void HoleToolPreviewsAndCommitsGridSnappedMechanicalHole()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:hole-tool");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.AddFootprint("Mounting", []);
+        editor.ActivateFootprintTool(ComponentEditorFootprintTool.Hole);
+
+        ComponentEditorFootprintPlacementPreview preview = editor.PreviewFootprintPlacement(new CadPoint(-51_000, 49_999));
+        ComponentEditorCommandResult result = editor.PlaceFootprintHole("Mounting", new CadPoint(-51_000, 49_999), diameter: 3_000_000);
+
+        Assert.Equal(ComponentEditorFootprintTool.Hole, preview.Tool);
+        Assert.Equal(new CadPoint(-100_000, 0), preview.Center);
+        Assert.Empty(result.Diagnostics);
+        ComponentEditorFootprintHolePrimitive primitive = Assert.IsType<ComponentEditorFootprintHolePrimitive>(Assert.Single(editor.FootprintPrimitives));
+        Assert.Equal("Mounting", primitive.FootprintName);
+        Assert.Equal(new CadPoint(-100_000, 0), primitive.Center);
+        Assert.Equal(3_000_000, primitive.Diameter);
+    }
+
+    [Fact]
+    public void SilkscreenTextToolPreviewsAndCommitsGridSnappedText()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:silkscreen-text-tool");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.AddFootprint("SOIC-8", []);
+        editor.ActivateFootprintTool(ComponentEditorFootprintTool.SilkscreenText);
+
+        ComponentEditorFootprintPlacementPreview preview = editor.PreviewFootprintPlacement(new CadPoint(251_000, 151_000));
+        ComponentEditorCommandResult result = editor.PlaceFootprintSilkscreenText("SOIC-8", " REF** ", new CadPoint(251_000, 151_000));
+
+        Assert.Equal(ComponentEditorFootprintTool.SilkscreenText, preview.Tool);
+        Assert.Equal(new CadPoint(300_000, 200_000), preview.Position);
+        Assert.Empty(result.Diagnostics);
+        ComponentEditorFootprintTextPrimitive primitive = Assert.IsType<ComponentEditorFootprintTextPrimitive>(Assert.Single(editor.FootprintPrimitives));
+        Assert.Equal("REF**", primitive.Value);
+        Assert.Equal(new CadPoint(300_000, 200_000), primitive.Position);
+        Assert.Equal(ComponentEditorFootprintLayerIntent.TopSilkscreen, primitive.LayerIntent);
+    }
+
+    [Fact]
+    public void KeepoutToolPreviewsAndCommitsGridSnappedKeepout()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:keepout-tool");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.AddFootprint("RF", []);
+        editor.ActivateFootprintTool(ComponentEditorFootprintTool.Keepout);
+
+        ComponentEditorFootprintPlacementPreview preview = editor.PreviewFootprintPlacement(new CadPoint(49_999, -51_000), new CadPoint(349_999, -251_000));
+        ComponentEditorCommandResult result = editor.PlaceFootprintKeepout(
+            "RF",
+            new CadPoint(49_999, -51_000),
+            new CadPoint(349_999, -251_000),
+            ComponentEditorFootprintLayerIntent.AllCopper);
+
+        Assert.Equal(ComponentEditorFootprintTool.Keepout, preview.Tool);
+        Assert.Equal(new CadPoint(0, -100_000), preview.Start);
+        Assert.Equal(new CadPoint(300_000, -300_000), preview.End);
+        Assert.Empty(result.Diagnostics);
+        ComponentEditorFootprintKeepoutPrimitive primitive = Assert.IsType<ComponentEditorFootprintKeepoutPrimitive>(Assert.Single(editor.FootprintPrimitives));
+        Assert.Equal(new CadPoint(0, -100_000), primitive.Start);
+        Assert.Equal(new CadPoint(300_000, -300_000), primitive.End);
+        Assert.Equal(ComponentEditorFootprintLayerIntent.AllCopper, primitive.LayerIntent);
+    }
+
+    [Fact]
+    public void RemoveLastFootprintAuthoringItemRemovesLastCommittedPrimitive()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:remove-last-footprint-item");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.AddFootprint("SOIC-8", []);
+        editor.PlaceFootprintOutline("SOIC-8", new CadPoint(0, 0), new CadPoint(100_000, 0));
+        editor.PlaceFootprintKeepout("SOIC-8", new CadPoint(0, 100_000), new CadPoint(100_000, 100_000), ComponentEditorFootprintLayerIntent.TopCopper);
+
+        ComponentEditorCommandResult result = editor.RemoveLastFootprintAuthoringItem();
+
+        Assert.Empty(result.Diagnostics);
+        ComponentEditorFootprintLinePrimitive primitive = Assert.IsType<ComponentEditorFootprintLinePrimitive>(Assert.Single(editor.FootprintPrimitives));
+        Assert.Equal(new CadPoint(0, 0), primitive.Start);
+        Assert.Equal(new CadPoint(100_000, 0), primitive.End);
+        Assert.Single(Assert.Single(editor.Footprints).Courtyard);
+    }
+
+    [Fact]
     public void RenamePadCommandPreservesExistingMapping()
     {
         ComponentDefinition original = ValidComponent("dragon:rename-pad", "Rename Pad");

@@ -207,15 +207,27 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
         ComponentEditorSymbolTool.Arc,
         ComponentEditorSymbolTool.Text
     ];
+    private static readonly IReadOnlyList<ComponentEditorFootprintTool> FootprintTools =
+    [
+        ComponentEditorFootprintTool.Select,
+        ComponentEditorFootprintTool.ThroughHolePad,
+        ComponentEditorFootprintTool.SmdPad,
+        ComponentEditorFootprintTool.Outline,
+        ComponentEditorFootprintTool.Hole,
+        ComponentEditorFootprintTool.SilkscreenText,
+        ComponentEditorFootprintTool.Keepout
+    ];
 
     private readonly string componentId;
     private readonly List<ComponentEditorSymbolAuthoringItem> symbolAuthoringHistory = [];
+    private readonly List<ComponentEditorFootprintPrimitive> footprintPrimitives = [];
     private string displayName;
     private string manufacturer;
     private string manufacturerPartNumber;
     private string description;
     private ComponentKind kind;
     private ComponentEditorSymbolTool activeSymbolTool = ComponentEditorSymbolTool.Select;
+    private ComponentEditorFootprintTool activeFootprintTool = ComponentEditorFootprintTool.Select;
     private IReadOnlyList<ComponentPin> pins;
     private IReadOnlyList<ComponentGate> gates;
     private IReadOnlyList<ComponentSymbol> symbols;
@@ -324,6 +336,16 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
     }
 
     public IReadOnlyList<ComponentEditorSymbolTool> AvailableSymbolTools => SymbolTools;
+
+    public ComponentEditorFootprintTool ActiveFootprintTool
+    {
+        get => activeFootprintTool;
+        private set => SetField(ref activeFootprintTool, value);
+    }
+
+    public IReadOnlyList<ComponentEditorFootprintTool> AvailableFootprintTools => FootprintTools;
+
+    public IReadOnlyList<ComponentEditorFootprintPrimitive> FootprintPrimitives => footprintPrimitives;
 
     public IReadOnlyList<ComponentFootprint> Footprints => footprints;
 
@@ -484,6 +506,8 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
 
     public void ActivateSymbolTool(ComponentEditorSymbolTool tool) => ActiveSymbolTool = tool;
 
+    public void ActivateFootprintTool(ComponentEditorFootprintTool tool) => ActiveFootprintTool = tool;
+
     public ComponentEditorSymbolPlacementPreview PreviewSymbolPlacement(CadPoint point) =>
         ComponentEditorSymbolPlacementPreview.FromPoint(ActiveSymbolTool, DefaultCommandGrid.Snap(point));
 
@@ -492,6 +516,16 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
         CadPoint snappedStart = DefaultCommandGrid.Snap(start);
         CadPoint snappedEnd = DefaultCommandGrid.Snap(end);
         return ComponentEditorSymbolPlacementPreview.FromSpan(ActiveSymbolTool, snappedStart, snappedEnd);
+    }
+
+    public ComponentEditorFootprintPlacementPreview PreviewFootprintPlacement(CadPoint point) =>
+        ComponentEditorFootprintPlacementPreview.FromPoint(ActiveFootprintTool, DefaultCommandGrid.Snap(point));
+
+    public ComponentEditorFootprintPlacementPreview PreviewFootprintPlacement(CadPoint start, CadPoint end)
+    {
+        CadPoint snappedStart = DefaultCommandGrid.Snap(start);
+        CadPoint snappedEnd = DefaultCommandGrid.Snap(end);
+        return ComponentEditorFootprintPlacementPreview.FromSpan(ActiveFootprintTool, snappedStart, snappedEnd);
     }
 
     public void AddBasicPinPackageAndMapping(string pinNumber, string pinName, string packageName)
@@ -808,6 +842,12 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
         return ComponentEditorCommandResult.Success();
     }
 
+    private void AddFootprintPrimitive(ComponentEditorFootprintPrimitive primitive)
+    {
+        footprintPrimitives.Add(primitive);
+        OnPropertyChanged(nameof(FootprintPrimitives));
+    }
+
     public void AddFootprint(string name, IReadOnlyList<ComponentEditorPadDraft> pads)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -841,6 +881,204 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
 
     public ComponentEditorCommandResult AddSmdPad(string footprintNameOrId, string name, CadPoint position, CadVector size) =>
         AddPad(footprintNameOrId, name, position, size, ComponentPadTechnology.SurfaceMount, ComponentPadShape.Rectangle, drillSize: null, DefaultCommandGrid);
+
+    public ComponentEditorCommandResult PlaceThroughHolePad(
+        string footprintNameOrId,
+        string name,
+        CadPoint center,
+        long diameter,
+        long drillSize,
+        ComponentPadShape shape,
+        ComponentEditorFootprintLayerIntent layerIntent)
+    {
+        ComponentEditorCommandResult result = AddPad(
+            footprintNameOrId,
+            name,
+            center,
+            new CadVector(diameter, diameter),
+            ComponentPadTechnology.ThroughHole,
+            shape,
+            drillSize,
+            DefaultCommandGrid);
+        if (!result.Succeeded)
+        {
+            return result;
+        }
+
+        ComponentFootprint footprint = FindFootprint(footprintNameOrId)!;
+        ComponentFootprintPad pad = footprint.Pads.First(pad => string.Equals(pad.Name, name.Trim(), StringComparison.Ordinal));
+        AddFootprintPrimitive(new ComponentEditorFootprintPadPrimitive(
+            footprint.Id,
+            footprint.Name,
+            pad.Id,
+            pad.Name,
+            pad.Position,
+            pad.Size,
+            RotationDegrees: 0,
+            pad.Technology,
+            pad.Shape,
+            pad.DrillSize,
+            layerIntent));
+        return ComponentEditorCommandResult.Success();
+    }
+
+    public ComponentEditorCommandResult PlaceSmdPad(
+        string footprintNameOrId,
+        string name,
+        CadPoint center,
+        CadVector size,
+        int rotationDegrees,
+        ComponentEditorFootprintLayerIntent layerIntent)
+    {
+        ComponentEditorCommandResult result = AddPad(
+            footprintNameOrId,
+            name,
+            center,
+            size,
+            ComponentPadTechnology.SurfaceMount,
+            ComponentPadShape.Rectangle,
+            drillSize: null,
+            DefaultCommandGrid);
+        if (!result.Succeeded)
+        {
+            return result;
+        }
+
+        ComponentFootprint footprint = FindFootprint(footprintNameOrId)!;
+        ComponentFootprintPad pad = footprint.Pads.First(pad => string.Equals(pad.Name, name.Trim(), StringComparison.Ordinal));
+        AddFootprintPrimitive(new ComponentEditorFootprintPadPrimitive(
+            footprint.Id,
+            footprint.Name,
+            pad.Id,
+            pad.Name,
+            pad.Position,
+            pad.Size,
+            rotationDegrees,
+            pad.Technology,
+            pad.Shape,
+            pad.DrillSize,
+            layerIntent));
+        return ComponentEditorCommandResult.Success();
+    }
+
+    public ComponentEditorCommandResult PlaceFootprintOutline(string footprintNameOrId, CadPoint start, CadPoint end)
+    {
+        ComponentFootprint? footprint = FindFootprint(footprintNameOrId);
+        if (footprint is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, $"Footprint '{footprintNameOrId}' was not found.");
+        }
+
+        ComponentEditorFootprintPlacementPreview preview = PreviewFootprintPlacement(start, end);
+        ComponentLine line = new(preview.Start, preview.End);
+        footprints = footprints
+            .Select(existing => existing.Id == footprint.Id
+                ? existing with { Courtyard = existing.Courtyard.Append(line).ToArray() }
+                : existing)
+            .ToArray();
+        AddFootprintPrimitive(new ComponentEditorFootprintLinePrimitive(
+            footprint.Id,
+            footprint.Name,
+            preview.Start,
+            preview.End,
+            ComponentEditorFootprintLayerIntent.Mechanical));
+        OnPropertyChanged(nameof(Footprints));
+        OnPropertyChanged(nameof(FootprintSummaries));
+        return ComponentEditorCommandResult.Success();
+    }
+
+    public ComponentEditorCommandResult PlaceFootprintHole(string footprintNameOrId, CadPoint center, long diameter)
+    {
+        ComponentFootprint? footprint = FindFootprint(footprintNameOrId);
+        if (footprint is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, $"Footprint '{footprintNameOrId}' was not found.");
+        }
+
+        CadPoint snappedCenter = DefaultCommandGrid.Snap(center);
+        AddFootprintPrimitive(new ComponentEditorFootprintHolePrimitive(footprint.Id, footprint.Name, snappedCenter, diameter));
+        return ComponentEditorCommandResult.Success();
+    }
+
+    public ComponentEditorCommandResult PlaceFootprintSilkscreenText(string footprintNameOrId, string value, CadPoint position)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.InvalidInput, "Text value is required.");
+        }
+
+        ComponentFootprint? footprint = FindFootprint(footprintNameOrId);
+        if (footprint is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, $"Footprint '{footprintNameOrId}' was not found.");
+        }
+
+        AddFootprintPrimitive(new ComponentEditorFootprintTextPrimitive(
+            footprint.Id,
+            footprint.Name,
+            value.Trim(),
+            DefaultCommandGrid.Snap(position),
+            ComponentEditorFootprintLayerIntent.TopSilkscreen));
+        return ComponentEditorCommandResult.Success();
+    }
+
+    public ComponentEditorCommandResult PlaceFootprintKeepout(
+        string footprintNameOrId,
+        CadPoint start,
+        CadPoint end,
+        ComponentEditorFootprintLayerIntent layerIntent)
+    {
+        ComponentFootprint? footprint = FindFootprint(footprintNameOrId);
+        if (footprint is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, $"Footprint '{footprintNameOrId}' was not found.");
+        }
+
+        ComponentEditorFootprintPlacementPreview preview = PreviewFootprintPlacement(start, end);
+        AddFootprintPrimitive(new ComponentEditorFootprintKeepoutPrimitive(
+            footprint.Id,
+            footprint.Name,
+            preview.Start,
+            preview.End,
+            layerIntent));
+        return ComponentEditorCommandResult.Success();
+    }
+
+    public ComponentEditorCommandResult RemoveLastFootprintAuthoringItem()
+    {
+        ComponentEditorFootprintPrimitive? primitive = footprintPrimitives.LastOrDefault();
+        if (primitive is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, "No footprint authoring item is available to remove.");
+        }
+
+        footprintPrimitives.RemoveAt(footprintPrimitives.Count - 1);
+        switch (primitive)
+        {
+            case ComponentEditorFootprintPadPrimitive padPrimitive:
+                footprints = footprints
+                    .Select(footprint => footprint.Id == padPrimitive.FootprintId
+                        ? footprint with { Pads = footprint.Pads.Where(pad => pad.Id != padPrimitive.PadId).ToArray() }
+                        : footprint)
+                    .ToArray();
+                pinPadMappings = pinPadMappings.Where(mapping => mapping.PadId != padPrimitive.PadId).ToArray();
+                OnPropertyChanged(nameof(PinPadMappings));
+                OnPropertyChanged(nameof(MappingSummaries));
+                break;
+            case ComponentEditorFootprintLinePrimitive linePrimitive:
+                footprints = footprints
+                    .Select(footprint => footprint.Id == linePrimitive.FootprintId
+                        ? footprint with { Courtyard = RemoveLastLine(footprint.Courtyard, linePrimitive.Start, linePrimitive.End) }
+                        : footprint)
+                    .ToArray();
+                break;
+        }
+
+        OnPropertyChanged(nameof(FootprintPrimitives));
+        OnPropertyChanged(nameof(Footprints));
+        OnPropertyChanged(nameof(FootprintSummaries));
+        return ComponentEditorCommandResult.Success();
+    }
 
     private ComponentEditorCommandResult AddPad(
         string footprintNameOrId,
@@ -1252,6 +1490,17 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             _ => start
         };
 
+    private static IReadOnlyList<ComponentLine> RemoveLastLine(IReadOnlyList<ComponentLine> lines, CadPoint start, CadPoint end)
+    {
+        int index = lines
+            .Select((line, lineIndex) => new { line, lineIndex })
+            .LastOrDefault(entry => entry.line.Start == start && entry.line.End == end)
+            ?.lineIndex ?? -1;
+        return index < 0
+            ? lines
+            : lines.Where((_, lineIndex) => lineIndex != index).ToArray();
+    }
+
     private static ComponentDraftPinElectricalType ToDraftPinElectricalType(ComponentPinElectricalType type) =>
         type switch
         {
@@ -1389,6 +1638,26 @@ public enum ComponentEditorSymbolTool
     Text
 }
 
+public enum ComponentEditorFootprintTool
+{
+    Select,
+    ThroughHolePad,
+    SmdPad,
+    Outline,
+    Hole,
+    SilkscreenText,
+    Keepout
+}
+
+public enum ComponentEditorFootprintLayerIntent
+{
+    AllCopper,
+    TopCopper,
+    BottomCopper,
+    Mechanical,
+    TopSilkscreen
+}
+
 public sealed record ComponentEditorSymbolPlacementPreview(
     ComponentEditorSymbolTool Tool,
     CadPoint Start,
@@ -1407,6 +1676,69 @@ public sealed record ComponentEditorSymbolPlacementPreview(
     private static long RadiusBetween(CadPoint center, CadPoint edge) =>
         Math.Max(Math.Abs(edge.X - center.X), Math.Abs(edge.Y - center.Y));
 }
+
+public sealed record ComponentEditorFootprintPlacementPreview(
+    ComponentEditorFootprintTool Tool,
+    CadPoint Start,
+    CadPoint End,
+    CadPoint Position,
+    CadPoint Center)
+{
+    public static ComponentEditorFootprintPlacementPreview FromPoint(ComponentEditorFootprintTool tool, CadPoint point) =>
+        new(tool, point, point, point, point);
+
+    public static ComponentEditorFootprintPlacementPreview FromSpan(ComponentEditorFootprintTool tool, CadPoint start, CadPoint end) =>
+        new(tool, start, end, start, start);
+}
+
+public abstract record ComponentEditorFootprintPrimitive(
+    ComponentFootprintId FootprintId,
+    string FootprintName);
+
+public sealed record ComponentEditorFootprintPadPrimitive(
+    ComponentFootprintId FootprintId,
+    string FootprintName,
+    ComponentPadId PadId,
+    string PadName,
+    CadPoint Center,
+    CadVector Size,
+    int RotationDegrees,
+    ComponentPadTechnology Technology,
+    ComponentPadShape Shape,
+    long? DrillSize,
+    ComponentEditorFootprintLayerIntent LayerIntent)
+    : ComponentEditorFootprintPrimitive(FootprintId, FootprintName);
+
+public sealed record ComponentEditorFootprintLinePrimitive(
+    ComponentFootprintId FootprintId,
+    string FootprintName,
+    CadPoint Start,
+    CadPoint End,
+    ComponentEditorFootprintLayerIntent LayerIntent)
+    : ComponentEditorFootprintPrimitive(FootprintId, FootprintName);
+
+public sealed record ComponentEditorFootprintHolePrimitive(
+    ComponentFootprintId FootprintId,
+    string FootprintName,
+    CadPoint Center,
+    long Diameter)
+    : ComponentEditorFootprintPrimitive(FootprintId, FootprintName);
+
+public sealed record ComponentEditorFootprintTextPrimitive(
+    ComponentFootprintId FootprintId,
+    string FootprintName,
+    string Value,
+    CadPoint Position,
+    ComponentEditorFootprintLayerIntent LayerIntent)
+    : ComponentEditorFootprintPrimitive(FootprintId, FootprintName);
+
+public sealed record ComponentEditorFootprintKeepoutPrimitive(
+    ComponentFootprintId FootprintId,
+    string FootprintName,
+    CadPoint Start,
+    CadPoint End,
+    ComponentEditorFootprintLayerIntent LayerIntent)
+    : ComponentEditorFootprintPrimitive(FootprintId, FootprintName);
 
 internal sealed record ComponentEditorSymbolAuthoringItem(
     ComponentPinId? PinId,
