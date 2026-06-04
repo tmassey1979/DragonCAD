@@ -3828,9 +3828,32 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, ISchematicPlac
                 continue;
             }
 
-            BoardEditor.SelectComponentAt(boardComponent.Position);
+            SelectBoardComponentForSamplePlacement(boardComponent);
             BoardEditor.MoveSelectedComponentTo(position);
         }
+    }
+
+    private void SelectBoardComponentForSamplePlacement(BoardComponentInstance boardComponent)
+    {
+        if (boardComponent.FootprintPrimitives.Count == 0)
+        {
+            BoardEditor.SelectComponentAt(boardComponent.Position);
+            return;
+        }
+
+        CadPoint localPoint = boardComponent.FootprintPrimitives[0] switch
+        {
+            BoardFootprintPadPrimitive pad => pad.Position,
+            BoardFootprintSmdPrimitive smd => smd.Position,
+            BoardFootprintHolePrimitive hole => hole.Position,
+            BoardFootprintLinePrimitive line => line.Start,
+            BoardFootprintArcPrimitive arc => new CadPoint(arc.Center.X + arc.Radius, arc.Center.Y),
+            BoardFootprintTextPrimitive text => text.Position,
+            BoardFootprintKeepoutPrimitive keepout => new CadPoint(keepout.Bounds.Left, keepout.Bounds.Top),
+            _ => new CadPoint(0, 0)
+        };
+
+        BoardEditor.SelectComponentAt(BoardFootprintGeometry.TransformLocalPoint(boardComponent, localPoint));
     }
 
     private void RouteArduinoUnoBoardSample()

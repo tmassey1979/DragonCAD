@@ -2035,7 +2035,7 @@ public sealed class MainWindowViewModelTests
             row => row.DisplayName.Contains("RESISTOR", StringComparison.Ordinal));
         viewModel.PlaceSelectedComponentCommand.Execute(null);
         viewModel.HandleSchematicCanvasClick(new CadPoint(0, 0));
-        viewModel.BoardEditor.SelectComponentAt(new CadPoint(0, 0));
+        SelectFirstBoardPrimitive(viewModel);
 
         viewModel.MoveSelectedBoardComponentByGrid(new CadVector(1, -1));
 
@@ -2055,7 +2055,7 @@ public sealed class MainWindowViewModelTests
         viewModel.PlaceSelectedComponentCommand.Execute(null);
         viewModel.HandleSchematicCanvasClick(new CadPoint(0, 0));
 
-        viewModel.BoardEditor.SelectComponentAt(new CadPoint(0, 0));
+        SelectFirstBoardPrimitive(viewModel);
 
         Assert.Equal("U1", viewModel.SelectedBoardPartReferenceDesignator);
         Assert.Equal(viewModel.BoardEditor.SelectedComponent?.DisplayName, viewModel.SelectedBoardPartName);
@@ -2282,7 +2282,7 @@ public sealed class MainWindowViewModelTests
         viewModel.PlaceSelectedComponentCommand.Execute(null);
         viewModel.HandleSchematicCanvasClick(new CadPoint(0, 0));
         viewModel.ShowPcbLayoutTabCommand.Execute(null);
-        viewModel.BoardEditor.SelectComponentAt(new CadPoint(0, 0));
+        SelectFirstBoardPrimitive(viewModel);
 
         viewModel.RotateSelectedBoardComponentCommand.Execute(null);
         viewModel.MirrorSelectedBoardComponentCommand.Execute(null);
@@ -2505,6 +2505,25 @@ public sealed class MainWindowViewModelTests
 
     private static SchematicComponentInstance ComponentByName(MainWindowViewModel viewModel, string displayName) =>
         Assert.Single(viewModel.SchematicEditor.Components, component => component.DisplayName == displayName);
+
+    private static void SelectFirstBoardPrimitive(MainWindowViewModel viewModel)
+    {
+        BoardComponentInstance component = Assert.Single(viewModel.BoardEditor.Components);
+        BoardFootprintPrimitive primitive = Assert.Single(component.FootprintPrimitives.Take(1));
+        CadPoint localPoint = primitive switch
+        {
+            BoardFootprintPadPrimitive pad => pad.Position,
+            BoardFootprintSmdPrimitive smd => smd.Position,
+            BoardFootprintHolePrimitive hole => hole.Position,
+            BoardFootprintLinePrimitive line => line.Start,
+            BoardFootprintArcPrimitive arc => new CadPoint(arc.Center.X + arc.Radius, arc.Center.Y),
+            BoardFootprintTextPrimitive text => text.Position,
+            BoardFootprintKeepoutPrimitive keepout => new CadPoint(keepout.Bounds.Left, keepout.Bounds.Top),
+            _ => new CadPoint(0, 0)
+        };
+
+        Assert.NotNull(viewModel.BoardEditor.SelectComponentAt(BoardFootprintGeometry.TransformLocalPoint(component, localPoint)));
+    }
 
     private sealed class TempProjectDirectory : IDisposable
     {

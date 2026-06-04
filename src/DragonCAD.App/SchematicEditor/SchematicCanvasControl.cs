@@ -117,9 +117,7 @@ public sealed class SchematicCanvasControl : Control
             bool isHoveredWire = Editor.HoveredWire?.WireId == wire.WireId;
             Pen wirePen = isSelectedWire && Editor.SelectedWireSegmentIndex is null && Editor.SelectedWireVertexIndex is null
                 ? WireSelectionPen
-                : isHoveredWire && Editor.HoveredWireSegmentIndex is null
-                    ? HoverWirePen
-                    : WirePen;
+                : isHoveredWire ? HoverWirePen : WirePen;
             DrawCompletedWire(
                 context,
                 viewport,
