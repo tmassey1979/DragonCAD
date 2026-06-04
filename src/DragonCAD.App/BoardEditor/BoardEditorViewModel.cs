@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using Avalonia;
@@ -1087,23 +1088,25 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
     {
         if (SelectedTrace is null || SelectedTraceSegmentIndex is null)
         {
-            throw new InvalidOperationException("No board trace segment is selected.");
+            ThrowWithStatus("No board trace segment is selected.");
         }
 
         int traceIndex = Traces.IndexOf(SelectedTrace);
         if (traceIndex < 0)
         {
-            throw new InvalidOperationException("The selected board trace is no longer in the document.");
+            ThrowWithStatus("The selected board trace is no longer in the document.");
         }
 
         int segmentIndex = SelectedTraceSegmentIndex.Value;
         List<CadPoint> routePoints = [.. SelectedTrace.RoutePoints];
         if (segmentIndex <= 0 || segmentIndex >= routePoints.Count)
         {
-            throw new InvalidOperationException("The selected board trace segment is no longer valid.");
+            ThrowWithStatus("The selected board trace segment is no longer valid.");
         }
 
-        CadPoint snappedPoint = placementGrid.Snap(requestedPosition);
+        CadPoint start = routePoints[segmentIndex - 1];
+        CadPoint end = routePoints[segmentIndex];
+        CadPoint snappedPoint = SnapPointToSegmentGrid(requestedPosition, start, end);
         string fromLayer = SelectedTrace.LayerName;
         string toLayer = fromLayer == "Top" ? "Bottom" : "Top";
         BoardVia via = new(
@@ -1112,14 +1115,11 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
             fromLayer,
             toLayer);
 
-        CadPoint start = routePoints[segmentIndex - 1];
-        CadPoint end = routePoints[segmentIndex];
         List<CadPoint> insertedRoute = [.. routePoints.Take(segmentIndex)];
-        AddOrthogonalLeg(insertedRoute, snappedPoint);
-        AddOrthogonalLeg(insertedRoute, end);
-        insertedRoute.AddRange(routePoints.Skip(segmentIndex + 1));
+        insertedRoute.Add(snappedPoint);
+        insertedRoute.AddRange(routePoints.Skip(segmentIndex));
 
-        BoardTrace updatedTrace = SelectedTrace with { RoutePoints = CompactRoute(insertedRoute) };
+        BoardTrace updatedTrace = SelectedTrace with { RoutePoints = RemoveAdjacentDuplicateRoutePoints(insertedRoute) };
         Traces[traceIndex] = updatedTrace;
         Vias.Add(via);
         ActiveLayerName = toLayer;
@@ -1131,6 +1131,13 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(VisibleVias));
         StatusText = $"Inserted via into selected board trace and switched routing layer to {toLayer}.";
         return via;
+    }
+
+    [DoesNotReturn]
+    private void ThrowWithStatus(string message)
+    {
+        StatusText = message;
+        throw new InvalidOperationException(message);
     }
 
     public bool DeleteSelectedBoardObject()
@@ -1699,6 +1706,37 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         }
 
         return compacted;
+    }
+
+    private CadPoint SnapPointToSegmentGrid(CadPoint point, CadPoint start, CadPoint end)
+    {
+        if (start == end)
+        {
+            return placementGrid.Snap(start);
+        }
+
+        double dx = end.X - start.X;
+        double dy = end.Y - start.Y;
+        double t = (((point.X - start.X) * dx) + ((point.Y - start.Y) * dy)) / ((dx * dx) + (dy * dy));
+        t = Math.Clamp(t, 0, 1);
+        CadPoint projected = new(
+            (long)Math.Round(start.X + (t * dx)),
+            (long)Math.Round(start.Y + (t * dy)));
+        return placementGrid.Snap(projected);
+    }
+
+    private static IReadOnlyList<CadPoint> RemoveAdjacentDuplicateRoutePoints(IReadOnlyList<CadPoint> routePoints)
+    {
+        List<CadPoint> route = [];
+        foreach (CadPoint point in routePoints)
+        {
+            if (route.Count == 0 || route[^1] != point)
+            {
+                route.Add(point);
+            }
+        }
+
+        return route;
     }
 
     private static SegmentHit? NearestSegmentHit(CadPoint point, IReadOnlyList<CadPoint> routePoints)

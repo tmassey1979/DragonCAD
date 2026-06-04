@@ -940,7 +940,7 @@ public sealed class BoardEditorViewModelTests
 
         BoardVia via = board.InsertViaIntoSelectedTraceSegment(new CadPoint(2_200_000, 1_700_000));
 
-        Assert.Equal(new CadPoint(2_000_000, 2_000_000), via.Position);
+        Assert.Equal(new CadPoint(2_000_000, 0), via.Position);
         Assert.Equal("Top", via.FromLayerName);
         Assert.Equal("Bottom", via.ToLayerName);
         Assert.Equal("Bottom", board.ActiveLayerName);
@@ -952,14 +952,54 @@ public sealed class BoardEditorViewModelTests
             [
                 new CadPoint(0, 0),
                 new CadPoint(2_000_000, 0),
-                new CadPoint(2_000_000, 2_000_000),
-                new CadPoint(4_000_000, 2_000_000),
+                new CadPoint(4_000_000, 0),
                 new CadPoint(4_000_000, 4_000_000)
             ],
             trace.RoutePoints);
         Assert.Same(trace, board.SelectedTrace);
         Assert.Equal(2, board.SelectedTraceSegmentIndex);
         Assert.Equal("Inserted via into selected board trace and switched routing layer to Bottom.", board.StatusText);
+    }
+
+    [Fact]
+    public void InsertViaIntoSelectedTraceSegmentKeepsViaPointOnStraightSegment()
+    {
+        BoardEditorViewModel board = new();
+        board.ActivateRouteTool();
+        board.SetFreeRouteMode(true);
+        board.TraceClickAt(new CadPoint(0, 0));
+        board.CompleteTraceAt(new CadPoint(4_000_000, 0));
+        board.ActivateSelectTool();
+        Assert.True(board.SelectAt(new CadPoint(2_000_000, 0)));
+        string selectedTraceId = Assert.Single(board.Traces).TraceId;
+
+        BoardVia via = board.InsertViaIntoSelectedTraceSegment(new CadPoint(2_200_000, 100_000));
+
+        Assert.Equal(new CadPoint(2_000_000, 0), via.Position);
+        BoardTrace trace = Assert.Single(board.Traces);
+        Assert.Equal(selectedTraceId, trace.TraceId);
+        Assert.Equal(
+            [
+                new CadPoint(0, 0),
+                new CadPoint(2_000_000, 0),
+                new CadPoint(4_000_000, 0)
+            ],
+            trace.RoutePoints);
+        Assert.Same(trace, board.SelectedTrace);
+    }
+
+    [Fact]
+    public void InsertViaIntoSelectedTraceSegmentReportsDiagnosticWithoutSelection()
+    {
+        BoardEditorViewModel board = new();
+
+        InvalidOperationException error = Assert.Throws<InvalidOperationException>(
+            () => board.InsertViaIntoSelectedTraceSegment(new CadPoint(2_000_000, 0)));
+
+        Assert.Equal("No board trace segment is selected.", error.Message);
+        Assert.Equal("No board trace segment is selected.", board.StatusText);
+        Assert.Empty(board.Vias);
+        Assert.Empty(board.Traces);
     }
 
     [Fact]
