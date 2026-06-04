@@ -13,6 +13,7 @@ namespace DragonCAD.App.BoardEditor;
 public sealed class BoardEditorViewModel : INotifyPropertyChanged
 {
     private static readonly CadVector AutoPlacementStep = new(8_000_000, 0);
+    private const long PadRouteHitToleranceInternal = 100_000;
     private CadGrid placementGrid = new(new CadVector(CadUnit.InternalUnitsPerMillimeter, CadUnit.InternalUnitsPerMillimeter));
     private string statusText = "Board ready.";
     private BoardComponentInstance? selectedComponent;
@@ -1425,14 +1426,14 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
             {
                 BoardFootprintPrimitive primitive = component.FootprintPrimitives[padIndex];
                 if (primitive is BoardFootprintPadPrimitive throughHole &&
-                    BoardFootprintGeometry.PrimitiveHitTest(component, primitive, point))
+                    PadRouteHitTest(component, throughHole.Position, throughHole.Size, throughHole.Shape, point))
                 {
                     CadPoint padCenter = BoardFootprintGeometry.TransformLocalPoint(component, throughHole.Position);
                     return new BoardPadHit(component.SyncId, component.ReferenceDesignator, throughHole.Name, padCenter);
                 }
 
                 if (primitive is BoardFootprintSmdPrimitive smd &&
-                    BoardFootprintGeometry.PrimitiveHitTest(component, primitive, point))
+                    PadRouteHitTest(component, smd.Position, smd.Size, smd.Shape, point))
                 {
                     CadPoint padCenter = BoardFootprintGeometry.TransformLocalPoint(component, smd.Position);
                     return new BoardPadHit(component.SyncId, component.ReferenceDesignator, smd.Name, padCenter);
@@ -1441,6 +1442,31 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         }
 
         return null;
+    }
+
+    private static bool PadRouteHitTest(
+        BoardComponentInstance component,
+        CadPoint padPosition,
+        CadVector padSize,
+        string padShape,
+        CadPoint point)
+    {
+        CadPoint center = BoardFootprintGeometry.TransformLocalPoint(component, padPosition);
+        CadVector size = BoardFootprintGeometry.SizeForRotation(component, padSize);
+        if (padShape is "Round" or "Oval")
+        {
+            double rx = Math.Max(1, (size.X / 2d) + PadRouteHitToleranceInternal);
+            double ry = Math.Max(1, (size.Y / 2d) + PadRouteHitToleranceInternal);
+            double dx = point.X - center.X;
+            double dy = point.Y - center.Y;
+            return ((dx * dx) / (rx * rx)) + ((dy * dy) / (ry * ry)) <= 1;
+        }
+
+        return new CadRectangle(
+            center.X - (size.X / 2) - PadRouteHitToleranceInternal,
+            center.Y - (size.Y / 2) - PadRouteHitToleranceInternal,
+            center.X + (size.X / 2) + PadRouteHitToleranceInternal,
+            center.Y + (size.Y / 2) + PadRouteHitToleranceInternal).Contains(point);
     }
 
     private BoardAirwire? FindAirwireBetween(BoardPadHit startPad, BoardPadHit endPad)

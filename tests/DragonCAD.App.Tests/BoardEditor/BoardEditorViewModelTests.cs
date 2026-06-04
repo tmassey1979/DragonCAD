@@ -338,6 +338,19 @@ public sealed class BoardEditorViewModelTests
     }
 
     [Fact]
+    public void RouteClickAtNearPadWithinToleranceStartsTraceAtPadCenter()
+    {
+        BoardEditorViewModel board = BoardWithOneAirwireBetweenNamedPads();
+
+        board.ActivateRouteTool();
+        Assert.True(board.TraceClickAt(new CadPoint(-250_000, 0)));
+
+        Assert.Equal(new CadPoint(-500_000, 0), board.PendingTraceStart);
+        Assert.Equal([new CadPoint(-500_000, 0)], board.PendingTraceRoutePoints);
+        Assert.Equal("Started board trace at pad U1.OUT.", board.StatusText);
+    }
+
+    [Fact]
     public void CompleteTraceAtMatchingPadRoutesTraceAndRetiresAirwire()
     {
         BoardEditorViewModel board = BoardWithOneAirwireBetweenNamedPads();
