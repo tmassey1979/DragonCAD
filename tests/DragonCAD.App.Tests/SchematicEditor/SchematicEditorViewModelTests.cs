@@ -497,7 +497,10 @@ public sealed class SchematicEditorViewModelTests
         Assert.NotNull(pin);
         Assert.Equal("U2", pin.ReferenceDesignator);
         Assert.Equal("IN", pin.PinName);
+        Assert.Equal("IN", pin.PinNumber);
         Assert.Equal(new CadPoint(2_000_000, 0), pin.Position);
+        Assert.Equal(new CadPoint(2_000_000, 0), pin.ConnectionPoint);
+        Assert.False(pin.IsConnected);
         Assert.Equal(pin, editor.SelectedPinEndpoint);
         Assert.Null(editor.SelectedComponent);
         Assert.Null(editor.SelectedWire);
@@ -726,6 +729,64 @@ public sealed class SchematicEditorViewModelTests
         Assert.NotNull(editor.PendingWireStart);
         Assert.Equal("OUT", editor.PendingWireStart.PinName);
         Assert.Equal("Started wire at U1.OUT", editor.StatusText);
+    }
+
+    [Fact]
+    public void ActiveTracePreviewReportsConnectableHoveredEndpointAndSnapsToTruePin()
+    {
+        SchematicEditorViewModel editor = new();
+        editor.PlaceComponent(
+            IntentWithPin("hawkcad:first", "First", "OUT", new CadPoint(1_000_000, 0)),
+            new CadPoint(0, 0));
+        editor.PlaceComponent(
+            IntentWithPin("hawkcad:second", "Second", "IN", new CadPoint(-1_000_000, 0)),
+            new CadPoint(5_000_000, 0));
+        editor.TraceClickAt(new CadPoint(1_000_000, 0));
+
+        editor.UpdateTracePreviewAt(new CadPoint(4_900_000, 250_000));
+
+        Assert.NotNull(editor.HoveredPin);
+        Assert.Equal("U2", editor.HoveredPin.ReferenceDesignator);
+        Assert.Equal("IN", editor.HoveredPin.PinName);
+        Assert.Equal("IN", editor.HoveredPin.PinNumber);
+        Assert.Equal(new CadPoint(4_000_000, 0), editor.HoveredPin.ConnectionPoint);
+        Assert.False(editor.HoveredPin.IsConnected);
+        Assert.Equal(new CadPoint(4_000_000, 0), editor.PendingWirePreviewPoint);
+        Assert.Equal("Connect to pin U2.IN", editor.HoverTargetText);
+    }
+
+    [Fact]
+    public void CompletedPinToPinWirePreservesEndpointMetadataAndConnectedSelectionState()
+    {
+        SchematicEditorViewModel editor = new();
+        editor.PlaceComponent(
+            IntentWithPin("hawkcad:first", "First", "OUT", new CadPoint(1_000_000, 0)),
+            new CadPoint(0, 0));
+        editor.PlaceComponent(
+            IntentWithPin("hawkcad:second", "Second", "IN", new CadPoint(-1_000_000, 0)),
+            new CadPoint(5_000_000, 0));
+
+        Assert.True(editor.TraceClickAt(new CadPoint(2_100_000, 300_000)));
+        Assert.True(editor.TraceClickAt(new CadPoint(4_900_000, 250_000)));
+
+        SchematicWire wire = Assert.Single(editor.Wires);
+        Assert.Equal("U1", wire.Start.ReferenceDesignator);
+        Assert.Equal("OUT", wire.Start.PinName);
+        Assert.Equal("OUT", wire.Start.PinNumber);
+        Assert.Equal(new CadPoint(1_000_000, 0), wire.Start.ConnectionPoint);
+        Assert.Equal(new CadPoint(1_000_000, 0), wire.RoutePoints[0]);
+        Assert.Equal("U2", wire.End.ReferenceDesignator);
+        Assert.Equal("IN", wire.End.PinName);
+        Assert.Equal("IN", wire.End.PinNumber);
+        Assert.Equal(new CadPoint(4_000_000, 0), wire.End.ConnectionPoint);
+        Assert.Equal(new CadPoint(4_000_000, 0), wire.RoutePoints[^1]);
+
+        SchematicPinEndpoint? selected = editor.SelectPinEndpointAt(new CadPoint(4_900_000, 250_000));
+
+        Assert.NotNull(selected);
+        Assert.True(selected.IsConnected);
+        Assert.Equal(new CadPoint(4_000_000, 0), selected.ConnectionPoint);
+        Assert.Equal("Selected pin U2.IN connected to N$1", editor.StatusText);
     }
 
     [Fact]

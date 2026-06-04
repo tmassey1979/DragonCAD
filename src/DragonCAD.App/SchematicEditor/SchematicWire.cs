@@ -6,7 +6,14 @@ public sealed record SchematicPinEndpoint(
     string InstanceId,
     string ReferenceDesignator,
     string PinName,
-    CadPoint Position);
+    CadPoint Position,
+    string PinNumber = "",
+    bool IsConnected = false)
+{
+    public CadPoint ConnectionPoint => Position;
+
+    public string StablePinNumber => string.IsNullOrWhiteSpace(PinNumber) ? PinName : PinNumber;
+}
 
 public sealed record SchematicWire(
     string WireId,

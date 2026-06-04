@@ -511,7 +511,10 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         SelectedWireSegmentIndex = null;
         SelectedWireVertexIndex = null;
         SelectedNetLabel = null;
-        StatusText = $"Selected pin {SelectedPinEndpoint.ReferenceDesignator}.{SelectedPinEndpoint.PinName}";
+        string connectedText = SelectedPinEndpoint.IsConnected
+            ? $" connected to {NetNameForEndpoint(SelectedPinEndpoint)}"
+            : "";
+        StatusText = $"Selected pin {SelectedPinEndpoint.ReferenceDesignator}.{SelectedPinEndpoint.PinName}{connectedText}";
         return SelectedPinEndpoint;
     }
 
@@ -916,7 +919,9 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             HoveredWire = null;
             HoveredWireSegmentIndex = null;
             HoveredNetLabel = null;
-            HoverTargetText = $"Pin {HoveredPin.ReferenceDesignator}.{HoveredPin.PinName}";
+            HoverTargetText = PendingWireStart is not null && HoveredPin != PendingWireStart
+                ? $"Connect to pin {HoveredPin.ReferenceDesignator}.{HoveredPin.PinName}"
+                : $"Pin {HoveredPin.ReferenceDesignator}.{HoveredPin.PinName}";
         }
         else
         {
@@ -934,7 +939,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
     {
         if (UpdateHoveredPinAt(point) is { } hoveredEndpoint)
         {
-            return $"Pin {hoveredEndpoint.ReferenceDesignator}.{hoveredEndpoint.PinName}";
+            return HoverTargetText;
         }
 
         HoveredComponent = null;
@@ -1227,9 +1232,10 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         RepairAdjacentEndpointSegment(routePoints, endpointIndex);
         routePoints = CompactRoute(OrthogonalizeRoute(routePoints));
 
+        SchematicPinEndpoint connectedEndpoint = endpoint with { IsConnected = true };
         SchematicWire reconnected = isStartEndpoint
-            ? SelectedWire with { Start = endpoint, RoutePoints = routePoints }
-            : SelectedWire with { End = endpoint, RoutePoints = routePoints };
+            ? SelectedWire with { Start = connectedEndpoint, RoutePoints = routePoints }
+            : SelectedWire with { End = connectedEndpoint, RoutePoints = routePoints };
         Wires[wireIndex] = reconnected;
         SelectedWire = reconnected;
         SelectedWireVertexIndex = isStartEndpoint ? 0 : reconnected.RoutePoints.Count - 1;
@@ -1481,11 +1487,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
                     }
 
                     nearestDistance = distance;
-                    nearest = new SchematicPinEndpoint(
-                        instance.InstanceId,
-                        instance.ReferenceDesignator,
-                        pin.Name,
-                        pinPosition);
+                    nearest = CreatePinEndpoint(instance, pin, pinPosition, IsPinConnected(instance.InstanceId, pin.Name));
                 }
             }
         }
@@ -1495,7 +1497,9 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
     private void AddWire(SchematicPinEndpoint start, SchematicPinEndpoint end, IReadOnlyList<CadPoint> routePoints)
     {
-        Wires.Add(new SchematicWire(Guid.NewGuid().ToString("N"), start, end, routePoints));
+        SchematicPinEndpoint connectedStart = start with { IsConnected = true };
+        SchematicPinEndpoint connectedEnd = end with { IsConnected = true };
+        Wires.Add(new SchematicWire(Guid.NewGuid().ToString("N"), connectedStart, connectedEnd, routePoints));
         RebuildNets();
         SchematicWire completedWire = Wires[Wires.Count - 1];
         StatusText = $"Connected {start.ReferenceDesignator}.{start.PinName} to {end.ReferenceDesignator}.{end.PinName}. Net {completedWire.NetName}.";
@@ -1583,13 +1587,39 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             return false;
         }
 
-        endpoint = new SchematicPinEndpoint(
-            moved.InstanceId,
-            moved.ReferenceDesignator,
-            pin.Name,
-            TransformLocalPoint(moved, pin.ConnectPoint));
+        endpoint = CreatePinEndpoint(moved, pin, TransformLocalPoint(moved, pin.ConnectPoint), isConnected: true);
         return true;
     }
+
+    private static SchematicPinEndpoint CreatePinEndpoint(
+        SchematicComponentInstance instance,
+        ComponentSymbolPinPreview pin,
+        CadPoint connectionPoint,
+        bool isConnected) =>
+        new(
+            instance.InstanceId,
+            instance.ReferenceDesignator,
+            pin.Name,
+            connectionPoint,
+            PinNumberFor(pin),
+            isConnected);
+
+    private static string PinNumberFor(ComponentSymbolPinPreview pin) =>
+        pin.Name;
+
+    private bool IsPinConnected(string instanceId, string pinNumber) =>
+        Wires.Any(wire =>
+            IsSameEndpoint(wire.Start, instanceId, pinNumber) ||
+            IsSameEndpoint(wire.End, instanceId, pinNumber));
+
+    private string NetNameForEndpoint(SchematicPinEndpoint endpoint) =>
+        Wires.FirstOrDefault(wire =>
+            IsSameEndpoint(wire.Start, endpoint.InstanceId, endpoint.StablePinNumber) ||
+            IsSameEndpoint(wire.End, endpoint.InstanceId, endpoint.StablePinNumber))?.NetName ?? "unassigned net";
+
+    private static bool IsSameEndpoint(SchematicPinEndpoint endpoint, string instanceId, string pinNumber) =>
+        endpoint.InstanceId == instanceId &&
+        endpoint.StablePinNumber == (string.IsNullOrWhiteSpace(pinNumber) ? endpoint.PinName : pinNumber);
 
     public static CadPoint TransformLocalPoint(SchematicComponentInstance instance, CadPoint localPoint)
     {
@@ -1979,7 +2009,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
     }
 
     private static string PinKey(SchematicPinEndpoint endpoint) =>
-        $"{endpoint.InstanceId}:{endpoint.PinName}";
+        $"{endpoint.InstanceId}:{endpoint.StablePinNumber}";
 
     private static string EndpointLabel(SchematicPinEndpoint endpoint) =>
         $"{endpoint.ReferenceDesignator}.{endpoint.PinName}";
