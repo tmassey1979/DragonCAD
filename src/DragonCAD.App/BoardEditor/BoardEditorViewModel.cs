@@ -1373,9 +1373,49 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         int index = IndexOfLayer(layerName);
         BoardLayer updated = Layers[index] with { IsVisible = isVisible };
         Layers[index] = updated;
-        OnPropertyChanged(nameof(VisibleTraces));
-        OnPropertyChanged(nameof(VisibleVias));
+        OnLayerPaletteChanged();
         StatusText = $"Layer {updated.Name} {(updated.IsVisible ? "visible" : "hidden")}.";
+    }
+
+    public void SetLayerColor(string layerName, string colorHex)
+    {
+        int index = IndexOfLayer(layerName);
+        BoardLayer updated = Layers[index] with { ColorHex = colorHex };
+        Layers[index] = updated;
+        OnLayerPaletteChanged();
+        StatusText = $"Layer {updated.Name} color set to {updated.ColorHex}.";
+    }
+
+    public BoardLayerPaletteState ExportLayerPaletteState() =>
+        new(
+            ActiveLayerName,
+            Layers
+                .Select(layer => new BoardLayerState(layer.Name, layer.ColorHex, layer.IsVisible))
+                .ToArray());
+
+    public BoardLayerPaletteImportResult ApplyLayerPalettePreset(BoardLayerPaletteState preset) =>
+        ImportLayerPaletteState(preset);
+
+    public BoardLayerPaletteImportResult ImportLayerPaletteState(BoardLayerPaletteState state)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        List<string> diagnostics = ValidateLayerPaletteState(state);
+        if (diagnostics.Count > 0)
+        {
+            StatusText = "Board layer palette import failed.";
+            return new BoardLayerPaletteImportResult(false, diagnostics);
+        }
+
+        Layers.Clear();
+        foreach (BoardLayerState layer in state.Layers)
+        {
+            Layers.Add(new BoardLayer(layer.Name, layer.ColorHex, layer.IsVisible));
+        }
+
+        ActiveLayerName = state.ActiveLayerName;
+        OnLayerPaletteChanged();
+        StatusText = $"Imported board layer palette with {Layers.Count} layers.";
+        return new BoardLayerPaletteImportResult(true, []);
     }
 
     private CadPoint BoardPositionFor(string syncId, int newComponentIndex)
@@ -2123,6 +2163,33 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         }
 
         throw new InvalidOperationException($"Unknown board layer '{layerName}'.");
+    }
+
+    private static List<string> ValidateLayerPaletteState(BoardLayerPaletteState state)
+    {
+        List<string> diagnostics = [];
+        HashSet<string> layerNames = new(StringComparer.Ordinal);
+        foreach (BoardLayerState layer in state.Layers)
+        {
+            if (!layerNames.Add(layer.Name))
+            {
+                diagnostics.Add($"Layer name '{layer.Name}' appears more than once.");
+            }
+        }
+
+        if (!layerNames.Contains(state.ActiveLayerName))
+        {
+            diagnostics.Add($"Active layer '{state.ActiveLayerName}' does not exist in the layer palette.");
+        }
+
+        return diagnostics;
+    }
+
+    private void OnLayerPaletteChanged()
+    {
+        OnPropertyChanged(nameof(Layers));
+        OnPropertyChanged(nameof(VisibleTraces));
+        OnPropertyChanged(nameof(VisibleVias));
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
