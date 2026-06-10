@@ -1,0 +1,245 @@
+name: Beta Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version tag, for example v0.0.1"
+        required: true
+        default: "v0.0.1"
+      prerelease:
+        description: "Mark the GitHub release as a prerelease"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  APP_PROJECT: src/DragonCAD.App/DragonCAD.App.csproj
+
+jobs:
+  test:
+    name: Test
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore
+        run: dotnet restore DragonCAD.slnx
+
+      - name: Test
+        run: dotnet test DragonCAD.slnx --no-restore --artifacts-path artifacts/test -p:NoWarn=xUnit1026 -p:UseSharedCompilation=false -m:1
+
+  package:
+    name: Package ${{ matrix.name }}
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            runner: windows-latest
+            rid: win-x64
+            archive: zip
+          - name: linux-x64
+            runner: ubuntu-latest
+            rid: linux-x64
+            archive: tar.gz
+          - name: raspberrypi-linux-arm64
+            runner: ubuntu-latest
+            rid: linux-arm64
+            archive: tar.gz
+          - name: macos-x64
+            runner: macos-latest
+            rid: osx-x64
+            archive: tar.gz
+          - name: macos-arm64
+            runner: macos-latest
+            rid: osx-arm64
+            archive: tar.gz
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Compute version
+        shell: pwsh
+        run: |
+          $tag = if ("${{ github.event_name }}" -eq "workflow_dispatch") { "${{ inputs.version }}" } else { "${{ github.ref_name }}" }
+          if (-not $tag.StartsWith("v")) {
+            throw "Release version must be a v-prefixed SemVer tag, for example v0.0.1."
+          }
+
+          $version = $tag.Substring(1)
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Release version must use vMAJOR.MINOR.PATCH, for example v0.0.1."
+          }
+
+          "DRAGONCAD_TAG=$tag" >> $env:GITHUB_ENV
+          "DRAGONCAD_VERSION=$version" >> $env:GITHUB_ENV
+          "DRAGONCAD_INFORMATIONAL_VERSION=$version+build.${{ github.run_number }}.${{ github.sha }}" >> $env:GITHUB_ENV
+
+      - name: Publish
+        shell: pwsh
+        run: |
+          $publishDir = "artifacts/release/publish/DragonCAD-$env:DRAGONCAD_TAG-${{ matrix.name }}"
+          dotnet publish $env:APP_PROJECT `
+            -c Release `
+            -r "${{ matrix.rid }}" `
+            --self-contained true `
+            -o $publishDir `
+            -p:Version=$env:DRAGONCAD_VERSION `
+            -p:AssemblyVersion="$env:DRAGONCAD_VERSION.0" `
+            -p:FileVersion="$env:DRAGONCAD_VERSION.${{ github.run_number }}" `
+            -p:InformationalVersion=$env:DRAGONCAD_INFORMATIONAL_VERSION `
+            -p:UseSharedCompilation=false `
+            -p:DebugType=none `
+            -p:DebugSymbols=false
+
+      - name: Add launch notes
+        shell: pwsh
+        run: |
+          $packageName = "DragonCAD-$env:DRAGONCAD_TAG-${{ matrix.name }}"
+          $publishDir = "artifacts/release/publish/$packageName"
+
+          if ("${{ matrix.rid }}".StartsWith("win")) {
+            @"
+          @echo off
+          set APPDIR=%~dp0
+          start "" "%APPDIR%DragonCAD.App.exe"
+          "@ | Set-Content -Path "$publishDir/Run-DragonCAD.cmd" -Encoding ASCII
+          }
+          else {
+            @"
+          #!/usr/bin/env sh
+          DIR=`$(CDPATH= cd -- "`$(dirname -- "`$0")" && pwd)
+          exec "`$DIR/DragonCAD.App" "`$@"
+          "@ | Set-Content -Path "$publishDir/run-dragoncad.sh" -Encoding ASCII
+            chmod +x "$publishDir/DragonCAD.App" "$publishDir/run-dragoncad.sh"
+          }
+
+          @"
+          DragonCAD $env:DRAGONCAD_TAG beta portable package
+
+          Runtime: ${{ matrix.rid }}
+          Informational version: $env:DRAGONCAD_INFORMATIONAL_VERSION
+
+          Run:
+          - Windows: Run-DragonCAD.cmd or DragonCAD.App.exe
+          - Linux/macOS/Raspberry Pi: ./run-dragoncad.sh
+
+          Notes:
+          - This is an unsigned beta package.
+          - macOS packages may require allowing the app in Privacy & Security because they are not notarized.
+          - Raspberry Pi package targets 64-bit Linux (linux-arm64).
+          "@ | Set-Content -Path "$publishDir/README.txt" -Encoding UTF8
+
+      - name: Archive package
+        shell: pwsh
+        run: |
+          $packageName = "DragonCAD-$env:DRAGONCAD_TAG-${{ matrix.name }}"
+          $publishRoot = "artifacts/release/publish"
+          $packageRoot = "artifacts/release/packages"
+          New-Item -ItemType Directory -Force -Path $packageRoot | Out-Null
+
+          if ("${{ matrix.archive }}" -eq "zip") {
+            Compress-Archive -Path "$publishRoot/$packageName/*" -DestinationPath "$packageRoot/$packageName.zip"
+          }
+          else {
+            tar -czf "$packageRoot/$packageName.tar.gz" -C $publishRoot $packageName
+          }
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DragonCAD-${{ matrix.name }}
+          path: artifacts/release/packages/*
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compute release settings
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.version }}"
+            PRERELEASE="${{ inputs.prerelease }}"
+          else
+            TAG="${{ github.ref_name }}"
+            PRERELEASE="true"
+          fi
+
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release version must use vMAJOR.MINOR.PATCH, for example v0.0.1." >&2
+            exit 1
+          fi
+
+          echo "DRAGONCAD_TAG=$TAG" >> "$GITHUB_ENV"
+          echo "DRAGONCAD_PRERELEASE=$PRERELEASE" >> "$GITHUB_ENV"
+
+      - name: Ensure tag exists for manual releases
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          if git rev-parse "$DRAGONCAD_TAG" >/dev/null 2>&1; then
+            echo "Tag $DRAGONCAD_TAG already exists."
+          else
+            git tag "$DRAGONCAD_TAG" "$GITHUB_SHA"
+            git push origin "$DRAGONCAD_TAG"
+          fi
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: DragonCAD-*
+          path: artifacts/release/downloads
+          merge-multiple: true
+
+      - name: Publish beta release with generated notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          args=(
+            "$DRAGONCAD_TAG"
+            artifacts/release/downloads/*
+            --repo "$GITHUB_REPOSITORY"
+            --title "DragonCAD $DRAGONCAD_TAG Beta"
+            --generate-notes
+          )
+
+          if [ "$DRAGONCAD_PRERELEASE" = "true" ]; then
+            args+=(--prerelease)
+          fi
+
+          if gh release view "$DRAGONCAD_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$DRAGONCAD_TAG" artifacts/release/downloads/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "${args[@]}"
+          fi
