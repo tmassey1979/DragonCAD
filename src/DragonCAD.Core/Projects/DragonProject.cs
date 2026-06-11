@@ -3,6 +3,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DragonCAD.Core.Components.Definitions;
+using DragonCAD.Core.Components.Drafts;
 
 namespace DragonCAD.Core.Projects;
 
@@ -13,7 +14,8 @@ public sealed record DragonProject(
     DragonLibraryReferences LibraryReferences,
     DragonDatasheetIntake DatasheetIntake,
     DragonFabricationMetadata FabricationMetadata,
-    IReadOnlyList<ComponentDefinition> ProjectComponents)
+    IReadOnlyList<ComponentDefinition> ProjectComponents,
+    IReadOnlyList<ComponentDraft> ProjectComponentDrafts = null!)
 {
     public bool Equals(DragonProject? other) =>
         other is not null &&
@@ -30,9 +32,16 @@ public sealed record DragonProject(
                 other.ProjectComponents
                     .OrderBy(component => component.Id.Value, StringComparer.Ordinal)
                     .Select(ComponentDefinitionSerializer.Serialize),
-                StringComparer.Ordinal);
+                StringComparer.Ordinal) &&
+        SerializeDrafts(ProjectComponentDrafts)
+            .SequenceEqual(SerializeDrafts(other.ProjectComponentDrafts), StringComparer.Ordinal);
 
     public override int GetHashCode() => HashCode.Combine(Manifest, ProjectComponents.Count);
+
+    private static IEnumerable<string> SerializeDrafts(IReadOnlyList<ComponentDraft>? drafts) =>
+        (drafts ?? [])
+            .OrderBy(draft => draft.Id.Value, StringComparer.Ordinal)
+            .Select(ComponentDraftSerializer.Serialize);
 }
 
 public sealed record DragonProjectManifest(
@@ -45,11 +54,15 @@ public sealed record DragonSchematicDocument
     public DragonSchematicDocument(
         string documentId,
         IReadOnlyList<DragonSchematicComponent> components,
-        IReadOnlyList<DragonSchematicNet> nets)
+        IReadOnlyList<DragonSchematicNet> nets,
+        IReadOnlyList<DragonSchematicWire>? wires = null,
+        IReadOnlyList<DragonSchematicNetLabel>? netLabels = null)
     {
         DocumentId = documentId;
         Components = SortComponents(components);
         Nets = SortNets(nets);
+        Wires = SortWires(wires ?? []);
+        NetLabels = SortNetLabels(netLabels ?? []);
     }
 
     public string DocumentId { get; }
@@ -57,6 +70,10 @@ public sealed record DragonSchematicDocument
     public IReadOnlyList<DragonSchematicComponent> Components { get; }
 
     public IReadOnlyList<DragonSchematicNet> Nets { get; }
+
+    public IReadOnlyList<DragonSchematicWire> Wires { get; }
+
+    public IReadOnlyList<DragonSchematicNetLabel> NetLabels { get; }
 
     private static IReadOnlyList<DragonSchematicComponent> SortComponents(IReadOnlyList<DragonSchematicComponent> components) =>
         components
@@ -67,6 +84,18 @@ public sealed record DragonSchematicDocument
     private static IReadOnlyList<DragonSchematicNet> SortNets(IReadOnlyList<DragonSchematicNet> nets) =>
         nets
             .OrderBy(net => net.Name, StringComparer.Ordinal)
+            .ToArray();
+
+    private static IReadOnlyList<DragonSchematicWire> SortWires(IReadOnlyList<DragonSchematicWire> wires) =>
+        wires
+            .OrderBy(wire => wire.NetName, StringComparer.Ordinal)
+            .ThenBy(wire => wire.WireId, StringComparer.Ordinal)
+            .ToArray();
+
+    private static IReadOnlyList<DragonSchematicNetLabel> SortNetLabels(IReadOnlyList<DragonSchematicNetLabel> netLabels) =>
+        netLabels
+            .OrderBy(label => label.NetName, StringComparer.Ordinal)
+            .ThenBy(label => label.LabelId, StringComparer.Ordinal)
             .ToArray();
 }
 
@@ -88,12 +117,32 @@ public sealed record DragonSchematicNet
     public IReadOnlyList<string> Pins { get; }
 }
 
+public sealed record DragonSchematicWire(
+    string WireId,
+    string StartComponentIdentityId,
+    string StartReference,
+    string StartPinName,
+    string EndComponentIdentityId,
+    string EndReference,
+    string EndPinName,
+    IReadOnlyList<DragonCadPoint> RoutePoints,
+    string NetName);
+
+public sealed record DragonSchematicNetLabel(
+    string LabelId,
+    string NetName,
+    DragonCadPoint Position,
+    string AssociatedWireId,
+    int RotationDegrees = 0);
+
 public sealed record DragonBoardDocument
 {
     public DragonBoardDocument(
         string documentId,
         IReadOnlyList<DragonBoardPlacement> placements,
-        IReadOnlyList<DragonBoardTrace> traces)
+        IReadOnlyList<DragonBoardTrace> traces,
+        IReadOnlyList<DragonBoardVia>? vias = null,
+        IReadOnlyList<DragonBoardAirwire>? airwires = null)
     {
         DocumentId = documentId;
         Placements = placements
@@ -104,6 +153,15 @@ public sealed record DragonBoardDocument
             .OrderBy(trace => trace.NetName, StringComparer.Ordinal)
             .ThenBy(trace => trace.Layer, StringComparer.Ordinal)
             .ToArray();
+        Vias = (vias ?? [])
+            .OrderBy(via => via.NetName, StringComparer.Ordinal)
+            .ThenBy(via => via.ViaId, StringComparer.Ordinal)
+            .ToArray();
+        Airwires = (airwires ?? [])
+            .OrderBy(airwire => airwire.NetName, StringComparer.Ordinal)
+            .ThenBy(airwire => airwire.StartSyncId, StringComparer.Ordinal)
+            .ThenBy(airwire => airwire.EndSyncId, StringComparer.Ordinal)
+            .ToArray();
     }
 
     public string DocumentId { get; }
@@ -111,6 +169,10 @@ public sealed record DragonBoardDocument
     public IReadOnlyList<DragonBoardPlacement> Placements { get; }
 
     public IReadOnlyList<DragonBoardTrace> Traces { get; }
+
+    public IReadOnlyList<DragonBoardVia> Vias { get; }
+
+    public IReadOnlyList<DragonBoardAirwire> Airwires { get; }
 }
 
 public sealed record DragonBoardPlacement(
@@ -119,12 +181,40 @@ public sealed record DragonBoardPlacement(
     string FootprintId,
     decimal X,
     decimal Y,
-    decimal Rotation);
+    decimal Rotation,
+    string SyncId = "",
+    string SelectedPackageId = "");
 
 public sealed record DragonBoardTrace(
     string NetName,
     string Layer,
-    decimal Width);
+    decimal Width,
+    string TraceId = "");
+
+public sealed record DragonBoardVia(
+    string ViaId,
+    string NetName,
+    decimal X,
+    decimal Y,
+    string FromLayer,
+    string ToLayer,
+    decimal Diameter,
+    decimal Drill);
+
+public sealed record DragonBoardAirwire(
+    string NetName,
+    string StartSyncId,
+    string StartReference,
+    string StartPinName,
+    string EndSyncId,
+    string EndReference,
+    string EndPinName);
+
+public sealed record DragonCadPoint(decimal X, decimal Y)
+{
+    public static implicit operator DragonCadPoint(Geometry.CadPoint point) =>
+        new((decimal)point.X, (decimal)point.Y);
+}
 
 public sealed record DragonLibraryReferences
 {
@@ -212,13 +302,16 @@ public sealed class DragonProjectFolderStore
 {
     public const string ManifestFileName = "dragoncad.project.json";
     public const string ComponentsDirectoryName = "components";
+    public const string ComponentDraftsDirectoryName = "component-drafts";
 
     private const string ComponentFileSuffix = ".dcad-component.json";
+    private const string ComponentDraftFileSuffix = ".dcad-component-draft.json";
     private const string SchematicPath = "schematic/schematic.json";
     private const string BoardPath = "board/board.json";
     private const string LibraryReferencesPath = "libraries/library-references.json";
     private const string DatasheetIntakePath = "datasheets/datasheet-intake.json";
     private const string FabricationMetadataPath = "fabrication/fabrication-metadata.json";
+    private const string TransientUiStatePath = "ui/transient-state.json";
 
     private static readonly string[] RequiredFiles =
     [
@@ -243,6 +336,7 @@ public sealed class DragonProjectFolderStore
         WriteJson(projectRoot, DatasheetIntakePath, project.DatasheetIntake);
         WriteJson(projectRoot, FabricationMetadataPath, project.FabricationMetadata);
         SaveComponents(projectRoot, project.ProjectComponents);
+        SaveComponentDrafts(projectRoot, project.ProjectComponentDrafts ?? []);
     }
 
     public DragonProjectLoadResult Load(string projectRoot)
@@ -259,9 +353,15 @@ public sealed class DragonProjectFolderStore
             }
         }
 
-        if (diagnostics.Count > 0)
+        if (HasErrors(diagnostics))
         {
             return new DragonProjectLoadResult(null, diagnostics);
+        }
+
+        string transientUiStatePath = Path.Combine(projectRoot, TransientUiStatePath);
+        if (File.Exists(transientUiStatePath))
+        {
+            diagnostics.Add(TransientUiStateIgnoredDiagnostic(TransientUiStatePath));
         }
 
         DragonProjectManifest? manifest = ReadJson<DragonProjectManifest>(projectRoot, ManifestFileName, diagnostics);
@@ -271,8 +371,9 @@ public sealed class DragonProjectFolderStore
         DragonDatasheetIntake? datasheetIntake = ReadJson<DragonDatasheetIntake>(projectRoot, DatasheetIntakePath, diagnostics);
         DragonFabricationMetadata? fabricationMetadata = ReadJson<DragonFabricationMetadata>(projectRoot, FabricationMetadataPath, diagnostics);
         ComponentDefinition[] components = ReadComponents(projectRoot, diagnostics);
+        ComponentDraft[] componentDrafts = ReadComponentDrafts(projectRoot, diagnostics);
 
-        if (diagnostics.Count > 0 ||
+        if (HasErrors(diagnostics) ||
             manifest is null ||
             schematic is null ||
             board is null ||
@@ -291,8 +392,9 @@ public sealed class DragonProjectFolderStore
                 libraryReferences,
                 datasheetIntake,
                 fabricationMetadata,
-                components),
-            []);
+                components,
+                componentDrafts),
+            diagnostics);
     }
 
     private static void SaveComponents(string projectRoot, IReadOnlyList<ComponentDefinition> components)
@@ -341,6 +443,56 @@ public sealed class DragonProjectFolderStore
         return components.ToArray();
     }
 
+    private static void SaveComponentDrafts(string projectRoot, IReadOnlyList<ComponentDraft> drafts)
+    {
+        string componentDraftsDirectory = Path.Combine(projectRoot, ComponentDraftsDirectoryName);
+        Directory.CreateDirectory(componentDraftsDirectory);
+
+        foreach (string staleDraftPath in Directory.EnumerateFiles(componentDraftsDirectory, $"*{ComponentDraftFileSuffix}"))
+        {
+            File.Delete(staleDraftPath);
+        }
+
+        foreach (ComponentDraft draft in drafts.OrderBy(draft => draft.Id.Value, StringComparer.Ordinal))
+        {
+            File.WriteAllText(
+                ComponentDraftPath(projectRoot, draft.Id.Value),
+                ComponentDraftSerializer.Serialize(draft));
+        }
+    }
+
+    private static ComponentDraft[] ReadComponentDrafts(
+        string projectRoot,
+        List<DragonProjectDiagnostic> diagnostics)
+    {
+        string componentDraftsDirectory = Path.Combine(projectRoot, ComponentDraftsDirectoryName);
+        if (!Directory.Exists(componentDraftsDirectory))
+        {
+            return [];
+        }
+
+        List<ComponentDraft> drafts = [];
+        foreach (string path in Directory
+            .EnumerateFiles(componentDraftsDirectory, $"*{ComponentDraftFileSuffix}")
+            .Order(StringComparer.Ordinal))
+        {
+            try
+            {
+                drafts.Add(ComponentDraftSerializer.Deserialize(File.ReadAllText(path)));
+            }
+            catch (JsonException exception)
+            {
+                diagnostics.Add(CorruptFileDiagnostic(RelativePath(projectRoot, path), exception));
+            }
+            catch (InvalidOperationException exception)
+            {
+                diagnostics.Add(CorruptFileDiagnostic(RelativePath(projectRoot, path), exception));
+            }
+        }
+
+        return drafts.ToArray();
+    }
+
     private static void WriteJson<T>(string projectRoot, string relativePath, T value)
     {
         string path = Path.Combine(projectRoot, relativePath);
@@ -383,11 +535,26 @@ public sealed class DragonProjectFolderStore
             "ProjectFileCorrupt",
             $"Project file '{NormalizePath(relativePath)}' could not be read: {exception.Message}");
 
+    private static DragonProjectDiagnostic TransientUiStateIgnoredDiagnostic(string relativePath) =>
+        new(
+            DragonProjectDiagnosticSeverity.Info,
+            "ProjectTransientUiStateIgnored",
+            $"Transient UI state file '{NormalizePath(relativePath)}' is not part of native project identity and was ignored.");
+
+    private static bool HasErrors(IReadOnlyList<DragonProjectDiagnostic> diagnostics) =>
+        diagnostics.Any(diagnostic => diagnostic.Severity == DragonProjectDiagnosticSeverity.Error);
+
     private static string ComponentPath(string projectRoot, string componentId) =>
         Path.Combine(
             projectRoot,
             ComponentsDirectoryName,
             $"{Uri.EscapeDataString(componentId)}{ComponentFileSuffix}");
+
+    private static string ComponentDraftPath(string projectRoot, string componentId) =>
+        Path.Combine(
+            projectRoot,
+            ComponentDraftsDirectoryName,
+            $"{Uri.EscapeDataString(componentId)}{ComponentDraftFileSuffix}");
 
     private static string RelativePath(string projectRoot, string path) =>
         NormalizePath(Path.GetRelativePath(projectRoot, path));
