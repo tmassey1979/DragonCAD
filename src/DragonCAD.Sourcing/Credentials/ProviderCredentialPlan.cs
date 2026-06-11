@@ -19,6 +19,7 @@ public sealed record ProviderCredentialPlan(
                 .Select(credential => new ProviderCredentialProjectChoice(
                     credential.ProviderName,
                     credential.KeyName,
+                    credential.Kind.ToString(),
                     credential.StorageLocation.ToString(),
                     credential.State.ToString()))
                 .ToArray());
@@ -47,5 +48,6 @@ public sealed record ProviderCredentialProjectRecord(
 public sealed record ProviderCredentialProjectChoice(
     string ProviderName,
     string KeyName,
+    string Kind,
     string StorageLocation,
     string State);

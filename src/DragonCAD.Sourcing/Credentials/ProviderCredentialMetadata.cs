@@ -3,6 +3,7 @@ namespace DragonCAD.Sourcing.Credentials;
 public sealed record ProviderCredentialMetadata(
     string ProviderName,
     string KeyName,
+    ProviderCredentialKind Kind,
     ProviderCredentialStorageLocation StorageLocation,
     string? StorageReferenceName,
     ProviderCredentialState State,

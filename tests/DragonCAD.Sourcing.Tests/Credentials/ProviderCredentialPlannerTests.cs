@@ -104,15 +104,26 @@ public sealed class ProviderCredentialPlannerTests
     [Fact]
     public async Task StoreBoundaryFeedsPlannerWithoutExposingCredentialValues()
     {
-        IProviderCredentialStore store = new InMemoryProviderCredentialStore(
-            [Configured("Mouser", "api_key", "mouser-secret-storage-reference")]);
+        IProviderCredentialStore store = new InMemoryProviderCredentialStore();
+        await store.SetAsync(
+            new ProviderCredentialSecret(
+                "Mouser",
+                "api_key",
+                ProviderCredentialKind.ApiKey,
+                "test-only-mouser-secret",
+                ProviderCredentialStorageLocation.OSCredentialVault,
+                "mouser-secret-storage-reference",
+                new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero)),
+            CancellationToken.None);
 
         var plan = ProviderCredentialPlanner.Plan(
             ProviderCredentialRequirement.KnownProviders["Mouser"],
             await store.ListAsync("Mouser", CancellationToken.None));
 
         Assert.True(plan.IsReady);
+        Assert.DoesNotContain("test-only-mouser-secret", plan.LogSafeSummary, StringComparison.Ordinal);
         Assert.DoesNotContain("mouser-secret-storage-reference", plan.LogSafeSummary, StringComparison.Ordinal);
+        Assert.DoesNotContain("test-only-mouser-secret", JsonSerializer.Serialize(plan.ToProjectRecord()), StringComparison.Ordinal);
         Assert.DoesNotContain("mouser-secret-storage-reference", JsonSerializer.Serialize(plan.ToProjectRecord()), StringComparison.Ordinal);
     }
 
@@ -123,23 +134,15 @@ public sealed class ProviderCredentialPlannerTests
         new(
             providerName,
             keyName,
+            keyName switch
+            {
+                "api_key" => ProviderCredentialKind.ApiKey,
+                "client_id" => ProviderCredentialKind.ClientId,
+                "client_secret" => ProviderCredentialKind.ClientSecret,
+                _ => ProviderCredentialKind.Unknown,
+            },
             ProviderCredentialStorageLocation.OSCredentialVault,
             secretValue,
             ProviderCredentialState.Configured,
             LastValidatedAt: new DateTimeOffset(2026, 6, 1, 12, 0, 0, TimeSpan.Zero));
-
-    private sealed class InMemoryProviderCredentialStore(IReadOnlyList<ProviderCredentialMetadata> credentials)
-        : IProviderCredentialStore
-    {
-        public ValueTask<IReadOnlyList<ProviderCredentialMetadata>> ListAsync(
-            string providerName,
-            CancellationToken cancellationToken)
-        {
-            var matches = credentials
-                .Where(credential => credential.ProviderName.Equals(providerName, StringComparison.OrdinalIgnoreCase))
-                .ToArray();
-
-            return ValueTask.FromResult<IReadOnlyList<ProviderCredentialMetadata>>(matches);
-        }
-    }
 }
