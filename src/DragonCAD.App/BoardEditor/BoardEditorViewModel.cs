@@ -506,6 +506,80 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         StatusText = $"Synchronized {componentText} and {airwireText} from schematic.";
     }
 
+    public BoardFootprintReplacementResult ReplaceComponentFootprintFromPackage(
+        string syncId,
+        ComponentFootprintPreview replacementFootprint,
+        string packageLabel)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(syncId);
+        ArgumentNullException.ThrowIfNull(replacementFootprint);
+
+        int componentIndex = IndexOfSyncId(syncId);
+        if (componentIndex < 0)
+        {
+            BoardFootprintReplacementResult result = BoardFootprintReplacementResult.Failed(
+                syncId,
+                packageLabel,
+                new BoardFootprintReplacementDiagnostic(
+                    BoardFootprintReplacementDiagnosticCode.MissingComponent,
+                    syncId,
+                    $"Board component '{syncId}' was not found."));
+            StatusText = result.Diagnostics[0].Message;
+            return result;
+        }
+
+        IReadOnlyList<BoardFootprintPrimitive> replacementPrimitives = BoardFootprintPrimitive.FromPreview(replacementFootprint);
+        HashSet<string> replacementPadNames = ReplacementPadNames(replacementPrimitives);
+        if (replacementPadNames.Count == 0)
+        {
+            BoardFootprintReplacementResult result = BoardFootprintReplacementResult.Failed(
+                syncId,
+                packageLabel,
+                new BoardFootprintReplacementDiagnostic(
+                    BoardFootprintReplacementDiagnosticCode.MissingFootprintMapping,
+                    syncId,
+                    $"Package '{packageLabel}' does not contain board footprint pads for {Components[componentIndex].ReferenceDesignator}."));
+            StatusText = result.Diagnostics[0].Message;
+            return result;
+        }
+
+        string[] missingPadNames = ConnectedPadNames(syncId)
+            .Where(padName => !replacementPadNames.Contains(padName))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(padName => padName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (missingPadNames.Length > 0)
+        {
+            string missingPads = string.Join(", ", missingPadNames);
+            BoardFootprintReplacementResult result = BoardFootprintReplacementResult.Failed(
+                syncId,
+                packageLabel,
+                new BoardFootprintReplacementDiagnostic(
+                    BoardFootprintReplacementDiagnosticCode.MissingPadMapping,
+                    syncId,
+                    $"Package '{packageLabel}' is missing board pad mapping for {missingPads}. Existing footprint was kept."));
+            StatusText = result.Diagnostics[0].Message;
+            return result;
+        }
+
+        BoardComponentInstance existing = Components[componentIndex];
+        BoardComponentInstance replaced = existing with
+        {
+            FootprintPreview = replacementFootprint,
+            FootprintPrimitives = replacementPrimitives
+        };
+        Components[componentIndex] = replaced;
+        if (SelectedComponent?.SyncId == syncId)
+        {
+            SelectedComponent = replaced;
+        }
+
+        RefreshAirwireEndpoints();
+        OnPropertyChanged(nameof(VisibleTraces));
+        StatusText = $"Replaced {replaced.ReferenceDesignator} board footprint with {packageLabel}.";
+        return BoardFootprintReplacementResult.Success(syncId, packageLabel);
+    }
+
     private int IndexOfSyncId(string syncId)
     {
         for (int index = 0; index < Components.Count; index++)
@@ -517,6 +591,54 @@ public sealed class BoardEditorViewModel : INotifyPropertyChanged
         }
 
         return -1;
+    }
+
+    private static HashSet<string> ReplacementPadNames(IReadOnlyList<BoardFootprintPrimitive> primitives) =>
+        primitives
+            .Select(PadNameOrNull)
+            .Where(padName => !string.IsNullOrWhiteSpace(padName))
+            .Select(padName => padName!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    private IReadOnlyList<string> ConnectedPadNames(string syncId)
+    {
+        List<string> padNames = [];
+        foreach (BoardAirwire airwire in Airwires)
+        {
+            AddEndpointPadName(padNames, syncId, airwire.StartSyncId, airwire.StartPinName);
+            AddEndpointPadName(padNames, syncId, airwire.EndSyncId, airwire.EndPinName);
+        }
+
+        foreach (BoardAirwire airwire in retiredAirwiresByTraceId.Values)
+        {
+            AddEndpointPadName(padNames, syncId, airwire.StartSyncId, airwire.StartPinName);
+            AddEndpointPadName(padNames, syncId, airwire.EndSyncId, airwire.EndPinName);
+        }
+
+        foreach (BoardTrace trace in Traces)
+        {
+            AddEndpointPadName(padNames, syncId, trace.StartPadSyncId, trace.StartPadName);
+            AddEndpointPadName(padNames, syncId, trace.EndPadSyncId, trace.EndPadName);
+        }
+
+        return padNames;
+    }
+
+    private static string? PadNameOrNull(BoardFootprintPrimitive primitive) =>
+        primitive switch
+        {
+            BoardFootprintPadPrimitive pad => pad.Name,
+            BoardFootprintSmdPrimitive smd => smd.Name,
+            _ => null
+        };
+
+    private static void AddEndpointPadName(List<string> padNames, string componentSyncId, string? endpointSyncId, string? padName)
+    {
+        if (string.Equals(componentSyncId, endpointSyncId, StringComparison.Ordinal) &&
+            !string.IsNullOrWhiteSpace(padName))
+        {
+            padNames.Add(padName);
+        }
     }
 
     public BoardComponentInstance? SelectComponentAt(CadPoint point)

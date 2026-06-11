@@ -148,6 +148,117 @@ public sealed class BoardEditorViewModelTests
     }
 
     [Fact]
+    public void ReplaceComponentFootprintFromPackagePreservesBoardIdentityAndPlacementWhenCompatible()
+    {
+        BoardEditorViewModel board = BoardWithNamedPadAirwires(Wire("wire-1", "sync-1", "U1", "OUT", "sync-2", "U2", "IN", "N$1"));
+        board.SelectComponentAt(new CadPoint(-500_000, 0));
+        board.MoveSelectedComponentTo(new CadPoint(12_000_000, 6_000_000));
+
+        BoardFootprintReplacementResult result = board.ReplaceComponentFootprintFromPackage(
+            "sync-1",
+            FootprintWithNamedPadsAndOutline("OUT", "GND", 2_000_000),
+            "SOT-23");
+
+        Assert.True(result.Succeeded);
+        Assert.Empty(result.Diagnostics);
+        BoardComponentInstance component = board.Components.Single(component => component.SyncId == "sync-1");
+        Assert.Equal("sync-1", component.SyncId);
+        Assert.Equal("U1", component.ReferenceDesignator);
+        Assert.Equal(new CadPoint(12_000_000, 6_000_000), component.Position);
+        Assert.Contains(component.FootprintPrimitives, primitive => primitive is BoardFootprintLinePrimitive);
+        Assert.Contains(component.FootprintPrimitives, primitive => primitive is BoardFootprintPadPrimitive pad && pad.Name == "OUT" && pad.Position.X == -2_000_000);
+    }
+
+    [Fact]
+    public void ReplaceComponentFootprintFromPackageReportsMissingMappingAndLeavesFootprintIntact()
+    {
+        BoardEditorViewModel board = BoardWithNamedPadAirwires(Wire("wire-1", "sync-1", "U1", "OUT", "sync-2", "U2", "IN", "N$1"));
+        BoardComponentInstance before = board.Components.Single(component => component.SyncId == "sync-1");
+        IReadOnlyList<BoardFootprintPrimitive> originalPrimitives = before.FootprintPrimitives;
+
+        BoardFootprintReplacementResult result = board.ReplaceComponentFootprintFromPackage(
+            "sync-1",
+            FootprintWithNamedPads("A", "B"),
+            "unmapped package");
+
+        Assert.False(result.Succeeded);
+        BoardFootprintReplacementDiagnostic diagnostic = Assert.Single(result.Diagnostics);
+        Assert.Equal(BoardFootprintReplacementDiagnosticCode.MissingPadMapping, diagnostic.Code);
+        Assert.Contains("OUT", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Same(originalPrimitives, board.Components.Single(component => component.SyncId == "sync-1").FootprintPrimitives);
+    }
+
+    [Fact]
+    public void ReplaceComponentFootprintFromPackagePreservesReferenceDesignatorAcrossPackageLabels()
+    {
+        BoardEditorViewModel board = new();
+        board.SynchronizeFromSchematic([
+            new SchematicComponentInstance(
+                "sync-r1",
+                "R42",
+                "hawkcad:resistor",
+                "Resistor",
+                new CadPoint(0, 0),
+                ComponentSymbolPreview.Empty,
+                FootprintWithNamedPads("1", "2"))
+        ]);
+
+        BoardFootprintReplacementResult result = board.ReplaceComponentFootprintFromPackage(
+            "sync-r1",
+            FootprintWithNamedPadsAndOutline("1", "2", 3_000_000),
+            "0603");
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("R42", board.Components.Single().ReferenceDesignator);
+        Assert.Equal("sync-r1", board.Components.Single().SyncId);
+    }
+
+    [Fact]
+    public void ReplaceComponentFootprintFromPackagePreservesNetIdentityForCompatiblePads()
+    {
+        BoardEditorViewModel board = BoardWithNamedPadAirwires(Wire("wire-1", "sync-1", "U1", "OUT", "sync-2", "U2", "IN", "N$USB"));
+
+        BoardFootprintReplacementResult result = board.ReplaceComponentFootprintFromPackage(
+            "sync-1",
+            FootprintWithNamedPadsAndOutline("OUT", "GND", 1_500_000),
+            "alternate");
+
+        Assert.True(result.Succeeded);
+        BoardAirwire airwire = Assert.Single(board.Airwires);
+        Assert.Equal("N$USB", airwire.NetName);
+        Assert.Equal("sync-1", airwire.StartSyncId);
+        Assert.Equal("OUT", airwire.StartPinName);
+    }
+
+    [Fact]
+    public void ReplaceComponentFootprintFromPackageDoesNotDeleteExistingRoutesWhenMappingIsMissing()
+    {
+        BoardEditorViewModel board = BoardWithNamedPadAirwires();
+        board.Traces.Add(new BoardTrace(
+            "trace-1",
+            "Top",
+            [new CadPoint(-500_000, 0), new CadPoint(8_500_000, 0)],
+            StartPadSyncId: "sync-1",
+            StartPadReferenceDesignator: "U1",
+            StartPadName: "OUT",
+            EndPadSyncId: "sync-2",
+            EndPadReferenceDesignator: "U2",
+            EndPadName: "IN"));
+
+        BoardFootprintReplacementResult result = board.ReplaceComponentFootprintFromPackage(
+            "sync-1",
+            FootprintWithNamedPads("A", "B"),
+            "unroutable");
+
+        Assert.False(result.Succeeded);
+        BoardTrace trace = Assert.Single(board.Traces);
+        Assert.Equal("trace-1", trace.TraceId);
+        Assert.Equal("OUT", trace.StartPadName);
+        Assert.Equal("IN", trace.EndPadName);
+        Assert.Equal(3, board.Components.Single(component => component.SyncId == "sync-1").FootprintPrimitives.Count);
+    }
+
+    [Fact]
     public void SynchronizeFromSchematicAssignsStableBoardPositionsForNewComponents()
     {
         BoardEditorViewModel board = new();
@@ -1347,5 +1458,17 @@ public sealed class BoardEditorViewModelTests
             [
                 new ComponentFootprintPadPreview(leftPadName, new CadPoint(-500_000, 0), new CadVector(400_000, 300_000), "Round", "ThroughHole"),
                 new ComponentFootprintPadPreview(rightPadName, new CadPoint(500_000, 0), new CadVector(400_000, 300_000), "Round", "ThroughHole")
+            ]);
+
+    private static ComponentFootprintPreview FootprintWithNamedPadsAndOutline(
+        string leftPadName,
+        string rightPadName,
+        long halfPitch) =>
+        new(
+            new CadRectangle(-halfPitch - 500_000, -750_000, halfPitch + 500_000, 750_000),
+            [new ComponentPreviewLine(new CadPoint(-halfPitch - 500_000, -750_000), new CadPoint(halfPitch + 500_000, -750_000))],
+            [
+                new ComponentFootprintPadPreview(leftPadName, new CadPoint(-halfPitch, 0), new CadVector(600_000, 400_000), "Round", "ThroughHole"),
+                new ComponentFootprintPadPreview(rightPadName, new CadPoint(halfPitch, 0), new CadVector(600_000, 400_000), "Round", "ThroughHole")
             ]);
 }
