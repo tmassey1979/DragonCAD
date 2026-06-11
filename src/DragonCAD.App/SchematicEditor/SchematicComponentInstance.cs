@@ -18,8 +18,16 @@ public sealed record SchematicComponentInstance(
     IReadOnlyDictionary<string, string>? Attributes = null,
     string ActivePackageVariantId = "",
     string ActivePackageFootprintId = "",
-    string ActivePackageLabel = "No package")
+    string ActivePackageLabel = "No package",
+    CadPoint? NameTextPosition = null,
+    CadPoint? ValueTextPosition = null)
 {
+    public CadPoint NameTextPositionOrDefault =>
+        NameTextPosition ?? new CadPoint(Position.X, Position.Y - 6_500_000);
+
+    public CadPoint ValueTextPositionOrDefault =>
+        ValueTextPosition ?? new CadPoint(Position.X, Position.Y + 7_200_000);
+
     public SchematicComponentInstance(
         string instanceId,
         string referenceDesignator,
@@ -31,6 +39,19 @@ public sealed record SchematicComponentInstance(
     {
     }
 }
+
+public enum SchematicComponentTextKind
+{
+    Name,
+    Value
+}
+
+public sealed record SchematicComponentTextLabel(
+    string InstanceId,
+    string ReferenceDesignator,
+    SchematicComponentTextKind Kind,
+    string Text,
+    CadPoint Position);
 
 public sealed record SchematicSelectedComponentMetadata(
     string ReferenceDesignator,

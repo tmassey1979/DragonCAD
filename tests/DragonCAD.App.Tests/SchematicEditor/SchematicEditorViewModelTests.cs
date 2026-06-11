@@ -1565,6 +1565,93 @@ public sealed class SchematicEditorViewModelTests
         Assert.Equal("Duplicated U5 as U2.", editor.StatusText);
     }
 
+    [Fact]
+    public void MoveSelectedComponentNameTextSeparatesItFromSymbolOriginAndSnapsToGrid()
+    {
+        SchematicEditorViewModel editor = new();
+        SchematicComponentInstance placed = editor.PlaceComponent(
+            IntentWithBounds("hawkcad:timer", "Timer", -1_000_000, -1_000_000, 1_000_000, 1_000_000),
+            new CadPoint(0, 0));
+        editor.UpdateSelectedComponentProperties("U5", "Timer", "NE555");
+
+        SchematicComponentTextLabel moved = editor.MoveSelectedComponentNameTextTo(new CadPoint(2_400_000, -3_600_000));
+
+        SchematicComponentInstance updated = Assert.Single(editor.Components);
+        Assert.Equal(placed.InstanceId, moved.InstanceId);
+        Assert.Equal("U5", moved.ReferenceDesignator);
+        Assert.Equal(SchematicComponentTextKind.Name, moved.Kind);
+        Assert.Equal(new CadPoint(2_000_000, -4_000_000), moved.Position);
+        Assert.Equal(new CadPoint(2_000_000, -4_000_000), updated.NameTextPosition);
+        Assert.Equal(new CadPoint(0, 0), updated.Position);
+        Assert.Equal("Moved U5 name text to 2.000 mm, -4.000 mm.", editor.StatusText);
+    }
+
+    [Fact]
+    public void MoveSelectedComponentValueTextSnapsToGridAndPreservesOwnershipMetadata()
+    {
+        SchematicEditorViewModel editor = new();
+        SchematicComponentInstance placed = editor.PlaceComponent(
+            IntentWithBounds("hawkcad:resistor", "Resistor", -1_000_000, -1_000_000, 1_000_000, 1_000_000),
+            new CadPoint(5_000_000, 1_000_000));
+        editor.UpdateSelectedComponentProperties("R12", "Resistor", "10k");
+
+        SchematicComponentTextLabel moved = editor.MoveSelectedComponentValueTextTo(new CadPoint(7_600_000, 4_300_000));
+
+        SchematicComponentInstance updated = Assert.Single(editor.Components);
+        Assert.Equal(placed.InstanceId, moved.InstanceId);
+        Assert.Equal("R12", moved.ReferenceDesignator);
+        Assert.Equal("10k", moved.Text);
+        Assert.Equal(SchematicComponentTextKind.Value, moved.Kind);
+        Assert.Equal(new CadPoint(8_000_000, 4_000_000), moved.Position);
+        Assert.Equal(new CadPoint(8_000_000, 4_000_000), updated.ValueTextPosition);
+        Assert.Same(updated, editor.SelectedComponent);
+        Assert.Equal("Moved R12 value text to 8.000 mm, 4.000 mm.", editor.StatusText);
+    }
+
+    [Fact]
+    public void ResetSelectedComponentTextPositionsReturnsNameAndValueToDefaults()
+    {
+        SchematicEditorViewModel editor = new();
+        editor.PlaceComponent(
+            IntentWithBounds("hawkcad:timer", "Timer", -1_000_000, -1_000_000, 1_000_000, 1_000_000),
+            new CadPoint(3_000_000, 2_000_000));
+        editor.UpdateSelectedComponentProperties("U8", "Timer", "NE555");
+        editor.MoveSelectedComponentNameTextTo(new CadPoint(6_000_000, -3_000_000));
+        editor.MoveSelectedComponentValueTextTo(new CadPoint(7_000_000, 7_000_000));
+
+        SchematicComponentInstance reset = editor.ResetSelectedComponentTextPositions();
+
+        Assert.Null(reset.NameTextPosition);
+        Assert.Null(reset.ValueTextPosition);
+        Assert.Equal(new CadPoint(3_000_000, -4_500_000), reset.NameTextPositionOrDefault);
+        Assert.Equal(new CadPoint(3_000_000, 9_200_000), reset.ValueTextPositionOrDefault);
+        Assert.Equal("Reset U8 text positions.", editor.StatusText);
+    }
+
+    [Fact]
+    public void SelectComponentTextLabelAtDistinguishesOwnedTextFromSymbolBody()
+    {
+        SchematicEditorViewModel editor = new();
+        SchematicComponentInstance placed = editor.PlaceComponent(
+            IntentWithBounds("hawkcad:timer", "Timer", -1_000_000, -1_000_000, 1_000_000, 1_000_000),
+            new CadPoint(0, 0));
+        editor.UpdateSelectedComponentProperties("U3", "Timer", "NE555");
+        editor.MoveSelectedComponentNameTextTo(new CadPoint(4_000_000, 0));
+
+        SchematicComponentTextLabel? label = editor.SelectComponentTextLabelAt(new CadPoint(4_250_000, 0));
+
+        Assert.NotNull(label);
+        Assert.Equal(placed.InstanceId, label.InstanceId);
+        Assert.Equal(SchematicComponentTextKind.Name, label.Kind);
+        Assert.Equal("Component text U3 name", editor.SelectionSummary);
+
+        SchematicComponentInstance? body = editor.SelectComponentAt(new CadPoint(500_000, 500_000));
+
+        Assert.Same(body, editor.SelectedComponent);
+        Assert.Null(editor.SelectedComponentTextLabel);
+        Assert.Equal("Selected U3: Timer", editor.StatusText);
+    }
+
     private static ComponentPlacementIntent IntentWithBounds(
         string componentId,
         string displayName,

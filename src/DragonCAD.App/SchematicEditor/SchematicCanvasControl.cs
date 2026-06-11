@@ -521,7 +521,7 @@ public sealed class SchematicCanvasControl : Control
             Typeface.Default,
             12,
             TextBrush);
-        context.DrawText(label, Translate(viewport.Map(instance.Position, new CadPoint(0, -6_500_000)), center));
+        context.DrawText(label, Translate(viewport.Map(new CadPoint(0, 0), instance.NameTextPositionOrDefault), center));
 
         if (!string.IsNullOrWhiteSpace(instance.Value))
         {
@@ -532,7 +532,7 @@ public sealed class SchematicCanvasControl : Control
                 Typeface.Default,
                 11,
                 TextBrush);
-            context.DrawText(valueLabel, Translate(viewport.Map(instance.Position, new CadPoint(0, 7_200_000)), center));
+            context.DrawText(valueLabel, Translate(viewport.Map(new CadPoint(0, 0), instance.ValueTextPositionOrDefault), center));
         }
     }
 
@@ -753,6 +753,7 @@ public sealed class SchematicCanvasControl : Control
             nameof(SchematicEditorViewModel.RenderableWireSegments) or
             nameof(SchematicEditorViewModel.SelectedWireVertexHandles) or
             nameof(SchematicEditorViewModel.SelectedNetLabel) or
+            nameof(SchematicEditorViewModel.SelectedComponentTextLabel) or
             nameof(SchematicEditorViewModel.SelectedPinEndpoint) or
             nameof(SchematicEditorViewModel.HoveredPin) or
             nameof(SchematicEditorViewModel.HoveredComponent) or

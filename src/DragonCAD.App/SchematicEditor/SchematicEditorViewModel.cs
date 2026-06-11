@@ -14,6 +14,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
     private const long PinEndpointHitTolerance = 1_250_000;
     private const double PinLeadHitTolerance = 350_000;
     private const double WireSegmentHitTolerance = 700_000;
+    private const long ComponentTextHitTolerance = 700_000;
     private static readonly IReadOnlyDictionary<string, string> EmptyComponentAttributes =
         new Dictionary<string, string>(StringComparer.Ordinal);
 
@@ -37,6 +38,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
     private ComponentPlacementIntent? activePlacementCandidate;
     private SchematicPinEndpoint? selectedPinEndpoint;
     private SchematicNetLabel? selectedNetLabel;
+    private SchematicComponentTextLabel? selectedComponentTextLabel;
     private CadPoint? pendingWirePreviewPoint;
     private readonly List<CadPoint> pendingWireRoutePoints = [];
     private double zoomLevel = 1.0;
@@ -114,6 +116,9 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             label.LabelId == SelectedNetLabel?.LabelId,
             label.LabelId == HoveredNetLabel?.LabelId,
             label.RotationDegrees));
+
+    public IEnumerable<SchematicComponentTextLabel> RenderableComponentTextLabels =>
+        Components.SelectMany(ComponentTextLabelsFor);
 
     public CadRectangle SheetBounds { get; } =
         new(-140_000_000, -100_000_000, 140_000_000, 100_000_000);
@@ -447,10 +452,32 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         }
     }
 
+    public SchematicComponentTextLabel? SelectedComponentTextLabel
+    {
+        get => selectedComponentTextLabel;
+        private set
+        {
+            if (selectedComponentTextLabel == value)
+            {
+                return;
+            }
+
+            selectedComponentTextLabel = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(SelectionSummary));
+        }
+    }
+
     public string SelectionSummary
     {
         get
         {
+            if (SelectedComponentTextLabel is not null)
+            {
+                string kind = SelectedComponentTextLabel.Kind == SchematicComponentTextKind.Name ? "name" : "value";
+                return $"Component text {SelectedComponentTextLabel.ReferenceDesignator} {kind}";
+            }
+
             if (SelectedComponent is not null)
             {
                 string valueText = string.IsNullOrWhiteSpace(SelectedComponent.Value)
@@ -607,6 +634,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         HoveredNetLabel = null;
         SelectedPinEndpoint = null;
         SelectedNetLabel = null;
+        SelectedComponentTextLabel = null;
         SelectedComponent = null;
         SelectedWire = null;
         SelectedWireSegmentIndex = null;
@@ -618,6 +646,11 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
     public SchematicComponentInstance? SelectComponentAt(CadPoint point)
     {
+        if (SelectComponentTextLabelAt(point) is not null)
+        {
+            return null;
+        }
+
         for (int index = Components.Count - 1; index >= 0; index--)
         {
             SchematicComponentInstance candidate = Components[index];
@@ -629,6 +662,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
                 SelectedWireVertexIndex = null;
                 SelectedPinEndpoint = null;
                 SelectedNetLabel = null;
+                SelectedComponentTextLabel = null;
                 StatusText = $"Selected {candidate.ReferenceDesignator}: {candidate.DisplayName}";
                 return candidate;
             }
@@ -637,6 +671,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         SelectedComponent = null;
         SelectedPinEndpoint = null;
         SelectedNetLabel = null;
+        SelectedComponentTextLabel = null;
         SelectedWireVertexIndex = null;
         if (SelectNetLabelAt(point) is null)
         {
@@ -659,6 +694,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         SelectedWireSegmentIndex = null;
         SelectedWireVertexIndex = null;
         SelectedNetLabel = null;
+        SelectedComponentTextLabel = null;
         string connectedText = SelectedPinEndpoint.IsConnected
             ? $" connected to {NetNameForEndpoint(SelectedPinEndpoint)}"
             : "";
@@ -687,6 +723,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         SelectedWireSegmentIndex = null;
         SelectedWireVertexIndex = null;
         SelectedPinEndpoint = null;
+        SelectedComponentTextLabel = null;
         RebuildNets();
         StatusText = $"Placed net label {label.NetName} at {FormatMillimeters(label.Position.X)} mm, {FormatMillimeters(label.Position.Y)} mm.";
         return label;
@@ -707,6 +744,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         SelectedWireSegmentIndex = null;
         SelectedWireVertexIndex = null;
         SelectedPinEndpoint = null;
+        SelectedComponentTextLabel = null;
         StatusText = $"Selected net label {nearest.NetName}.";
         return nearest;
     }
@@ -802,6 +840,46 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         return true;
     }
 
+    public SchematicComponentTextLabel? SelectComponentTextLabelAt(CadPoint point)
+    {
+        SchematicComponentTextLabel? label = FindComponentTextLabelAt(point);
+        if (label is null)
+        {
+            return null;
+        }
+
+        SelectedComponentTextLabel = label;
+        SelectedComponent = null;
+        SelectedWire = null;
+        SelectedWireSegmentIndex = null;
+        SelectedWireVertexIndex = null;
+        SelectedPinEndpoint = null;
+        SelectedNetLabel = null;
+        StatusText = $"Selected {label.ReferenceDesignator} {TextKindLabel(label.Kind)} text.";
+        return label;
+    }
+
+    public SchematicComponentTextLabel MoveSelectedComponentNameTextTo(CadPoint requestedPosition) =>
+        MoveSelectedComponentTextTo(SchematicComponentTextKind.Name, requestedPosition);
+
+    public SchematicComponentTextLabel MoveSelectedComponentValueTextTo(CadPoint requestedPosition) =>
+        MoveSelectedComponentTextTo(SchematicComponentTextKind.Value, requestedPosition);
+
+    public SchematicComponentInstance ResetSelectedComponentTextPositions()
+    {
+        SchematicComponentInstance selected = RequireSelectedComponentInDocument(out int index);
+        SchematicComponentInstance reset = selected with
+        {
+            NameTextPosition = null,
+            ValueTextPosition = null
+        };
+        ReplaceSelectedComponent(index, reset);
+        SelectedComponentTextLabel = null;
+        IsDirty = true;
+        StatusText = $"Reset {reset.ReferenceDesignator} text positions.";
+        return reset;
+    }
+
     public SchematicComponentInstance MoveSelectedComponentTo(CadPoint requestedPosition)
     {
         if (SelectedComponent is null)
@@ -821,6 +899,7 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         };
         Components[index] = moved;
         SelectedComponent = moved;
+        SelectedComponentTextLabel = null;
         RefreshWireEndpointsForMovedComponent(moved);
         StatusText = $"Moved {moved.ReferenceDesignator} to {FormatMillimeters(moved.Position.X)} mm, {FormatMillimeters(moved.Position.Y)} mm";
         return moved;
@@ -2312,27 +2391,107 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
 
     private SchematicComponentInstance RequireSelectedComponentInDocument(out int index)
     {
-        if (SelectedComponent is null)
+        SchematicComponentInstance? selected = SelectedComponent;
+        if (selected is null && SelectedComponentTextLabel is not null)
+        {
+            selected = Components.FirstOrDefault(component => component.InstanceId == SelectedComponentTextLabel.InstanceId);
+        }
+
+        if (selected is null)
         {
             throw new InvalidOperationException("No schematic component is selected.");
         }
 
-        index = Components.IndexOf(SelectedComponent);
+        index = Components.IndexOf(selected);
         if (index < 0)
         {
             throw new InvalidOperationException("The selected schematic component is no longer in the document.");
         }
 
-        return SelectedComponent;
+        return selected;
+    }
+
+    private SchematicComponentTextLabel MoveSelectedComponentTextTo(
+        SchematicComponentTextKind kind,
+        CadPoint requestedPosition)
+    {
+        SchematicComponentInstance selected = RequireSelectedComponentInDocument(out int index);
+        CadPoint snapped = placementGrid.Snap(requestedPosition);
+        SchematicComponentInstance updated = kind == SchematicComponentTextKind.Name
+            ? selected with { NameTextPosition = snapped }
+            : selected with { ValueTextPosition = snapped };
+
+        ReplaceSelectedComponent(index, updated);
+        SchematicComponentTextLabel label = ComponentTextLabelFor(updated, kind);
+        SelectedComponentTextLabel = label;
+        IsDirty = true;
+        StatusText = $"Moved {updated.ReferenceDesignator} {TextKindLabel(kind)} text to {FormatMillimeters(snapped.X)} mm, {FormatMillimeters(snapped.Y)} mm.";
+        return label;
     }
 
     private void ReplaceSelectedComponent(int index, SchematicComponentInstance updated)
     {
         Components[index] = updated;
         SelectedComponent = updated;
+        OnPropertyChanged(nameof(RenderableComponentTextLabels));
         OnPropertyChanged(nameof(SelectionSummary));
         OnPropertyChanged(nameof(SelectedComponentMetadata));
     }
+
+    private static IEnumerable<SchematicComponentTextLabel> ComponentTextLabelsFor(SchematicComponentInstance component)
+    {
+        yield return ComponentTextLabelFor(component, SchematicComponentTextKind.Name);
+        if (!string.IsNullOrWhiteSpace(component.Value))
+        {
+            yield return ComponentTextLabelFor(component, SchematicComponentTextKind.Value);
+        }
+    }
+
+    private static SchematicComponentTextLabel ComponentTextLabelFor(
+        SchematicComponentInstance component,
+        SchematicComponentTextKind kind) =>
+        new(
+            component.InstanceId,
+            component.ReferenceDesignator,
+            kind,
+            kind == SchematicComponentTextKind.Name ? component.ReferenceDesignator : component.Value,
+            kind == SchematicComponentTextKind.Name
+                ? component.NameTextPositionOrDefault
+                : component.ValueTextPositionOrDefault);
+
+    private SchematicComponentTextLabel? FindComponentTextLabelAt(CadPoint point)
+    {
+        SchematicComponentTextLabel? nearest = null;
+        long nearestDistanceSquared = long.MaxValue;
+        for (int componentIndex = Components.Count - 1; componentIndex >= 0; componentIndex--)
+        {
+            SchematicComponentInstance component = Components[componentIndex];
+            foreach (SchematicComponentTextLabel label in ComponentTextLabelsFor(component))
+            {
+                if (Math.Abs(label.Position.X - point.X) > ComponentTextHitTolerance ||
+                    Math.Abs(label.Position.Y - point.Y) > ComponentTextHitTolerance)
+                {
+                    continue;
+                }
+
+                long dx = label.Position.X - point.X;
+                long dy = label.Position.Y - point.Y;
+                long distanceSquared = (dx * dx) + (dy * dy);
+                if (distanceSquared >= nearestDistanceSquared)
+                {
+                    continue;
+                }
+
+                nearestDistanceSquared = distanceSquared;
+                nearest = label;
+            }
+        }
+
+        return nearest;
+    }
+
+    private static string TextKindLabel(SchematicComponentTextKind kind) =>
+        kind == SchematicComponentTextKind.Name ? "name" : "value";
 
     private void RebuildNetLabelDiagnostics()
     {
