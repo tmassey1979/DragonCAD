@@ -20,7 +20,7 @@ public sealed class DatasheetPromotionQueueCommandsTests
         DatasheetPromotionCommandResult result = commands.ApproveSelectedForPromotion();
 
         Assert.True(result.Succeeded);
-        Assert.Equal(DatasheetReviewState.Approved, row.ReviewState);
+        Assert.Equal(DatasheetReviewState.Promoted, row.ReviewState);
         Assert.NotNull(result.PromotionPlan);
         Assert.True(result.PromotionPlan.CanPromote);
         Assert.Equal("core-regulators", result.PromotionPlan.TargetLibraryId);

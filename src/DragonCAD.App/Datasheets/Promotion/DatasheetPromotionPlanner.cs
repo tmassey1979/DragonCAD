@@ -50,7 +50,7 @@ public static class DatasheetPromotionPlanner
 
         switch (row.ReviewState)
         {
-            case DatasheetReviewState.Approved:
+            case DatasheetReviewState.Promoted:
                 break;
             case DatasheetReviewState.Rejected:
                 diagnostics.Add(new DatasheetPromotionDiagnostic(
