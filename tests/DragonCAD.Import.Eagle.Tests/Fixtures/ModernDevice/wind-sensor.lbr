@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<eagle version="9.6.2">
+  <drawing>
+    <library>
+      <layers>
+        <layer number="94" name="Symbols" />
+      </layers>
+      <packages>
+        <package name="WIND-SENSOR">
+          <pad name="VCC" x="-2.54" y="0" drill="0.9" diameter="1.6" />
+          <pad name="GND" x="0" y="0" drill="0.9" diameter="1.6" />
+          <pad name="OUT" x="2.54" y="0" drill="0.9" diameter="1.6" />
+          <wire x1="-4" y1="-2" x2="4" y2="-2" width="0.127" layer="21" />
+          <wire x1="4" y1="-2" x2="4" y2="2" width="0.127" layer="21" />
+          <text x="-4" y="3" size="1.27" layer="25">&gt;NAME</text>
+          <polygon width="0.127" layer="1">
+            <vertex x="-3" y="-1" />
+            <vertex x="3" y="-1" />
+            <vertex x="3" y="1" />
+            <vertex x="-3" y="1" />
+          </polygon>
+          <hole x="5" y="0" drill="2.54" />
+        </package>
+      </packages>
+      <symbols>
+        <symbol name="WIND-SENSOR">
+          <pin name="VCC" x="-5.08" y="2.54" length="middle" />
+          <pin name="GND" x="-5.08" y="0" length="middle" />
+          <pin name="OUT" x="-5.08" y="-2.54" length="middle" />
+          <text x="0" y="3.81" size="1.27" layer="94">&gt;VALUE</text>
+        </symbol>
+      </symbols>
+    </library>
+  </drawing>
+</eagle>

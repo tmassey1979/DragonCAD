@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<eagle version="9.6.2">
+  <drawing>
+    <board>
+      <layers>
+        <layer number="1" name="Top" />
+        <layer number="16" name="Bottom" />
+      </layers>
+      <plain>
+        <text x="0" y="0" size="1.27" layer="21">SparkFun Qwiic Environment</text>
+        <polygon width="0.1524" layer="1">
+          <vertex x="0" y="0" />
+          <vertex x="20" y="0" />
+          <vertex x="20" y="10" />
+          <vertex x="0" y="10" />
+        </polygon>
+        <circle x="3" y="3" radius="1" width="0.127" layer="20" />
+      </plain>
+      <libraries>
+        <library name="SparkFun-Sensors">
+          <packages>
+            <package name="QWIIC">
+              <smd name="1" x="-1.5" y="0" dx="1" dy="1.6" layer="1" />
+              <smd name="2" x="0" y="0" dx="1" dy="1.6" layer="1" />
+              <smd name="3" x="1.5" y="0" dx="1" dy="1.6" layer="1" />
+            </package>
+          </packages>
+        </library>
+      </libraries>
+      <elements>
+        <element name="U1" library="SparkFun-Sensors" package="QWIIC" value="BME280" x="5" y="5" />
+        <element name="J1" library="SparkFun-Connectors" package="JST04" value="QWIIC" x="12" y="5" />
+      </elements>
+      <signals>
+        <signal name="SDA">
+          <contactref element="U1" pad="1" />
+          <contactref element="J1" pad="2" />
+          <wire x1="5" y1="5" x2="9" y2="5" width="0.254" layer="1" />
+          <wire x1="9" y1="5" x2="12" y2="5" width="0.254" layer="16" />
+          <via x="9" y="5" extent="1-16" drill="0.35" />
+        </signal>
+        <signal name="SCL">
+          <contactref element="U1" pad="2" />
+          <contactref element="J1" pad="3" />
+          <wire x1="5" y1="6" x2="12" y2="6" width="0.254" layer="1" />
+        </signal>
+      </signals>
+    </board>
+  </drawing>
+</eagle>
