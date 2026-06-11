@@ -418,6 +418,67 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
         }
     }
 
+    public IReadOnlyList<ComponentEditorPinPadMappingRow> MappingRows
+    {
+        get
+        {
+            return variants
+                .OrderBy(variant => variant.Name, StringComparer.Ordinal)
+                .SelectMany(variant =>
+                {
+                    ComponentFootprint? footprint = footprints.FirstOrDefault(footprint => footprint.Id == variant.FootprintId);
+                    ComponentEditorPadTarget[] availablePads = footprint?.Pads
+                        .OrderBy(pad => pad.Name, StringComparer.Ordinal)
+                        .Select(pad => new ComponentEditorPadTarget(pad.Id.Value, pad.Name, $"{pad.Name} ({footprint.Name})"))
+                        .ToArray() ?? [];
+
+                    return pins
+                        .OrderBy(pin => pin.Number, StringComparer.Ordinal)
+                        .ThenBy(pin => pin.Name, StringComparer.Ordinal)
+                        .Select(pin =>
+                        {
+                            ComponentPinPadMapping? mapping = pinPadMappings.FirstOrDefault(mapping => mapping.VariantId == variant.Id && mapping.PinId == pin.Id);
+                            ComponentEditorPadTarget? selectedPad = mapping is null
+                                ? null
+                                : availablePads.FirstOrDefault(pad => pad.Id == mapping.PadId.Value);
+                            string selectedPadName = selectedPad?.Name ?? "Unmapped";
+
+                            return new ComponentEditorPinPadMappingRow(
+                                variant.Id.Value,
+                                variant.Name,
+                                pin.Id.Value,
+                                pin.Number,
+                                pin.Name,
+                                selectedPad?.Id,
+                                selectedPadName,
+                                availablePads,
+                                $"{variant.Name}: {pin.Number} {pin.Name} -> {selectedPadName}");
+                        });
+                })
+                .ToArray();
+        }
+    }
+
+    public ComponentEditorMappingMetadata MappingMetadata
+    {
+        get
+        {
+            ComponentEditorPinPadMappingRow[] rows = MappingRows.ToArray();
+            string[] reviewLines = rows
+                .Where(row => row.SelectedPadId is not null)
+                .OrderBy(row => row.PackageName, StringComparer.Ordinal)
+                .ThenBy(row => row.PinNumber, StringComparer.Ordinal)
+                .Select(row => $"{row.PackageName}|{row.PinNumber}|{row.SelectedPadName}")
+                .ToArray();
+
+            return new ComponentEditorMappingMetadata(
+                reviewLines.Length,
+                rows.Length,
+                $"{reviewLines.Length}/{rows.Length} pins mapped",
+                reviewLines);
+        }
+    }
+
     public static ComponentEditorViewModel FromDefinition(ComponentDefinition definition)
     {
         ArgumentNullException.ThrowIfNull(definition);
@@ -699,8 +760,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(PinSummaries));
         OnPropertyChanged(nameof(Symbols));
         OnPropertyChanged(nameof(SymbolSummaries));
-        OnPropertyChanged(nameof(PinPadMappings));
-        OnPropertyChanged(nameof(MappingSummaries));
+        OnMappingStateChanged();
         return ComponentEditorCommandResult.Success();
     }
 
@@ -804,8 +864,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             pinPadMappings = pinPadMappings.Where(mapping => mapping.PinId != item.PinId).ToArray();
             OnPropertyChanged(nameof(Pins));
             OnPropertyChanged(nameof(PinSummaries));
-            OnPropertyChanged(nameof(PinPadMappings));
-            OnPropertyChanged(nameof(MappingSummaries));
+            OnMappingStateChanged();
         }
         else if (item.SymbolId is not null)
         {
@@ -838,7 +897,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
 
         OnPropertyChanged(nameof(Symbols));
         OnPropertyChanged(nameof(SymbolSummaries));
-        OnPropertyChanged(nameof(MappingSummaries));
+        OnMappingStateChanged();
         return ComponentEditorCommandResult.Success();
     }
 
@@ -870,7 +929,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
         footprints = footprints.Append(footprint).ToArray();
         OnPropertyChanged(nameof(Footprints));
         OnPropertyChanged(nameof(FootprintSummaries));
-        OnPropertyChanged(nameof(MappingSummaries));
+        OnMappingStateChanged();
     }
 
     public ComponentEditorCommandResult AddPad(string footprintNameOrId, string name, CadPoint position, CadVector size) =>
@@ -1062,8 +1121,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
                         : footprint)
                     .ToArray();
                 pinPadMappings = pinPadMappings.Where(mapping => mapping.PadId != padPrimitive.PadId).ToArray();
-                OnPropertyChanged(nameof(PinPadMappings));
-                OnPropertyChanged(nameof(MappingSummaries));
+                OnMappingStateChanged();
                 break;
             case ComponentEditorFootprintLinePrimitive linePrimitive:
                 footprints = footprints
@@ -1120,7 +1178,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             .ToArray();
         OnPropertyChanged(nameof(Footprints));
         OnPropertyChanged(nameof(FootprintSummaries));
-        OnPropertyChanged(nameof(MappingSummaries));
+        OnMappingStateChanged();
         return ComponentEditorCommandResult.Success();
     }
 
@@ -1142,7 +1200,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             .ToArray();
         OnPropertyChanged(nameof(Footprints));
         OnPropertyChanged(nameof(FootprintSummaries));
-        OnPropertyChanged(nameof(MappingSummaries));
+        OnMappingStateChanged();
         return ComponentEditorCommandResult.Success();
     }
 
@@ -1189,8 +1247,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
         pinPadMappings = pinPadMappings.Where(mapping => mapping.PadId != pad.Id).ToArray();
         OnPropertyChanged(nameof(Footprints));
         OnPropertyChanged(nameof(FootprintSummaries));
-        OnPropertyChanged(nameof(PinPadMappings));
-        OnPropertyChanged(nameof(MappingSummaries));
+        OnMappingStateChanged();
         return ComponentEditorCommandResult.Success();
     }
 
@@ -1210,7 +1267,7 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             .ToArray();
         OnPropertyChanged(nameof(Variants));
         OnPropertyChanged(nameof(PackageSummaries));
-        OnPropertyChanged(nameof(MappingSummaries));
+        OnMappingStateChanged();
     }
 
     public ComponentEditorCommandResult MapPinToPad(string pinNumberOrName, string padName)
@@ -1264,8 +1321,33 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
             .Where(mapping => mapping.VariantId != variant.Id || mapping.PinId != pin.Id)
             .Append(new ComponentPinPadMapping(variant.Id, pin.Id, pad.Id))
             .ToArray();
-        OnPropertyChanged(nameof(PinPadMappings));
-        OnPropertyChanged(nameof(MappingSummaries));
+        OnMappingStateChanged();
+        return ComponentEditorCommandResult.Success();
+    }
+
+    public ComponentEditorCommandResult UnmapPinFromPad(string packageNameOrId, string pinNumberOrName)
+    {
+        if (string.IsNullOrWhiteSpace(pinNumberOrName))
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.InvalidInput, "Pin number or name is required.");
+        }
+
+        ComponentVariant? variant = FindVariant(packageNameOrId);
+        if (variant is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, $"Package '{packageNameOrId}' was not found.");
+        }
+
+        ComponentPin? pin = FindPin(pinNumberOrName);
+        if (pin is null)
+        {
+            return ComponentEditorCommandResult.Failed(ComponentEditorCommandDiagnosticKind.NotFound, $"Pin '{pinNumberOrName}' was not found.");
+        }
+
+        pinPadMappings = pinPadMappings
+            .Where(mapping => mapping.VariantId != variant.Id || mapping.PinId != pin.Id)
+            .ToArray();
+        OnMappingStateChanged();
         return ComponentEditorCommandResult.Success();
     }
 
@@ -1341,6 +1423,14 @@ public sealed class ComponentEditorViewModel : INotifyPropertyChanged
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
+    private void OnMappingStateChanged()
+    {
+        OnPropertyChanged(nameof(PinPadMappings));
+        OnPropertyChanged(nameof(MappingSummaries));
+        OnPropertyChanged(nameof(MappingRows));
+        OnPropertyChanged(nameof(MappingMetadata));
+    }
 
     private static string Slug(string value) =>
         string.Join(
@@ -1849,6 +1939,11 @@ public sealed record ComponentEditorValidationSummary(
             yield return issue;
         }
 
+        foreach (ComponentEditorValidationIssue issue in DuplicatePadMappings(definition))
+        {
+            yield return issue;
+        }
+
         if (definition.PinPadMappings.Count == 0)
         {
             yield return new ComponentEditorValidationIssue(
@@ -1857,17 +1952,22 @@ public sealed record ComponentEditorValidationSummary(
         }
         else
         {
-            HashSet<ComponentPinId> mappedPinIds = definition.PinPadMappings
-                .Select(mapping => mapping.PinId)
+            HashSet<(ComponentVariantId VariantId, ComponentPinId PinId)> mappedPinsByVariant = definition.PinPadMappings
+                .Select(mapping => (mapping.VariantId, mapping.PinId))
                 .ToHashSet();
 
-            foreach (ComponentPin pin in definition.Pins.OrderBy(pin => pin.Number, StringComparer.Ordinal))
+            foreach (ComponentVariant variant in definition.Variants.OrderBy(variant => variant.Name, StringComparer.Ordinal))
             {
-                if (!mappedPinIds.Contains(pin.Id))
+                foreach (ComponentPin pin in definition.Pins.OrderBy(pin => pin.Number, StringComparer.Ordinal))
                 {
-                    yield return new ComponentEditorValidationIssue(
-                        ComponentEditorValidationIssueKind.UnmappedPin,
-                        $"Unmapped pin {pin.Number}");
+                    if (!mappedPinsByVariant.Contains((variant.Id, pin.Id)))
+                    {
+                        yield return new ComponentEditorValidationIssue(
+                            ComponentEditorValidationIssueKind.UnmappedPin,
+                            definition.Variants.Count == 1
+                                ? $"Unmapped pin {pin.Number}"
+                                : $"Unmapped pin {variant.Name} {pin.Number}");
+                    }
                 }
             }
         }
@@ -1899,6 +1999,30 @@ public sealed record ComponentEditorValidationSummary(
             .Select(group => new ComponentEditorValidationIssue(
                 ComponentEditorValidationIssueKind.DuplicatePinName,
                 $"Duplicate pin name {group.Key}"));
+
+    private static IEnumerable<ComponentEditorValidationIssue> DuplicatePadMappings(ComponentDefinition definition)
+    {
+        Dictionary<ComponentVariantId, ComponentVariant> variantsById = definition.Variants.ToDictionary(variant => variant.Id);
+        Dictionary<ComponentFootprintId, ComponentFootprint> footprintsById = definition.Footprints.ToDictionary(footprint => footprint.Id);
+
+        foreach (IGrouping<(ComponentVariantId VariantId, ComponentPadId PadId), ComponentPinPadMapping> group in definition.PinPadMappings
+            .GroupBy(mapping => (mapping.VariantId, mapping.PadId))
+            .Where(group => group.Count() > 1)
+            .OrderBy(group => VariantName(group.Key.VariantId, variantsById), StringComparer.Ordinal)
+            .ThenBy(group => PadName(group.Key.VariantId, group.Key.PadId, variantsById, footprintsById), StringComparer.Ordinal))
+        {
+            if (!variantsById.TryGetValue(group.Key.VariantId, out ComponentVariant? variant) ||
+                !footprintsById.TryGetValue(variant.FootprintId, out ComponentFootprint? footprint) ||
+                footprint.Pads.All(pad => pad.Id != group.Key.PadId))
+            {
+                continue;
+            }
+
+            yield return new ComponentEditorValidationIssue(
+                ComponentEditorValidationIssueKind.DuplicatePadMapping,
+                $"Duplicate pad mapping {variant.Name} pad {PadName(group.Key.VariantId, group.Key.PadId, variantsById, footprintsById)}");
+        }
+    }
 
     private static IEnumerable<ComponentEditorValidationIssue> IncompleteMappings(ComponentDefinition definition)
     {
@@ -1947,7 +2071,51 @@ public sealed record ComponentEditorValidationSummary(
         value.Length == 0
             ? value
             : string.Concat(char.ToLowerInvariant(value[0]), value[1..]);
+
+    private static string VariantName(
+        ComponentVariantId variantId,
+        IReadOnlyDictionary<ComponentVariantId, ComponentVariant> variantsById) =>
+        variantsById.TryGetValue(variantId, out ComponentVariant? variant)
+            ? variant.Name
+            : variantId.Value;
+
+    private static string PadName(
+        ComponentVariantId variantId,
+        ComponentPadId padId,
+        IReadOnlyDictionary<ComponentVariantId, ComponentVariant> variantsById,
+        IReadOnlyDictionary<ComponentFootprintId, ComponentFootprint> footprintsById)
+    {
+        if (!variantsById.TryGetValue(variantId, out ComponentVariant? variant) ||
+            !footprintsById.TryGetValue(variant.FootprintId, out ComponentFootprint? footprint))
+        {
+            return padId.Value;
+        }
+
+        return footprint.Pads.FirstOrDefault(pad => pad.Id == padId)?.Name ?? padId.Value;
+    }
 }
+
+public sealed record ComponentEditorPinPadMappingRow(
+    string PackageId,
+    string PackageName,
+    string PinId,
+    string PinNumber,
+    string PinName,
+    string? SelectedPadId,
+    string SelectedPadName,
+    IReadOnlyList<ComponentEditorPadTarget> AvailablePads,
+    string DisplayText);
+
+public sealed record ComponentEditorPadTarget(
+    string Id,
+    string Name,
+    string DisplayText);
+
+public sealed record ComponentEditorMappingMetadata(
+    int MappedPinCount,
+    int TotalRequiredPinCount,
+    string DisplayText,
+    IReadOnlyList<string> ReviewLines);
 
 public sealed record ComponentEditorValidationIssue(
     ComponentEditorValidationIssueKind Kind,
@@ -1969,7 +2137,8 @@ public enum ComponentEditorValidationIssueKind
     MissingPin,
     DuplicatePinName,
     IncompleteMapping,
-    UnmappedPin
+    UnmappedPin,
+    DuplicatePadMapping
 }
 
 internal static class ComponentEditorSnapshot

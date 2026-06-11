@@ -709,6 +709,166 @@ public sealed class ComponentEditorWorkspaceTests
     }
 
     [Fact]
+    public void MappingRowsListSymbolPinsAndPackagePadsWithCurrentState()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:mapping-rows");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.AddPin("2", "OUT");
+        editor.AddPin("1", "IN");
+        editor.AddSymbol("Main");
+        editor.AddFootprint(
+            "SOIC-8",
+            [
+                new ComponentEditorPadDraft("2", new CadPoint(100_000, 0), new CadVector(60_000, 80_000)),
+                new ComponentEditorPadDraft("1", new CadPoint(0, 0), new CadVector(60_000, 80_000))
+            ]);
+        editor.AddPackage("SOIC package", "SOIC-8");
+        editor.MapPinToPad("SOIC package", "1", "1");
+
+        Assert.Equal(
+            [
+                "SOIC package: 1 IN -> 1",
+                "SOIC package: 2 OUT -> Unmapped"
+            ],
+            editor.MappingRows.Select(row => row.DisplayText));
+        ComponentEditorPinPadMappingRow firstRow = editor.MappingRows[0];
+        Assert.Equal("dragon:mapping-rows:variant:soic-package", firstRow.PackageId);
+        Assert.Equal("SOIC package", firstRow.PackageName);
+        Assert.Equal("dragon:mapping-rows:pin:1", firstRow.PinId);
+        Assert.Equal("1", firstRow.PinNumber);
+        Assert.Equal("IN", firstRow.PinName);
+        Assert.Equal("dragon:mapping-rows:pad:1", firstRow.SelectedPadId);
+        Assert.Equal("1", firstRow.SelectedPadName);
+        Assert.Equal(["1", "2"], firstRow.AvailablePads.Select(pad => pad.Name));
+    }
+
+    [Fact]
+    public void MappingCommandsMapUnmapAndReplacePackageMappingState()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:mapping-commands");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.AddPin("1", "VIN");
+        editor.AddSymbol("Main");
+        editor.AddFootprint(
+            "SOIC-8",
+            [
+                new ComponentEditorPadDraft("1", new CadPoint(0, 0), new CadVector(60_000, 80_000)),
+                new ComponentEditorPadDraft("8", new CadPoint(800_000, 0), new CadVector(60_000, 80_000))
+            ]);
+        editor.AddPackage("SOIC package", "SOIC-8");
+
+        Assert.Empty(editor.MapPinToPad("SOIC package", "1", "1").Diagnostics);
+        Assert.Equal("1", Assert.Single(editor.MappingRows).SelectedPadName);
+
+        Assert.Empty(editor.MapPinToPad("SOIC package", "1", "8").Diagnostics);
+        Assert.Equal("8", Assert.Single(editor.MappingRows).SelectedPadName);
+        Assert.Equal("SOIC package: 1 -> 8", Assert.Single(editor.MappingSummaries).DisplayText);
+
+        Assert.Empty(editor.UnmapPinFromPad("SOIC package", "1").Diagnostics);
+
+        Assert.Empty(editor.PinPadMappings);
+        ComponentEditorPinPadMappingRow row = Assert.Single(editor.MappingRows);
+        Assert.Null(row.SelectedPadId);
+        Assert.Equal("Unmapped", row.SelectedPadName);
+        Assert.Contains(workspace.ValidationSummary.Issues, issue => issue.Kind == ComponentEditorValidationIssueKind.MissingMapping);
+    }
+
+    [Fact]
+    public void DuplicatePadMappingsProduceDeterministicValidationDiagnosticAndBlockSave()
+    {
+        ComponentPinId firstPinId = new("dragon:duplicate-pad:pin:1");
+        ComponentPinId secondPinId = new("dragon:duplicate-pad:pin:2");
+        ComponentFootprintId footprintId = new("dragon:duplicate-pad:footprint:soic-8");
+        ComponentPadId padId = new("dragon:duplicate-pad:pad:1");
+        ComponentVariantId variantId = new("dragon:duplicate-pad:variant:soic-8");
+        ComponentDefinition invalid = new(
+            new ComponentId("dragon:duplicate-pad"),
+            "Duplicate Pad",
+            ComponentKind.IntegratedCircuit,
+            "Dragon",
+            "DUP-1",
+            Description: "",
+            Attributes: [],
+            Pins:
+            [
+                new ComponentPin(firstPinId, "IN", "1", ComponentPinElectricalType.Input),
+                new ComponentPin(secondPinId, "OUT", "2", ComponentPinElectricalType.Output)
+            ],
+            Gates: [],
+            Symbols:
+            [
+                new ComponentSymbol(
+                    new ComponentSymbolId("dragon:duplicate-pad:symbol:main"),
+                    "Main",
+                    [
+                        new ComponentSymbolPin(firstPinId, new CadPoint(0, 0), ComponentPinOrientation.Right),
+                        new ComponentSymbolPin(secondPinId, new CadPoint(0, 100_000), ComponentPinOrientation.Right)
+                    ],
+                    [],
+                    [])
+            ],
+            Footprints:
+            [
+                new ComponentFootprint(
+                    footprintId,
+                    "SOIC-8",
+                    [new ComponentFootprintPad(padId, "1", new CadPoint(0, 0), new CadVector(60_000, 80_000), ComponentPadTechnology.SurfaceMount, ComponentPadShape.Rectangle)],
+                    [],
+                    [])
+            ],
+            Variants: [new ComponentVariant(variantId, "SOIC package", footprintId, [])],
+            PinPadMappings:
+            [
+                new ComponentPinPadMapping(variantId, firstPinId, padId),
+                new ComponentPinPadMapping(variantId, secondPinId, padId)
+            ],
+            Datasheets: [],
+            Sourcing: [],
+            PackageModels3D: [],
+            Provenance: []);
+
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartEdit(invalid);
+
+        ComponentEditorValidationIssue issue = Assert.Single(workspace.ValidationSummary.Issues);
+        Assert.Equal(ComponentEditorValidationIssueKind.DuplicatePadMapping, issue.Kind);
+        Assert.Equal("Duplicate pad mapping SOIC package pad 1", issue.DisplayText);
+        Assert.Equal(ComponentEditorSaveReadiness.BlockedByValidation, workspace.SaveReadiness.State);
+    }
+
+    [Fact]
+    public void MappingMetadataIsDeterministicForSaveReviewFlows()
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:mapping-metadata");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.AddPin("2", "OUT");
+        editor.AddPin("1", "IN");
+        editor.AddSymbol("Main");
+        editor.AddFootprint(
+            "SOIC-8",
+            [
+                new ComponentEditorPadDraft("2", new CadPoint(100_000, 0), new CadVector(60_000, 80_000)),
+                new ComponentEditorPadDraft("1", new CadPoint(0, 0), new CadVector(60_000, 80_000))
+            ]);
+        editor.AddPackage("SOIC package", "SOIC-8");
+        editor.MapPinToPad("SOIC package", "2", "2");
+        editor.MapPinToPad("SOIC package", "1", "1");
+
+        ComponentEditorMappingMetadata metadata = editor.MappingMetadata;
+
+        Assert.Equal(2, metadata.MappedPinCount);
+        Assert.Equal(2, metadata.TotalRequiredPinCount);
+        Assert.Equal("2/2 pins mapped", metadata.DisplayText);
+        Assert.Equal(
+            [
+                "SOIC package|1|1",
+                "SOIC package|2|2"
+            ],
+            metadata.ReviewLines);
+        Assert.True(workspace.DirtyState.HasUnsavedChanges);
+        Assert.Equal(ComponentEditorSaveReadiness.Ready, workspace.SaveReadiness.State);
+    }
+
+    [Fact]
     public void SaveReloadDraftPreservesDraftIdentityWithoutCreatingTrustedLibraryEntry()
     {
         ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("draft:dragon:fx555");
