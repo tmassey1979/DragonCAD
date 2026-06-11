@@ -1,10 +1,11 @@
 namespace DragonCAD.Sourcing.Catalog.Smoke;
 
-public enum VendorLiveSmokeRunStatus
+public enum VendorLiveSmokeProviderStatus
 {
     Disabled,
+    Planned,
+    MissingCredentials,
     Succeeded,
     Failed,
-    MissingCredentials,
     RateLimited,
 }

@@ -4,7 +4,8 @@ namespace DragonCAD.Sourcing.Tests.Catalog.Smoke;
 
 public sealed class VendorLiveSmokeTests
 {
-    [Fact]
+    [Fact(Skip = "Live provider smoke is opt-in; run manually with DRAGONCAD_VENDOR_LIVE_SMOKE=true and DRAGONCAD_VENDOR_LIVE_SMOKE_MODE=live.")]
+    [Trait("Category", "LiveProviderSmoke")]
     public async Task DigiKeyKeywordSearchCanRunAgainstVendorWhenExplicitlyEnabled()
     {
         var harness = VendorLiveSmokeHarness.CreateDefault();
@@ -14,7 +15,8 @@ public sealed class VendorLiveSmokeTests
         AssertLiveSmokeSucceededOrWasDisabled(result);
     }
 
-    [Fact]
+    [Fact(Skip = "Live provider smoke is opt-in; run manually with DRAGONCAD_VENDOR_LIVE_SMOKE=true and DRAGONCAD_VENDOR_LIVE_SMOKE_MODE=live.")]
+    [Trait("Category", "LiveProviderSmoke")]
     public async Task MouserKeywordSearchCanRunAgainstVendorWhenExplicitlyEnabled()
     {
         var harness = VendorLiveSmokeHarness.CreateDefault();
