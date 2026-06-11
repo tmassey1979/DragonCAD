@@ -3,10 +3,12 @@ $ErrorActionPreference = "Stop"
 $repositoryRoot = Resolve-Path (Join-Path $PSScriptRoot "..\..")
 $roadmapPath = Join-Path $repositoryRoot "docs\roadmap.md"
 $releaseNotesTemplatePath = Join-Path $repositoryRoot "docs\release-notes-template.md"
+$editorBacklogPath = Join-Path $repositoryRoot "docs\editor-interaction-backlog.md"
+$componentMarketplaceRoadmapPath = Join-Path $repositoryRoot "docs\component-marketplace-roadmap.md"
 
 $failures = New-Object System.Collections.Generic.List[string]
 
-foreach ($path in @($roadmapPath, $releaseNotesTemplatePath)) {
+foreach ($path in @($roadmapPath, $releaseNotesTemplatePath, $editorBacklogPath, $componentMarketplaceRoadmapPath)) {
     if (-not (Test-Path -Path $path -PathType Leaf)) {
         $failures.Add("Missing required documentation file: $path")
     }
@@ -15,6 +17,8 @@ foreach ($path in @($roadmapPath, $releaseNotesTemplatePath)) {
 if ($failures.Count -eq 0) {
     $roadmap = Get-Content -Raw -Path $roadmapPath
     $releaseNotesTemplate = Get-Content -Raw -Path $releaseNotesTemplatePath
+    $editorBacklog = Get-Content -Raw -Path $editorBacklogPath
+    $componentMarketplaceRoadmap = Get-Content -Raw -Path $componentMarketplaceRoadmapPath
 
     $requiredRoadmapLinks = @(
         "https://github.com/users/tmassey1979/projects/5",
@@ -82,6 +86,60 @@ if ($failures.Count -eq 0) {
 
     if (-not $releaseNotesTemplate.Contains("https://github.com/users/tmassey1979/projects/5")) {
         $failures.Add("Release notes template is missing the GitHub Project #5 link.")
+    }
+
+    $completedRecentEditorSlices = @(
+        "Pin selection",
+        "Via insertion into trace",
+        "BOM CSV",
+        "Package text filtering",
+        "Pick/place CSV",
+        "Gerber job manifest summary",
+        "Sourcing provider descriptors"
+    )
+
+    foreach ($slice in $completedRecentEditorSlices) {
+        $plannedPattern = "\| $([regex]::Escape($slice)) \| Planned \|"
+        if ($editorBacklog -match $plannedPattern) {
+            $failures.Add("Editor backlog still lists completed recent slice as Planned: $slice")
+        }
+    }
+
+    $requiredComponentRoadmapIssueLinks = @(
+        "https://github.com/tmassey1979/DragonCAD/issues/102",
+        "https://github.com/tmassey1979/DragonCAD/issues/105",
+        "https://github.com/tmassey1979/DragonCAD/issues/106",
+        "https://github.com/tmassey1979/DragonCAD/issues/107",
+        "https://github.com/tmassey1979/DragonCAD/issues/108",
+        "https://github.com/tmassey1979/DragonCAD/issues/109",
+        "https://github.com/tmassey1979/DragonCAD/issues/110",
+        "https://github.com/tmassey1979/DragonCAD/issues/111",
+        "https://github.com/tmassey1979/DragonCAD/issues/112"
+    )
+
+    foreach ($link in $requiredComponentRoadmapIssueLinks) {
+        if (-not $componentMarketplaceRoadmap.Contains($link)) {
+            $failures.Add("Component marketplace roadmap is missing remaining issue link: $link")
+        }
+    }
+
+    $requiredCompletedBackendReferences = @(
+        "MKT-010",
+        "MKT-011",
+        "MKT-012",
+        "MKT-013",
+        "MKT-022",
+        "MKT-024",
+        "MKT-025",
+        "MKT-029",
+        "MKT-035"
+    )
+
+    foreach ($story in $requiredCompletedBackendReferences) {
+        $backendPattern = "$([regex]::Escape($story)).*(Implemented|backend implemented|closed)"
+        if ($componentMarketplaceRoadmap -notmatch $backendPattern) {
+            $failures.Add("Component marketplace roadmap does not mark completed backend story accurately: $story")
+        }
     }
 }
 

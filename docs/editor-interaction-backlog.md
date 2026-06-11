@@ -618,11 +618,11 @@ Wave 3 focuses on closing the next editor-to-output workflow gaps without broad 
 
 | Slice | Status | Primary Outcome | Agent Boundary |
 | --- | --- | --- | --- |
-| Pin selection | Planned | Schematic pins can be hit-tested, highlighted, and used as reliable wire start/end anchors with a larger practical click target. | `src/DragonCAD.App/SchematicEditor/**`, matching schematic editor tests. |
-| Via insertion into trace | Planned | PCB routing can insert a via into the active or selected trace, split/continue the route, and switch layers deterministically. | `src/DragonCAD.App/BoardEditor/**`, matching board editor tests. |
-| Package preview switching | In progress | Component browser/editor can switch between available packages and update the preview/active placement package without mutating catalog data. | `src/DragonCAD.App/ComponentManager/**`, matching component manager tests. |
-| BOM CSV | Planned | Fabrication output can export deterministic BOM rows to CSV using the normalized BOM aggregation model. | `src/DragonCAD.Fabrication/**`, `tests/DragonCAD.Fabrication.Tests/**`. |
-| Quote ladder comparison | In progress | Sourcing can compare normalized vendor price breaks for requested build quantities and sort best options consistently. | `src/DragonCAD.Sourcing/**`, `tests/DragonCAD.Sourcing.Tests/**`. |
+| Pin selection | Implemented | Schematic pins can be hit-tested, highlighted, and used as reliable wire start/end anchors with a larger practical click target. Closed by [EDIT-022 #69](https://github.com/tmassey1979/DragonCAD/issues/69). | `src/DragonCAD.App/SchematicEditor/**`, matching schematic editor tests. |
+| Via insertion into trace | Implemented | PCB routing can insert a via into the active or selected trace, split/continue the route, and switch layers deterministically. Closed by [EDIT-023 #70](https://github.com/tmassey1979/DragonCAD/issues/70). | `src/DragonCAD.App/BoardEditor/**`, matching board editor tests. |
+| Package preview switching | Implemented | Component browser/editor can switch between available packages and update the preview/active placement package without mutating catalog data. Closed by [CMP-006 #61](https://github.com/tmassey1979/DragonCAD/issues/61). | `src/DragonCAD.App/ComponentManager/**`, matching component manager tests. |
+| BOM CSV | Implemented | Fabrication output can export deterministic BOM rows to CSV using the normalized BOM aggregation model. Closed by [FAB-007 #72](https://github.com/tmassey1979/DragonCAD/issues/72). | `src/DragonCAD.Fabrication/**`, `tests/DragonCAD.Fabrication.Tests/**`. |
+| Quote ladder comparison | Implemented | Sourcing can compare normalized vendor price breaks for requested build quantities and sort best options consistently. Closed by [SRC-007 #73](https://github.com/tmassey1979/DragonCAD/issues/73). | `src/DragonCAD.Sourcing/**`, `tests/DragonCAD.Sourcing.Tests/**`. |
 | Shell/UI integration | Planned | The app shell exposes the new editor, component, fabrication, and sourcing actions through visible toolbar/panel commands. | `src/DragonCAD.App/Shell/**`, focused app shell tests. |
 
 ### Wave 3 Coordination Notes
@@ -640,10 +640,10 @@ Wave 4 turns the next set of editor and output primitives into user-visible work
 
 | Slice | Status | Primary Outcome | Agent Boundary |
 | --- | --- | --- | --- |
-| Net labels | Planned | Schematic wires and named nets can show, edit, and persist visible net labels that are usable as connection intent and board-sync input. | `src/DragonCAD.App/SchematicEditor/**`, matching schematic editor tests. |
+| Net labels | Implemented | Schematic wires and named nets can show, edit, and persist visible net labels that are usable as connection intent and board-sync input. Closed by [EDIT-026 #79](https://github.com/tmassey1979/DragonCAD/issues/79). | `src/DragonCAD.App/SchematicEditor/**`, matching schematic editor tests. |
 | Trace width editing | Planned | PCB traces expose editable width properties, render with the selected width, and preserve width through route edits and layer changes. | `src/DragonCAD.App/BoardEditor/**`, matching board editor tests. |
-| Package text filtering | Planned | Component/package selection can filter by package name, footprint type, value text, and package metadata without losing the active package choice. | `src/DragonCAD.App/ComponentManager/**`, matching component manager tests. |
-| Pick/place CSV | Planned | Fabrication output can generate deterministic pick-and-place CSV rows with reference, package, position, rotation, and board side. | `src/DragonCAD.Fabrication/**`, `tests/DragonCAD.Fabrication.Tests/**`. |
+| Package text filtering | Implemented | Component/package selection can filter by package name, footprint type, value text, and package metadata without losing the active package choice. Closed by [CMP-007 #71](https://github.com/tmassey1979/DragonCAD/issues/71). | `src/DragonCAD.App/ComponentManager/**`, matching component manager tests. |
+| Pick/place CSV | Implemented | Fabrication output can generate deterministic pick-and-place CSV rows with reference, package, position, rotation, and board side. Closed by [MFG-002 #18](https://github.com/tmassey1979/DragonCAD/issues/18). | `src/DragonCAD.Fabrication/**`, `tests/DragonCAD.Fabrication.Tests/**`. |
 | BOM sourcing cost estimate | Planned | BOM lines can combine sourcing quote ladders into a deterministic build-cost estimate for a requested production quantity. | `src/DragonCAD.Sourcing/**`, `src/DragonCAD.Fabrication/**`, matching tests. |
 | Shell/UI integration | Planned | The app shell exposes net label editing, trace width editing, package filtering, pick/place export, and BOM cost estimate actions through visible panels/toolbars. | `src/DragonCAD.App/Shell/**`, focused app shell tests. |
 
@@ -662,11 +662,11 @@ Wave 5 promotes recently added model/service behavior into visible editor workfl
 
 | Slice | Status | Primary Outcome | Agent Boundary |
 | --- | --- | --- | --- |
-| Net label rendering | Planned | Schematic net labels render on the sheet, can be selected/moved with the mouse, and display net names clearly at grid-snapped positions. | `src/DragonCAD.App/SchematicEditor/**`, matching schematic editor tests. |
-| Via size editing | Planned | Selected PCB vias expose editable diameter and drill size, validate positive dimensions, render at the configured size, and preserve layer transition metadata. | `src/DragonCAD.App/BoardEditor/**`, matching board editor tests. |
-| Selected package summary | Planned | Component selection shows the active package, footprint preview, variant metadata, and available package count in a readable summary panel. | `src/DragonCAD.App/ComponentManager/**`, `src/DragonCAD.App/Shell/**`, focused component manager/shell tests. |
-| Gerber job manifest summary | Planned | Fabrication output surfaces a deterministic manufacturing manifest summary for Gerber, drill, paste, BOM, pick/place, and assembly files. | `src/DragonCAD.Fabrication/**`, optional `src/DragonCAD.App/Fabrication/**`, matching tests. |
-| Sourcing provider descriptors | Planned | Vendor integrations can expose local provider descriptors for Digi-Key, Mouser, Jameco, SparkFun, and Adafruit without performing network calls. | `src/DragonCAD.Sourcing/**`, matching sourcing tests. |
+| Net label rendering | Implemented | Schematic net labels render on the sheet, can be selected/moved with the mouse, and display net names clearly at grid-snapped positions. Closed by [EDIT-015 #59](https://github.com/tmassey1979/DragonCAD/issues/59) and expanded by [EDIT-026 #79](https://github.com/tmassey1979/DragonCAD/issues/79). | `src/DragonCAD.App/SchematicEditor/**`, matching schematic editor tests. |
+| Via size editing | Implemented | Selected PCB vias expose editable diameter and drill size, validate positive dimensions, render at the configured size, and preserve layer transition metadata. Closed by [EDIT-016 #60](https://github.com/tmassey1979/DragonCAD/issues/60). | `src/DragonCAD.App/BoardEditor/**`, matching board editor tests. |
+| Selected package summary | Implemented | Component selection shows the active package, footprint preview, variant metadata, and available package count in a readable summary panel. Closed by [CMP-006 #61](https://github.com/tmassey1979/DragonCAD/issues/61). | `src/DragonCAD.App/ComponentManager/**`, `src/DragonCAD.App/Shell/**`, focused component manager/shell tests. |
+| Gerber job manifest summary | Implemented | Fabrication output surfaces a deterministic manufacturing manifest summary for Gerber, drill, paste, BOM, pick/place, and assembly files. Closed by [FAB-006 #62](https://github.com/tmassey1979/DragonCAD/issues/62). | `src/DragonCAD.Fabrication/**`, optional `src/DragonCAD.App/Fabrication/**`, matching tests. |
+| Sourcing provider descriptors | Implemented | Vendor integrations can expose local provider descriptors for Digi-Key, Mouser, Jameco, SparkFun, and Adafruit without performing network calls. Closed by [SRC-006 #63](https://github.com/tmassey1979/DragonCAD/issues/63). | `src/DragonCAD.Sourcing/**`, matching sourcing tests. |
 | Shell/UI trace-width integration | Planned | The PCB shell/property pane exposes selected trace width editing and applies changes through board view-model commands. | `src/DragonCAD.App/Shell/**`, `src/DragonCAD.App/BoardEditor/**`, focused app tests. |
 
 ### Wave 5 Coordination Notes

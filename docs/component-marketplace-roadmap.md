@@ -4,6 +4,19 @@ This document tracks the remaining component library and marketplace work as ver
 
 The current marketplace surface already supports unified library/marketplace rows, review-only BOM/order previews, checkout readiness, local order records, order history, saved filters, quality badges, and fabrication checklist previews. The remaining work should keep that review-first posture: no generated component, vendor catalog match, BOM draft, order record, or fabrication package should mutate trusted project state or place a live external order without an explicit review step.
 
+## Current Status Snapshot
+
+This roadmap reconciles the original marketplace planning stories with the newer implementation and UI follow-up issues. Backend/planner stories marked implemented here are closed in GitHub; remaining UI, export, and shell work stays linked to open issues.
+
+| Area | Current status | Remaining GitHub issues |
+| --- | --- | --- |
+| Catalog matching and canonical review | `MKT-001` vendor catalog match review, `MKT-003` canonical identity, `MKT-004` permanent import, `MKT-008` component review, `MKT-016` canonical merge, and `MKT-026` provenance/audit backend are implemented or covered by closed backend stories. | [MKT-036 - Canonical Merge Suggestion UI #107](https://github.com/tmassey1979/DragonCAD/issues/107), [MKT-040 - Component Audit Timeline UI #111](https://github.com/tmassey1979/DragonCAD/issues/111) |
+| Datasheet intake, linking, and promotion | `CMP-001`, `CMP-002`, `MKT-007`, `MKT-020`, `MKT-023`, and `MKT-030` backend/review command foundations are implemented or covered by closed stories. | [CMP-013 - Datasheet Review Queue UI #105](https://github.com/tmassey1979/DragonCAD/issues/105), [CMP-014 - Datasheet Promotion Commands UI #106](https://github.com/tmassey1979/DragonCAD/issues/106) |
+| BOM, cart, and order review | `MKT-010` BOM planning, `MKT-011` vendor cart handoff, `MKT-018` order planning model, `MKT-022` cart workspace, `MKT-028` cart commands, and `MKT-035` BOM export preview backend/app foundations are implemented or covered by closed stories. | [MKT-037 - Marketplace Cart Quantity Commands UI #108](https://github.com/tmassey1979/DragonCAD/issues/108) |
+| Vendor sync and credential status | `MKT-002` credential boundary, `MKT-017` request planning, `MKT-025` vendor sync status, `MKT-029` sync run planner, and `MKT-064` live-smoke checklist are implemented or covered by closed stories. | [MKT-038 - Vendor Sync Status UI #109](https://github.com/tmassey1979/DragonCAD/issues/109) |
+| Fabrication readiness and package export | `MKT-012` OSH Park handoff, `MKT-013` PCBCart handoff, `MKT-019` app handoff view models, `MKT-024` handoff action planner, and `MKT-031` readiness commands are implemented or covered by closed stories. | [MKT-039 - Fabrication Readiness Commands UI #110](https://github.com/tmassey1979/DragonCAD/issues/110), [FAB-009 - Manufacturing Package Export Bundle #112](https://github.com/tmassey1979/DragonCAD/issues/112) |
+| Shell integration | Marketplace shell visibility has partial coverage from closed marketplace shell waves; the integrated workspace still has explicit open follow-up. | [SHELL-013 - Marketplace And Fabrication Workspace Panels #102](https://github.com/tmassey1979/DragonCAD/issues/102) |
+
 ## Roadmap Principles
 
 - Keep vendor credentials, payment data, shipping data, and API tokens outside project files.
