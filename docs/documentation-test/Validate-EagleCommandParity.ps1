@@ -11,7 +11,36 @@ $approvedStatuses = @(
     "Intentionally different"
 )
 
+$requiredCommands = @(
+    "ADD",
+    "MOVE",
+    "COPY",
+    "DELETE",
+    "GROUP",
+    "ROUTE",
+    "RIPUP",
+    "VIA",
+    "CHANGE",
+    "DISPLAY",
+    "GRID",
+    "SMASH",
+    "INVOKE",
+    "NAME",
+    "VALUE",
+    "ERC",
+    "DRC",
+    "EXPORT",
+    "SCRIPT/ULP",
+    "LIBRARY"
+)
+
+$expectedHeader = "| EAGLE command/tool | DragonCAD workflow | Status | DragonCAD command id | Help topic | Implementation issues | Notes |"
 $failures = New-Object System.Collections.Generic.List[string]
+
+if ($matrix -notcontains $expectedHeader) {
+    $failures.Add("EAGLE command parity matrix must use the 7-column completion header.")
+}
+
 $rows = $matrix | Where-Object {
     $_ -match '^\|' -and
     $_ -notmatch '^\|\s*---' -and
@@ -25,25 +54,49 @@ if ($rows.Count -eq 0) {
 foreach ($row in $rows) {
     $columns = $row.Trim("|").Split("|").ForEach({ $_.Trim() })
 
-    if ($columns.Count -ne 5) {
-        $failures.Add("Matrix row does not have 5 columns: $row")
+    if ($columns.Count -ne 7) {
+        $failures.Add("Matrix row does not have 7 columns: $row")
         continue
     }
 
     $command = $columns[0]
     $status = $columns[2]
-    $followUp = $columns[4]
+    $dragonCadCommandId = $columns[3]
+    $helpTopic = $columns[4]
+    $implementationIssues = $columns[5]
 
     if ($approvedStatuses -notcontains $status) {
         $failures.Add("Unexpected status '$status' for '$command'.")
     }
 
-    if (($status -eq "Partial" -or $status -eq "Planned") -and $followUp -notmatch '\]\([^)]+\)') {
-        $failures.Add("$status row '$command' must link to a GitHub issue or roadmap section.")
+    if ([string]::IsNullOrWhiteSpace($dragonCadCommandId)) {
+        $failures.Add("Row '$command' must include a DragonCAD command id or 'Not available'.")
     }
 
-    if ($status -eq "Planned" -and $followUp -notmatch 'https://github\.com/tmassey1979/DragonCAD/issues/\d+') {
+    if ($helpTopic -notmatch '\]\([^)]+\)') {
+        $failures.Add("Row '$command' must link to a help topic.")
+    }
+
+    if ($implementationIssues -notmatch 'https://github\.com/tmassey1979/DragonCAD/issues/\d+') {
+        $failures.Add("Row '$command' must link to at least one implementation issue.")
+    }
+
+    if ($status -eq "Planned" -and $implementationIssues -notmatch 'https://github\.com/tmassey1979/DragonCAD/issues/\d+') {
         $failures.Add("Planned row '$command' must link to a GitHub issue.")
+    }
+}
+
+$commandsByName = @{}
+foreach ($row in $rows) {
+    $columns = $row.Trim("|").Split("|").ForEach({ $_.Trim() })
+    if ($columns.Count -eq 7) {
+        $commandsByName[$columns[0].ToUpperInvariant()] = $true
+    }
+}
+
+foreach ($requiredCommand in $requiredCommands) {
+    if (-not $commandsByName.ContainsKey($requiredCommand)) {
+        $failures.Add("EAGLE command parity matrix is missing required command '$requiredCommand'.")
     }
 }
 
