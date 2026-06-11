@@ -1,8 +1,11 @@
 using DragonCAD.App.ComponentEditor;
+using DragonCAD.App.ComponentManager;
+using DragonCAD.Core.Components.Catalog;
 using DragonCAD.Core.Components.Drafts;
 using DragonCAD.Core.Components.Definitions;
 using DragonCAD.Core.Components.Identity;
 using DragonCAD.Core.Geometry;
+using DragonCAD.Core.Libraries.Permanent;
 
 namespace DragonCAD.App.Tests.ComponentEditor;
 
@@ -964,6 +967,89 @@ public sealed class ComponentEditorWorkspaceTests
         Assert.Equal("Blocked: component editor drafts must be saved as drafts before trusted-library promotion.", readiness.Message);
     }
 
+    [Fact]
+    public void TrustedSaveWritesValidAuthoredComponentAndReloadsStablePlaceableRow()
+    {
+        PermanentLibraryImportStore store = new();
+        ComponentEditorTrustedLibrarySaveService saveService = new(store);
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:authored-fx555");
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.SetDisplayName("FX555 Timer");
+        editor.SetManufacturer("Dragon");
+        editor.SetManufacturerPartNumber("FX555");
+        editor.AddPin("1", "GND");
+        editor.AddPin("2", "TRIG");
+        editor.AddSymbol("Timer Symbol");
+        editor.AddFootprint(
+            "SOIC-8",
+            [
+                new ComponentEditorPadDraft("1", new CadPoint(0, 0), new CadVector(60_000, 80_000)),
+                new ComponentEditorPadDraft("2", new CadPoint(100_000, 0), new CadVector(60_000, 80_000))
+            ]);
+        editor.AddPackage("SOIC package", "SOIC-8");
+        editor.MapPinToPad("SOIC package", "2", "2");
+        editor.MapPinToPad("SOIC package", "1", "1");
+
+        ComponentEditorTrustedLibrarySaveResult result = saveService.Save(workspace);
+
+        Assert.True(result.Succeeded);
+        Assert.Empty(result.Diagnostics);
+        Assert.NotNull(result.Component);
+        PermanentLibraryComponentRecord written = Assert.Single(store.Components);
+        Assert.Equal("perm:dragon:authored-fx555", written.CanonicalComponentId.Value);
+        Assert.Equal("dragon:authored-fx555", result.Component.Component.Id.Value);
+        Assert.Equal("FX555 Timer", result.Component.Component.DisplayName);
+        Assert.Equal(["1", "2"], result.Component.Component.Pins.Select(pin => pin.Number));
+        Assert.Equal(["SOIC package: 1 -> 1", "SOIC package: 2 -> 2"], ComponentEditorWorkspace.StartEdit(result.Component.Component).MappingSection.Items.Select(item => item.DisplayText));
+        Assert.Contains(result.Component.Component.Provenance, provenance => provenance.Kind == ComponentProvenanceKind.Manual);
+
+        ComponentDefinition reloaded = ComponentDefinitionSerializer.Deserialize(result.SerializedComponent);
+        Assert.Equal(result.Component.Component, reloaded);
+
+        ComponentManagerRow row = Assert.Single(ComponentManagerViewModel.FromCatalog(new ComponentCatalog([], [reloaded], [])).VerifiedPlaceableComponents);
+        Assert.Equal("FX555 Timer", row.DisplayName);
+        Assert.True(row.CanPlaceWithoutReview);
+        Assert.Equal("VerifiedPlaceable", row.PlacementState.ToString());
+    }
+
+    [Fact]
+    public void TrustedSaveReturnsDiagnosticsAndDoesNotPartiallyWriteInvalidAuthoredComponent()
+    {
+        PermanentLibraryImportStore store = new();
+        ComponentEditorTrustedLibrarySaveService saveService = new(store);
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew("dragon:invalid-authored");
+        workspace.ViewModel.SetDisplayName("Invalid Authored");
+        workspace.ViewModel.AddPin("1", "VIN");
+
+        ComponentEditorTrustedLibrarySaveResult result = saveService.Save(workspace);
+
+        Assert.False(result.Succeeded);
+        Assert.Empty(store.Components);
+        Assert.Null(result.Component);
+        Assert.Equal(
+            [
+                ComponentEditorTrustedLibrarySaveDiagnosticCode.MissingSymbol,
+                ComponentEditorTrustedLibrarySaveDiagnosticCode.MissingFootprint,
+                ComponentEditorTrustedLibrarySaveDiagnosticCode.MissingPackage,
+                ComponentEditorTrustedLibrarySaveDiagnosticCode.MissingMapping
+            ],
+            result.Diagnostics.Select(diagnostic => diagnostic.Code));
+    }
+
+    [Fact]
+    public void TrustedSaveSerializesDeterministicComponentState()
+    {
+        PermanentLibraryImportStore firstStore = new();
+        PermanentLibraryImportStore secondStore = new();
+        ComponentEditorWorkspace firstWorkspace = CompleteAuthoredWorkspace("dragon:deterministic-save");
+        ComponentEditorWorkspace secondWorkspace = CompleteAuthoredWorkspace("dragon:deterministic-save");
+
+        string firstJson = new ComponentEditorTrustedLibrarySaveService(firstStore).Save(firstWorkspace).SerializedComponent;
+        string secondJson = new ComponentEditorTrustedLibrarySaveService(secondStore).Save(secondWorkspace).SerializedComponent;
+
+        Assert.Equal(firstJson, secondJson);
+    }
+
     private static ComponentDefinition ValidComponent(string id, string displayName)
     {
         ComponentPinId pinId = new($"{id}:pin:1");
@@ -1006,5 +1092,27 @@ public sealed class ComponentEditorWorkspaceTests
             Sourcing: [],
             PackageModels3D: [],
             Provenance: []);
+    }
+
+    private static ComponentEditorWorkspace CompleteAuthoredWorkspace(string id)
+    {
+        ComponentEditorWorkspace workspace = ComponentEditorWorkspace.StartNew(id);
+        ComponentEditorViewModel editor = workspace.ViewModel;
+        editor.SetDisplayName("Deterministic Save");
+        editor.SetManufacturer("Dragon");
+        editor.SetManufacturerPartNumber("DET-1");
+        editor.AddPin("2", "OUT");
+        editor.AddPin("1", "IN");
+        editor.AddSymbol("Main");
+        editor.AddFootprint(
+            "SOIC-8",
+            [
+                new ComponentEditorPadDraft("2", new CadPoint(100_000, 0), new CadVector(60_000, 80_000)),
+                new ComponentEditorPadDraft("1", new CadPoint(0, 0), new CadVector(60_000, 80_000))
+            ]);
+        editor.AddPackage("SOIC package", "SOIC-8");
+        editor.MapPinToPad("SOIC package", "2", "2");
+        editor.MapPinToPad("SOIC package", "1", "1");
+        return workspace;
     }
 }
