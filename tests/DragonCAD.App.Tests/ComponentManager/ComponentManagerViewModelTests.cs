@@ -919,6 +919,27 @@ public sealed class ComponentManagerViewModelTests
     }
 
     [Fact]
+    public void TrustedSelectedComponentPlacementIncludesGateUnitOptions()
+    {
+        ComponentCatalog catalog = new(
+            BuiltInDefinitions:
+            [
+                MultiGateComponent()
+            ],
+            UserDefinitions: [],
+            ProjectDefinitions: []);
+        ComponentManagerViewModel viewModel = ComponentManagerViewModel.FromCatalog(catalog);
+
+        Assert.True(viewModel.TryArmSelectedComponentPlacement());
+
+        ComponentPlacementIntent armed = Assert.IsType<ComponentPlacementIntent>(viewModel.ArmedPlacement);
+        Assert.Equal(["A", "B", "PWR"], armed.Units.Select(unit => unit.Name));
+        Assert.Equal(["A", "B", "PWR"], armed.Units.Select(unit => unit.UnitId));
+        Assert.Equal([true, true, false], armed.Units.Select(unit => unit.IsRequired));
+        Assert.Equal([false, false, true], armed.Units.Select(unit => unit.CanPlaceMultiple));
+    }
+
+    [Fact]
     public void ChoosingDifferentTrustedPartReplacesActivePlacementCandidate()
     {
         ComponentCatalog catalog = new(
@@ -1149,4 +1170,65 @@ public sealed class ComponentManagerViewModelTests
             Sourcing: [],
             PackageModels3D: [],
             Provenance: []);
+
+    private static ComponentDefinition MultiGateComponent()
+    {
+        ComponentPinId outA = new("dragon:dual-opamp:pin:out-a");
+        ComponentPinId outB = new("dragon:dual-opamp:pin:out-b");
+        ComponentPinId vcc = new("dragon:dual-opamp:pin:vcc");
+        ComponentSymbolId symbolA = new("dragon:dual-opamp:symbol:a");
+        ComponentSymbolId symbolB = new("dragon:dual-opamp:symbol:b");
+        ComponentSymbolId symbolPower = new("dragon:dual-opamp:symbol:power");
+        ComponentFootprintId footprintId = new("dragon:dual-opamp:footprint:soic8");
+        ComponentVariantId variantId = new("dragon:dual-opamp:variant:soic8");
+
+        return new ComponentDefinition(
+            new ComponentId("dragon:dual-opamp"),
+            "Dual Op Amp",
+            ComponentKind.IntegratedCircuit,
+            "Dragon",
+            "DOP-2",
+            Description: "",
+            Attributes: [],
+            Pins:
+            [
+                new ComponentPin(outA, "OUTA", "1", ComponentPinElectricalType.Output),
+                new ComponentPin(outB, "OUTB", "7", ComponentPinElectricalType.Output),
+                new ComponentPin(vcc, "VCC", "8", ComponentPinElectricalType.Power)
+            ],
+            Gates:
+            [
+                new ComponentGate(new ComponentGateId("dragon:dual-opamp:gate:a"), "A", symbolA, [outA]),
+                new ComponentGate(new ComponentGateId("dragon:dual-opamp:gate:b"), "B", symbolB, [outB]),
+                new ComponentGate(new ComponentGateId("dragon:dual-opamp:gate:pwr"), "PWR", symbolPower, [vcc])
+            ],
+            Symbols:
+            [
+                new ComponentSymbol(
+                    symbolA,
+                    "A",
+                    [new ComponentSymbolPin(outA, new CadPoint(1_000_000, 0), ComponentPinOrientation.Right)],
+                    [new ComponentLine(new CadPoint(-1_000_000, -1_000_000), new CadPoint(1_000_000, 1_000_000))],
+                    []),
+                new ComponentSymbol(
+                    symbolB,
+                    "B",
+                    [new ComponentSymbolPin(outB, new CadPoint(1_000_000, 0), ComponentPinOrientation.Right)],
+                    [new ComponentLine(new CadPoint(-1_000_000, 1_000_000), new CadPoint(1_000_000, -1_000_000))],
+                    []),
+                new ComponentSymbol(
+                    symbolPower,
+                    "PWR",
+                    [new ComponentSymbolPin(vcc, new CadPoint(0, -500_000), ComponentPinOrientation.Down)],
+                    [new ComponentLine(new CadPoint(-500_000, 0), new CadPoint(500_000, 0))],
+                    [])
+            ],
+            Footprints: [Footprint(footprintId, "SOIC-8", padCount: 8)],
+            Variants: [new ComponentVariant(variantId, "SOIC package", footprintId, [new ComponentAttribute("Package", "SOIC-8")])],
+            PinPadMappings: [],
+            Datasheets: [],
+            Sourcing: [],
+            PackageModels3D: [],
+            Provenance: [new ComponentProvenanceRecord(ComponentProvenanceKind.Native, "DragonCAD", "Curated native part")]);
+    }
 }

@@ -36,6 +36,8 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
     private SchematicNetLabel? hoveredNetLabel;
     private string hoverTargetText = "No hover target";
     private ComponentPlacementIntent? activePlacementCandidate;
+    private ComponentPlacementUnit? selectedPlacementUnit;
+    private string activePhysicalReferenceDesignator = "";
     private SchematicPinEndpoint? selectedPinEndpoint;
     private SchematicNetLabel? selectedNetLabel;
     private SchematicComponentTextLabel? selectedComponentTextLabel;
@@ -488,10 +490,13 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
                 string packageText = activePackageLabel == "No package"
                     ? ""
                     : $" package {activePackageLabel}";
+                string unitText = string.IsNullOrWhiteSpace(SelectedComponent.UnitId)
+                    ? ""
+                    : $" unit {SelectedComponent.UnitName} physical {SelectedComponent.PhysicalComponentId}";
                 string attributesText = attributes.Count == 0
                     ? ""
                     : $" attributes {string.Join(", ", attributes.OrderBy(pair => pair.Key, StringComparer.Ordinal).Select(pair => $"{pair.Key}={pair.Value}"))}";
-                return $"Component {SelectedComponent.ReferenceDesignator}: {SelectedComponent.DisplayName}{valueText}{packageText}{attributesText}";
+                return $"Component {SelectedComponent.ReferenceDesignator}: {SelectedComponent.DisplayName}{valueText}{packageText}{unitText}{attributesText}";
             }
 
             if (SelectedPinEndpoint is not null)
@@ -548,10 +553,29 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
             activePlacementCandidate = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(HasActivePlacementCandidate));
+            OnPropertyChanged(nameof(AvailablePlacementUnits));
         }
     }
 
     public bool HasActivePlacementCandidate => ActivePlacementCandidate is not null;
+
+    public IReadOnlyList<ComponentPlacementUnit> AvailablePlacementUnits =>
+        ActivePlacementCandidate?.PlacementUnits ?? [];
+
+    public ComponentPlacementUnit? SelectedPlacementUnit
+    {
+        get => selectedPlacementUnit;
+        private set
+        {
+            if (selectedPlacementUnit == value)
+            {
+                return;
+            }
+
+            selectedPlacementUnit = value;
+            OnPropertyChanged();
+        }
+    }
 
     public bool TryArmComponentPlacement(ComponentPlacementIntent intent)
     {
@@ -565,7 +589,30 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         }
 
         ActivePlacementCandidate = intent;
+        SelectedPlacementUnit = intent.PlacementUnits.FirstOrDefault();
+        activePhysicalReferenceDesignator = "";
         StatusText = $"Placement armed: {intent.DisplayName}. Click the schematic to place; press Escape to cancel.";
+        return true;
+    }
+
+    public bool TrySelectPlacementUnit(string unitId)
+    {
+        if (ActivePlacementCandidate is null)
+        {
+            StatusText = "Choose a trusted placeable component before selecting a unit.";
+            return false;
+        }
+
+        ComponentPlacementUnit? unit = ActivePlacementCandidate.PlacementUnits
+            .FirstOrDefault(candidate => string.Equals(candidate.UnitId, unitId, StringComparison.Ordinal));
+        if (unit is null)
+        {
+            StatusText = $"{ActivePlacementCandidate.DisplayName} does not expose unit {unitId}.";
+            return false;
+        }
+
+        SelectedPlacementUnit = unit;
+        StatusText = $"Placement unit selected: {unit.Name}.";
         return true;
     }
 
@@ -588,6 +635,8 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         }
 
         ActivePlacementCandidate = null;
+        SelectedPlacementUnit = null;
+        activePhysicalReferenceDesignator = "";
         StatusText = "Placement cancelled. Click a schematic object to select it.";
         return true;
     }
@@ -596,26 +645,99 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
     {
         ArgumentNullException.ThrowIfNull(intent);
 
-        string referenceDesignator = $"U{nextComponentNumber++}";
+        ComponentPlacementUnit? unit = SelectedUnitFor(intent);
+        if (unit is not null &&
+            !unit.CanPlaceMultiple &&
+            Components.Any(component =>
+                string.Equals(component.PhysicalComponentId, ActivePhysicalReferenceDesignator(), StringComparison.Ordinal) &&
+                string.Equals(component.UnitId, unit.UnitId, StringComparison.Ordinal)))
+        {
+            StatusText = $"Unit {unit.Name} is already placed for {ActivePhysicalReferenceDesignator()}; select another required unit or invoke an optional unit.";
+            return null!;
+        }
+
+        string referenceRoot = ReferenceRootForPlacement(unit);
+        string physicalComponentId = unit is null ? "" : referenceRoot;
+        string referenceDesignator = unit is null ? referenceRoot : $"{referenceRoot}{unit.Name}";
+        ComponentSymbolPreview symbolPreview = unit?.SymbolPreview ?? intent.SymbolPreview ?? ComponentSymbolPreview.Empty;
         SchematicComponentInstance instance = new(
             Guid.NewGuid().ToString("N"),
             referenceDesignator,
             intent.ComponentId,
             intent.DisplayName,
             placementGrid.Snap(requestedPosition),
-            NormalizeSymbolPreview(intent.SymbolPreview),
+            NormalizeSymbolPreview(symbolPreview),
             intent.FootprintPreview ?? ComponentFootprintPreview.Empty,
             "",
             0,
             false,
-            intent.SymbolPreview is null ? null : SchematicSymbolRenderPreview.FromComponentPreview(intent.SymbolPreview));
+            symbolPreview is null ? null : SchematicSymbolRenderPreview.FromComponentPreview(symbolPreview),
+            PhysicalComponentId: physicalComponentId,
+            UnitId: unit?.UnitId ?? "",
+            UnitName: unit?.Name ?? "",
+            IsRequiredUnit: unit?.IsRequired ?? true,
+            CanPlaceUnitMultiple: unit?.CanPlaceMultiple ?? false);
         Components.Add(instance);
         SelectedComponent = instance;
         SelectedWire = null;
         SelectedWireVertexIndex = null;
         SelectedNetLabel = null;
+        SelectedPlacementUnit = NextPlacementUnitAfter(unit);
         StatusText = $"Placed {referenceDesignator}: {intent.DisplayName}";
         return instance;
+    }
+
+    private ComponentPlacementUnit? SelectedUnitFor(ComponentPlacementIntent intent)
+    {
+        if (intent.PlacementUnits.Count == 0)
+        {
+            return null;
+        }
+
+        return SelectedPlacementUnit is not null &&
+            intent.PlacementUnits.Any(unit => unit.UnitId == SelectedPlacementUnit.UnitId)
+            ? SelectedPlacementUnit
+            : intent.PlacementUnits[0];
+    }
+
+    private string ReferenceRootForPlacement(ComponentPlacementUnit? unit)
+    {
+        if (unit is null)
+        {
+            return $"U{nextComponentNumber++}";
+        }
+
+        if (string.IsNullOrWhiteSpace(activePhysicalReferenceDesignator))
+        {
+            activePhysicalReferenceDesignator = $"U{nextComponentNumber++}";
+        }
+
+        return activePhysicalReferenceDesignator;
+    }
+
+    private string ActivePhysicalReferenceDesignator() =>
+        string.IsNullOrWhiteSpace(activePhysicalReferenceDesignator)
+            ? $"U{nextComponentNumber}"
+            : activePhysicalReferenceDesignator;
+
+    private ComponentPlacementUnit? NextPlacementUnitAfter(ComponentPlacementUnit? unit)
+    {
+        if (ActivePlacementCandidate is null || unit is null)
+        {
+            return null;
+        }
+
+        if (unit.CanPlaceMultiple)
+        {
+            return unit;
+        }
+
+        return ActivePlacementCandidate.PlacementUnits.FirstOrDefault(candidate =>
+            candidate.IsRequired &&
+            !candidate.CanPlaceMultiple &&
+            !Components.Any(component =>
+                string.Equals(component.PhysicalComponentId, ActivePhysicalReferenceDesignator(), StringComparison.Ordinal) &&
+                string.Equals(component.UnitId, candidate.UnitId, StringComparison.Ordinal))) ?? unit;
     }
 
     public void Clear()
@@ -628,6 +750,8 @@ public sealed class SchematicEditorViewModel : INotifyPropertyChanged
         SelectedComponentMetadataDiagnostics.Clear();
         ClearPendingRoutePoints();
         ActivePlacementCandidate = null;
+        SelectedPlacementUnit = null;
+        activePhysicalReferenceDesignator = "";
         PendingWireStart = null;
         PendingWirePreviewPoint = null;
         HoveredPin = null;

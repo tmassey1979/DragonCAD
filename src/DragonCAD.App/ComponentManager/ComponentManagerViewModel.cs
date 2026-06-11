@@ -262,7 +262,8 @@ public sealed class ComponentManagerViewModel : INotifyPropertyChanged
             row.FootprintCount,
             row.Source,
             row.SymbolPreview,
-            row.FootprintPreview);
+            row.FootprintPreview,
+            row.PlacementUnits);
         PlacementDiagnostic = $"Placement armed: {row.DisplayName}";
         return true;
     }
@@ -660,6 +661,7 @@ public sealed record ComponentManagerRow(
     IReadOnlyList<ComponentPackageOption> PackageOptions,
     ComponentSymbolPreview SymbolPreview,
     ComponentFootprintPreview FootprintPreview,
+    IReadOnlyList<ComponentPlacementUnit> PlacementUnits,
     string Value = "",
     string Lifecycle = "Unknown",
     string DatasheetLink = "",
@@ -713,6 +715,7 @@ public sealed record ComponentManagerRow(
             packageOptions,
             ComponentSymbolPreview.FromDefinition(definition),
             ComponentFootprintPreview.FromDefinition(definition),
+            ComponentPlacementUnitOptions.FromDefinition(definition),
             value,
             string.IsNullOrWhiteSpace(lifecycle) ? "Unknown" : lifecycle,
             definition.Datasheets.FirstOrDefault()?.Location ?? "",
@@ -1065,6 +1068,90 @@ public sealed record ComponentSymbolPreview(
 
         return ComponentPreviewBounds.FromPoints(points);
     }
+}
+
+public static class ComponentPlacementUnitOptions
+{
+    public static ComponentPlacementUnit[] FromDefinition(ComponentDefinition definition)
+    {
+        if (definition.Gates.Count == 0)
+        {
+            return [];
+        }
+
+        Dictionary<string, ComponentPin> pinsById = definition.Pins.ToDictionary(pin => pin.Id.Value, StringComparer.Ordinal);
+        Dictionary<string, ComponentSymbol> symbolsById = definition.Symbols.ToDictionary(symbol => symbol.Id.Value, StringComparer.Ordinal);
+        List<ComponentPlacementUnit> units = [];
+        foreach (ComponentGate gate in definition.Gates)
+        {
+            if (!symbolsById.TryGetValue(gate.SymbolId.Value, out ComponentSymbol? symbol))
+            {
+                continue;
+            }
+
+            bool isOptional = gate.PinIds.Count > 0 &&
+                gate.PinIds.All(pinId =>
+                    pinsById.TryGetValue(pinId.Value, out ComponentPin? pin) &&
+                    (pin.ElectricalType == ComponentPinElectricalType.Power || pin.ElectricalType == ComponentPinElectricalType.NoConnect));
+            units.Add(new ComponentPlacementUnit(
+                UnitIdFor(gate),
+                gate.Name,
+                IsRequired: !isOptional,
+                CanPlaceMultiple: isOptional,
+                SymbolPreviewFor(symbol, pinsById)));
+        }
+
+        return units.ToArray();
+    }
+
+    private static string UnitIdFor(ComponentGate gate)
+    {
+        if (!string.IsNullOrWhiteSpace(gate.Name))
+        {
+            return gate.Name;
+        }
+
+        string value = gate.Id.Value;
+        int separator = value.LastIndexOf(':');
+        return separator >= 0 && separator < value.Length - 1
+            ? value[(separator + 1)..]
+            : value;
+    }
+
+    private static ComponentSymbolPreview SymbolPreviewFor(
+        ComponentSymbol symbol,
+        IReadOnlyDictionary<string, ComponentPin> pinsById)
+    {
+        ComponentPreviewLine[] lines = symbol.Lines
+            .Select(line => new ComponentPreviewLine(line.Start, line.End))
+            .ToArray();
+        ComponentSymbolPinPreview[] pins = symbol.Pins
+            .Select(pin =>
+            {
+                pinsById.TryGetValue(pin.PinId.Value, out ComponentPin? componentPin);
+                return new ComponentSymbolPinPreview(
+                    componentPin?.Name ?? pin.PinId.Value,
+                    pin.Position,
+                    BodyPointForPin(pin.Position, pin.Orientation),
+                    pin.Orientation.ToString());
+            })
+            .ToArray();
+
+        return new ComponentSymbolPreview(ComponentPreviewBounds.FromPoints(
+            lines.SelectMany(line => new[] { line.Start, line.End })
+                .Concat(pins.SelectMany(pin => new[] { pin.ConnectPoint, pin.BodyPoint }))
+                .ToArray()), lines, pins);
+    }
+
+    private static CadPoint BodyPointForPin(CadPoint connectPoint, ComponentPinOrientation orientation) =>
+        orientation switch
+        {
+            ComponentPinOrientation.Left => connectPoint + new CadVector(-50_000, 0),
+            ComponentPinOrientation.Right => connectPoint + new CadVector(50_000, 0),
+            ComponentPinOrientation.Up => connectPoint + new CadVector(0, -50_000),
+            ComponentPinOrientation.Down => connectPoint + new CadVector(0, 50_000),
+            _ => connectPoint
+        };
 }
 
 public sealed record ComponentSymbolPinPreview(

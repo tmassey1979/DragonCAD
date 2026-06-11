@@ -9,4 +9,15 @@ public sealed record ComponentPlacementIntent(
     int FootprintCount,
     string Source,
     ComponentSymbolPreview? SymbolPreview = null,
-    ComponentFootprintPreview? FootprintPreview = null);
+    ComponentFootprintPreview? FootprintPreview = null,
+    IReadOnlyList<ComponentPlacementUnit>? Units = null)
+{
+    public IReadOnlyList<ComponentPlacementUnit> PlacementUnits { get; } = Units ?? [];
+}
+
+public sealed record ComponentPlacementUnit(
+    string UnitId,
+    string Name,
+    bool IsRequired,
+    bool CanPlaceMultiple,
+    ComponentSymbolPreview SymbolPreview);

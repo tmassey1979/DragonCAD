@@ -19,6 +19,11 @@ public sealed record SchematicComponentInstance(
     string ActivePackageVariantId = "",
     string ActivePackageFootprintId = "",
     string ActivePackageLabel = "No package",
+    string PhysicalComponentId = "",
+    string UnitId = "",
+    string UnitName = "",
+    bool IsRequiredUnit = true,
+    bool CanPlaceUnitMultiple = false,
     CadPoint? NameTextPosition = null,
     CadPoint? ValueTextPosition = null)
 {

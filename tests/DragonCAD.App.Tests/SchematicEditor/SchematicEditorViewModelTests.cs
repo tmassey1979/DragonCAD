@@ -72,6 +72,90 @@ public sealed class SchematicEditorViewModelTests
     }
 
     [Fact]
+    public void ArmedPlacementListsAvailableGateUnitsForSelectedDevice()
+    {
+        SchematicEditorViewModel editor = new();
+        ComponentPlacementIntent intent = DualOpAmpIntent();
+
+        Assert.True(editor.TryArmComponentPlacement(intent));
+
+        Assert.Equal(["A", "B", "PWR"], editor.AvailablePlacementUnits.Select(unit => unit.Name));
+        Assert.Equal(["A", "B", "PWR"], editor.AvailablePlacementUnits.Select(unit => unit.UnitId));
+        Assert.Equal([true, true, false], editor.AvailablePlacementUnits.Select(unit => unit.IsRequired));
+        Assert.Equal([false, false, true], editor.AvailablePlacementUnits.Select(unit => unit.CanPlaceMultiple));
+        Assert.Equal("A", editor.SelectedPlacementUnit?.UnitId);
+    }
+
+    [Fact]
+    public void PlacingGateUnitRecordsUnitIdAndSharesPhysicalComponentIdentity()
+    {
+        SchematicEditorViewModel editor = new();
+        ComponentPlacementIntent intent = DualOpAmpIntent();
+        editor.TryArmComponentPlacement(intent);
+
+        SchematicComponentInstance? first = editor.PlaceArmedComponentAt(new CadPoint(0, 0));
+        Assert.True(editor.TrySelectPlacementUnit("B"));
+        SchematicComponentInstance? second = editor.PlaceArmedComponentAt(new CadPoint(5_000_000, 0));
+
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Assert.Equal("A", first.UnitId);
+        Assert.Equal("B", second.UnitId);
+        Assert.Equal(first.PhysicalComponentId, second.PhysicalComponentId);
+        Assert.Equal("U1A", first.ReferenceDesignator);
+        Assert.Equal("U1B", second.ReferenceDesignator);
+    }
+
+    [Fact]
+    public void AlreadyPlacedRequiredUniqueUnitCannotBeDuplicatedAndReportsDiagnostic()
+    {
+        SchematicEditorViewModel editor = new();
+        ComponentPlacementIntent intent = DualOpAmpIntent();
+        editor.TryArmComponentPlacement(intent);
+        editor.PlaceArmedComponentAt(new CadPoint(0, 0));
+        Assert.True(editor.TrySelectPlacementUnit("A"));
+
+        SchematicComponentInstance? duplicate = editor.PlaceArmedComponentAt(new CadPoint(5_000_000, 0));
+
+        Assert.Null(duplicate);
+        Assert.Single(editor.Components);
+        Assert.Equal("Unit A is already placed for U1; select another required unit or invoke an optional unit.", editor.StatusText);
+    }
+
+    [Fact]
+    public void OptionalPowerUnitCanBeInvokedIntentionallyMultipleTimes()
+    {
+        SchematicEditorViewModel editor = new();
+        ComponentPlacementIntent intent = DualOpAmpIntent();
+        editor.TryArmComponentPlacement(intent);
+        editor.PlaceArmedComponentAt(new CadPoint(0, 0));
+        Assert.True(editor.TrySelectPlacementUnit("PWR"));
+
+        SchematicComponentInstance? firstPower = editor.PlaceArmedComponentAt(new CadPoint(5_000_000, 0));
+        SchematicComponentInstance? secondPower = editor.PlaceArmedComponentAt(new CadPoint(10_000_000, 0));
+
+        Assert.NotNull(firstPower);
+        Assert.NotNull(secondPower);
+        Assert.Equal("PWR", firstPower.UnitId);
+        Assert.Equal("PWR", secondPower.UnitId);
+        Assert.Equal(firstPower.PhysicalComponentId, secondPower.PhysicalComponentId);
+        Assert.Equal(3, editor.Components.Count);
+    }
+
+    [Fact]
+    public void SelectionSummaryIncludesGateUnitAndSharedPhysicalIdentity()
+    {
+        SchematicEditorViewModel editor = new();
+        ComponentPlacementIntent intent = DualOpAmpIntent();
+        editor.TryArmComponentPlacement(intent);
+        SchematicComponentInstance? placed = editor.PlaceArmedComponentAt(new CadPoint(0, 0));
+
+        editor.SelectedComponent = placed;
+
+        Assert.Equal("Component U1A: Dual Op Amp unit A physical U1", editor.SelectionSummary);
+    }
+
+    [Fact]
     public void CancelPlacementClearsCandidateWithoutDeletingExistingPlacements()
     {
         SchematicEditorViewModel editor = new();
@@ -1752,6 +1836,37 @@ public sealed class SchematicEditorViewModelTests
                     new ComponentPreviewLine(new CadPoint(-1_000_000, 1_000_000), new CadPoint(-1_000_000, -1_000_000))
                 ],
                 [new ComponentSymbolPinPreview(pinName, new CadPoint(1_000_000, 0), new CadPoint(-2_000_000, 0), "Right")]));
+
+    private static ComponentPlacementIntent DualOpAmpIntent()
+    {
+        ComponentSymbolPreview unitA = new(
+            new CadRectangle(-1_000_000, -1_000_000, 1_000_000, 1_000_000),
+            [new ComponentPreviewLine(new CadPoint(-1_000_000, -1_000_000), new CadPoint(1_000_000, 1_000_000))],
+            [new ComponentSymbolPinPreview("OUTA", new CadPoint(1_000_000, 0), new CadPoint(0, 0), "Right")]);
+        ComponentSymbolPreview unitB = new(
+            new CadRectangle(-1_000_000, -1_000_000, 1_000_000, 1_000_000),
+            [new ComponentPreviewLine(new CadPoint(-1_000_000, 1_000_000), new CadPoint(1_000_000, -1_000_000))],
+            [new ComponentSymbolPinPreview("OUTB", new CadPoint(1_000_000, 0), new CadPoint(0, 0), "Right")]);
+        ComponentSymbolPreview power = new(
+            new CadRectangle(-500_000, -500_000, 500_000, 500_000),
+            [new ComponentPreviewLine(new CadPoint(-500_000, 0), new CadPoint(500_000, 0))],
+            [new ComponentSymbolPinPreview("VCC", new CadPoint(0, -500_000), new CadPoint(0, 0), "Down")]);
+
+        return new ComponentPlacementIntent(
+            "dragon:dual-opamp",
+            "Dual Op Amp",
+            SymbolCount: 3,
+            FootprintCount: 1,
+            Source: "BuiltIn",
+            SymbolPreview: unitA,
+            FootprintPreview: ComponentFootprintPreview.Empty,
+            Units:
+            [
+                new ComponentPlacementUnit("A", "A", true, false, unitA),
+                new ComponentPlacementUnit("B", "B", true, false, unitB),
+                new ComponentPlacementUnit("PWR", "PWR", false, true, power)
+            ]);
+    }
 
     private static SchematicEditorViewModel CreateEditorWithRoutedWire()
     {
